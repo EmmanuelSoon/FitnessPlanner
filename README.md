@@ -1,17 +1,18 @@
 # fitness_planner
 
-A new Flutter project.
+## TODO Feature List 
 
-## Getting Started
+- create workout  
+    - able to add name of workout 
+    - add exercise, reps and sets with custom timer 
+    - auto generate the workout with repeated exercises based on the sets 
+- view created workouts 
+- start workout 
+    - exercise has a finish button, immediately starts the rest timer 
+    - audio cue when timer is down to 3 secs 
+- track past history of workouts 
 
-This project is a starting point for a Flutter application.
 
-A few resources to get you started if this is your first Flutter project:
-
-- [Learn Flutter](https://docs.flutter.dev/get-started/learn-flutter)
-- [Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Flutter learning resources](https://docs.flutter.dev/reference/learning-resources)
-
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+# Future Features 
+- calender view of workouts, set reminder of workout 
+- able to view progression of workout compared to the last workout 
