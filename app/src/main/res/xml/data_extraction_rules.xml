@@ -1,9 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<data-extraction-rules>
-    <domain-config>
-        <domain includeSubdomains="true">example.com</domain>
-        <path-filter glob="example-api/v1/*" />
-        <certificate-pin digest="SHA-256">7HIpacR2rO490t+O/M1VkeS6qnxQPTMiJ7xQDntkXIk=</certificate-pin>
-    </domain-config>
-</data-extraction-rules>
-
