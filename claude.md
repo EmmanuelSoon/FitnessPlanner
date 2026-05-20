@@ -1,0 +1,1 @@
+all plans that you create should be placed in the plans folder. you should also name it this way DDMMYY-<title of plan> 

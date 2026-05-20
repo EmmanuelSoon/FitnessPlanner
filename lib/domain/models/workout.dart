@@ -1,12 +1,11 @@
-import 'package:flutter/foundation.dart';
-import 'package:flutter/material.dart';
 import 'exercise.dart';
 
 class Workout {
+  final String id;
   final String name;
   final List<Exercise> exercises;
 
-  Workout({required this.name, required this.exercises});
+  Workout({required this.id, required this.name, required this.exercises});
 
   // Generate complete workout sequence
   List<Exercise> generateWorkoutSequence() {

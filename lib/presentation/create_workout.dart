@@ -36,7 +36,7 @@ class _CreateWorkoutScreenState extends State<CreateWorkoutScreen> {
   void _submitWorkout() {
     if (_formKey.currentState!.validate()) {
       _formKey.currentState!.save();
-      final workout = Workout(name: _workoutName, exercises: _exercises);
+      final workout = Workout(id: '', name: _workoutName, exercises: _exercises);
       final sequence = workout.generateWorkoutSequence();
       // Navigate to preview screen
       Navigator.push(
