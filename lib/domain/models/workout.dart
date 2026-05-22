@@ -7,37 +7,31 @@ class Workout {
 
   Workout({required this.id, required this.name, required this.exercises});
 
-  // Generate complete workout sequence
   List<Exercise> generateWorkoutSequence() {
-    final List<Exercise> sequence = [];
-    for (final exercise in exercises) {
-      sequence.addAll(
-        List.generate(
-          exercise.sets,
-          (index) => Exercise(
-            name: exercise.name,
-            reps: exercise.reps,
-            sets: 1,
-            restTime: exercise.restTime,
-          ),
-        ),
-      );
-    }
-    return sequence;
+    return exercises.expand((e) => e.generateSequence()).toList();
   }
 
-  // Get total duration of workout
   Duration get totalDuration {
-    Duration total = Duration.zero;
     final sequence = generateWorkoutSequence();
-
+    Duration total = Duration.zero;
     for (int i = 0; i < sequence.length; i++) {
-      total += const Duration(seconds: 30); // Exercise time
-      if (i < sequence.length - 1) {
-        total += sequence[i].restTime;
-      }
+      total += const Duration(seconds: 30);
+      if (i < sequence.length - 1) total += sequence[i].restTime;
     }
-
     return total;
   }
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'name': name,
+    'exercises': exercises.map((e) => e.toJson()).toList(),
+  };
+
+  factory Workout.fromJson(Map<String, dynamic> json) => Workout(
+    id: json['id'] as String,
+    name: json['name'] as String,
+    exercises: (json['exercises'] as List)
+        .map((e) => Exercise.fromJson(e as Map<String, dynamic>))
+        .toList(),
+  );
 }

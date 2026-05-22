@@ -14,12 +14,25 @@ class Exercise {
   });
 
   List<Exercise> generateSequence() {
-    final List<Exercise> sequence = [];
-    for (int i = 0; i < sets; i++) {
-      sequence.add(
-        Exercise(name: name, reps: reps, sets: 1, restTime: restTime, weight: weight),
-      );
-    }
-    return sequence;
+    return List.generate(
+      sets,
+      (_) => Exercise(name: name, reps: reps, sets: 1, restTime: restTime, weight: weight),
+    );
   }
+
+  Map<String, dynamic> toJson() => {
+    'name': name,
+    'reps': reps,
+    'sets': sets,
+    'restTimeMicroseconds': restTime.inMicroseconds,
+    'weight': weight,
+  };
+
+  factory Exercise.fromJson(Map<String, dynamic> json) => Exercise(
+    name: json['name'] as String,
+    reps: json['reps'] as int,
+    sets: json['sets'] as int,
+    restTime: Duration(microseconds: json['restTimeMicroseconds'] as int),
+    weight: (json['weight'] as num?)?.toDouble() ?? 0.0,
+  );
 }

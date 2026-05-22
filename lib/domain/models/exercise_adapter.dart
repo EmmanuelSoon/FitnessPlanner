@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'exercise.dart';
 
@@ -7,27 +8,10 @@ class ExerciseAdapter extends TypeAdapter<Exercise> {
   final int typeId = 0;
 
   @override
-  Exercise read(BinaryReader reader) {
-    final name = reader.readString();
-    final reps = reader.readInt();
-    final sets = reader.readInt();
-    final restUs = reader.readInt();
-    final weight = reader.readDouble();
-    return Exercise(
-      name: name,
-      reps: reps,
-      sets: sets,
-      restTime: Duration(microseconds: restUs),
-      weight: weight,
-    );
-  }
+  Exercise read(BinaryReader reader) =>
+      Exercise.fromJson(json.decode(reader.readString()) as Map<String, dynamic>);
 
   @override
-  void write(BinaryWriter writer, Exercise obj) {
-    writer.writeString(obj.name);
-    writer.writeInt(obj.reps);
-    writer.writeInt(obj.sets);
-    writer.writeInt(obj.restTime.inMicroseconds);
-    writer.writeDouble(obj.weight);
-  }
+  void write(BinaryWriter writer, Exercise obj) =>
+      writer.writeString(json.encode(obj.toJson()));
 }

@@ -19,11 +19,23 @@ In `README.md`, change the three Setup checkboxes from `[ ]` to `[x]`.
 - Update the constructor to include `weight`
 - Update `generateSequence()` to pass `weight` through to each sequence item
 
+**File:** `lib/domain/models/exercise.dart`
+
+- Add `toJson()` and `factory Exercise.fromJson()` — new fields only need a `?? default` in `fromJson`, so schema migrations are never needed again.
+
 **File:** `lib/domain/models/exercise_adapter.dart`
 
-- In `write()`: append `writer.writeDouble(obj.weight)` after existing fields
-- In `read()`: append `final weight = reader.readDouble()` and pass to constructor
-- **Dev note:** Hive binary format is positional — existing stored data won't have this byte. During development, clear the box once via `Hive.deleteBoxFromDisk('workouts')` in `main()` (remove after first run).
+- Replace binary field-by-field read/write with a single JSON string: adapter calls `json.encode(obj.toJson())` on write and `Exercise.fromJson(json.decode(...))` on read.
+
+**File:** `lib/domain/models/workout.dart`
+
+- Add `toJson()` and `factory Workout.fromJson()`.
+
+**File:** `lib/domain/models/workout_adapter.dart`
+
+- Same JSON string approach as ExerciseAdapter.
+
+**One-time migration note:** switching from binary to JSON still requires `Hive.deleteBoxFromDisk('workouts')` in `main()` for the first run (added with comment). Remove it after first run — future field additions need no migration, just a `?? default` in `fromJson`.
 
 ---
 
