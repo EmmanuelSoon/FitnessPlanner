@@ -12,11 +12,13 @@ class ExerciseAdapter extends TypeAdapter<Exercise> {
     final reps = reader.readInt();
     final sets = reader.readInt();
     final restUs = reader.readInt();
+    final weight = reader.readDouble();
     return Exercise(
       name: name,
       reps: reps,
       sets: sets,
       restTime: Duration(microseconds: restUs),
+      weight: weight,
     );
   }
 
@@ -26,5 +28,6 @@ class ExerciseAdapter extends TypeAdapter<Exercise> {
     writer.writeInt(obj.reps);
     writer.writeInt(obj.sets);
     writer.writeInt(obj.restTime.inMicroseconds);
+    writer.writeDouble(obj.weight);
   }
 }

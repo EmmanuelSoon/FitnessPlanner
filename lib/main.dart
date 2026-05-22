@@ -11,6 +11,7 @@ void main() async {
   await Hive.initFlutter();
   Hive.registerAdapter(ExerciseAdapter());
   Hive.registerAdapter(WorkoutAdapter());
+  await Hive.deleteBoxFromDisk('workouts'); // remove after first run — clears old data without weight field
   await Hive.openBox<Workout>('workouts');
 
   runApp(const ProviderScope(child: FitnessPlannerApp()));

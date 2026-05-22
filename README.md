@@ -4,9 +4,9 @@
 The minimum viable app. All of these must be done before the app is usable.
 
 ### Setup
-- [ ] Wire up main.dart to the fitness planner (remove default counter app)
-- [ ] Add state management (Riverpod or Provider)
-- [ ] Add local persistence (Hive or sqflite)
+- [x] Wire up main.dart to the fitness planner (remove default counter app)
+- [x] Add state management (Riverpod or Provider)
+- [x] Add local persistence (Hive or sqflite)
 
 ### Create Workout
 - [ ] Fix ExerciseCard: replace display-only text with editable TextFormFields (name, reps, sets, rest time)
