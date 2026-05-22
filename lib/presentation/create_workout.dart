@@ -30,7 +30,7 @@ class _CreateWorkoutScreenState extends State<CreateWorkoutScreen> {
     });
   }
 
-  void _submitWorkout() {
+  Future<void> _submitWorkout() async {
     if (!_formKey.currentState!.validate()) return;
     _formKey.currentState!.save();
 
@@ -46,7 +46,7 @@ class _CreateWorkoutScreenState extends State<CreateWorkoutScreen> {
       name: _workoutName,
       exercises: _exercises,
     );
-    Navigator.push(
+    final saved = await Navigator.push<bool>(
       context,
       MaterialPageRoute(
         builder: (context) => WorkoutPreviewScreen(
@@ -55,6 +55,10 @@ class _CreateWorkoutScreenState extends State<CreateWorkoutScreen> {
         ),
       ),
     );
+    if (saved == true) {
+      setState(() => _exercises.clear());
+      _formKey.currentState?.reset();
+    }
   }
 
   @override
@@ -228,7 +232,7 @@ class _WorkoutPreviewScreenState extends ConsumerState<WorkoutPreviewScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Workout saved!')),
     );
-    Navigator.pop(context);
+    Navigator.pop(context, true);
   }
 
   @override
