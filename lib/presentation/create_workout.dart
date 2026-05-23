@@ -2,10 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:fitness_planner/domain/models/exercise.dart';
 import 'package:fitness_planner/domain/models/workout.dart';
-import 'package:fitness_planner/data/workout_repository.dart';
+import 'package:fitness_planner/providers/workout_providers.dart';
 
 class CreateWorkoutScreen extends StatefulWidget {
-  const CreateWorkoutScreen({super.key});
+  final Workout? existingWorkout;
+  const CreateWorkoutScreen({super.key, this.existingWorkout});
 
   @override
   State<CreateWorkoutScreen> createState() => _CreateWorkoutScreenState();
@@ -15,6 +16,24 @@ class _CreateWorkoutScreenState extends State<CreateWorkoutScreen> {
   final _formKey = GlobalKey<FormState>();
   String _workoutName = '';
   final List<Exercise> _exercises = [];
+
+  @override
+  void initState() {
+    super.initState();
+    final existing = widget.existingWorkout;
+    if (existing != null) {
+      _workoutName = existing.name;
+      _exercises.addAll(existing.exercises.map(
+        (e) => Exercise(
+          name: e.name,
+          reps: e.reps,
+          sets: e.sets,
+          restTime: e.restTime,
+          weight: e.weight,
+        ),
+      ));
+    }
+  }
 
   void _addExercise() {
     setState(() {
@@ -42,7 +61,7 @@ class _CreateWorkoutScreenState extends State<CreateWorkoutScreen> {
     }
 
     final workout = Workout(
-      id: DateTime.now().millisecondsSinceEpoch.toString(),
+      id: widget.existingWorkout?.id ?? DateTime.now().millisecondsSinceEpoch.toString(),
       name: _workoutName,
       exercises: _exercises,
     );
@@ -56,15 +75,21 @@ class _CreateWorkoutScreenState extends State<CreateWorkoutScreen> {
       ),
     );
     if (saved == true) {
-      setState(() => _exercises.clear());
-      _formKey.currentState?.reset();
+      if (widget.existingWorkout != null) {
+        if (mounted) Navigator.pop(context);
+      } else {
+        setState(() => _exercises.clear());
+        _formKey.currentState?.reset();
+      }
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Create Workout')),
+      appBar: AppBar(
+        title: Text(widget.existingWorkout == null ? 'Create Workout' : 'Edit Workout'),
+      ),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Form(
@@ -72,6 +97,7 @@ class _CreateWorkoutScreenState extends State<CreateWorkoutScreen> {
           child: Column(
             children: [
               TextFormField(
+                initialValue: _workoutName,
                 decoration: const InputDecoration(labelText: 'Workout Name'),
                 validator: (v) => (v == null || v.isEmpty) ? 'Please enter a workout name' : null,
                 onSaved: (v) => _workoutName = v!,
@@ -227,7 +253,7 @@ class WorkoutPreviewScreen extends ConsumerStatefulWidget {
 
 class _WorkoutPreviewScreenState extends ConsumerState<WorkoutPreviewScreen> {
   Future<void> _saveWorkout() async {
-    await ref.read(workoutRepositoryProvider).save(widget.workout);
+    await ref.read(workoutsProvider.notifier).saveWorkout(widget.workout);
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Workout saved!')),
