@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:fitness_planner/domain/models/workout.dart';
 import 'package:fitness_planner/providers/workout_providers.dart';
 import 'package:fitness_planner/presentation/create_workout.dart';
+import 'package:fitness_planner/presentation/workout_session_screen.dart';
+import 'package:fitness_planner/presentation/history_screen.dart';
 
 class WorkoutListScreen extends ConsumerWidget {
   const WorkoutListScreen({super.key});
@@ -11,7 +13,18 @@ class WorkoutListScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final workoutsAsync = ref.watch(workoutsProvider);
     return Scaffold(
-      appBar: AppBar(title: const Text('My Workouts')),
+      appBar: AppBar(
+        title: const Text('My Workouts'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.history),
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const HistoryScreen()),
+            ),
+          ),
+        ],
+      ),
       floatingActionButton: FloatingActionButton(
         onPressed: () => Navigator.push(
           context,
@@ -73,7 +86,13 @@ class _WorkoutCard extends ConsumerWidget {
         title: Text(workout.name,
             style: Theme.of(context).textTheme.headlineSmall),
         subtitle: Text(
-            '${workout.exercises.length} exercises · ${durationMinutes}min'),
+            '${workout.exercises.length} exercises · ${durationMinutes}min · Tap to start'),
+        onTap: () => Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => WorkoutSessionScreen(workout: workout),
+          ),
+        ),
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
           children: [

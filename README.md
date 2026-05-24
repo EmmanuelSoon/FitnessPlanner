@@ -18,15 +18,15 @@ The minimum viable app. All of these must be done before the app is usable.
 - [x] Edit/delete existing workouts
 
 ### Start Workout
-- [ ] Workout execution screen — step through generated sequence
-- [ ] Finish button per exercise → immediately starts rest timer
-- [ ] Audio cue when rest timer reaches 3 seconds
-- [ ] Pause/resume workout
-- [ ] Skip exercise
+- [x] Workout execution screen — step through generated sequence
+- [x] Finish button per exercise → immediately starts rest timer
+- [x] Audio cue when rest timer reaches 3 seconds
+- [x] Pause/resume workout
+- [x] Skip exercise
 
 ### History
-- [ ] Workout log screen — list of past sessions with date and duration
-- [ ] Log actual weight/reps done per exercise during a session (weight optional for bodyweight/calisthenics exercises)
+- [x] Workout log screen — list of past sessions with date and duration
+- [x] Log actual weight/reps done per exercise during a session (weight optional for bodyweight/calisthenics exercises)
 
 ## Phase 2
 - Adjust reps/weight on the fly during a workout (vs planned); weight field remains optional for calisthenics
@@ -34,7 +34,8 @@ The minimum viable app. All of these must be done before the app is usable.
 - Duplicate workout — copy an existing workout as a starting point
 - Exercise library — preset list of exercises with categories (chest, legs, back…), including common calisthenics movements (pull-ups, dips, push-up variations, etc.)
 - Reorder exercises via drag-and-drop
-- Calendar view of workouts with reminders
+- Calendar view of workouts with reminders (notify user of workout for the day)
+- Allow instead of reps, it is a timer for hold exercises
 
 ## Future Features
 - Progression charts — weight over time per exercise (or reps/sets progression for bodyweight exercises)

@@ -3,7 +3,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'domain/models/exercise_adapter.dart';
 import 'domain/models/workout_adapter.dart';
+import 'domain/models/workout_session_adapter.dart';
+import 'domain/models/logged_set_adapter.dart';
 import 'domain/models/workout.dart';
+import 'domain/models/workout_session.dart';
 import 'presentation/workout_list_screen.dart';
 
 void main() async {
@@ -11,7 +14,10 @@ void main() async {
   await Hive.initFlutter();
   Hive.registerAdapter(ExerciseAdapter());
   Hive.registerAdapter(WorkoutAdapter());
+  Hive.registerAdapter(WorkoutSessionAdapter());
+  Hive.registerAdapter(LoggedSetAdapter());
   await Hive.openBox<Workout>('workouts');
+  await Hive.openBox<WorkoutSession>('sessions');
 
   runApp(const ProviderScope(child: FitnessPlannerApp()));
 }

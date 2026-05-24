@@ -63,7 +63,7 @@ class _CreateWorkoutScreenState extends State<CreateWorkoutScreen> {
     final workout = Workout(
       id: widget.existingWorkout?.id ?? DateTime.now().millisecondsSinceEpoch.toString(),
       name: _workoutName,
-      exercises: _exercises,
+      exercises: List.of(_exercises), // snapshot so later _exercises.clear() can't corrupt it
     );
     final saved = await Navigator.push<bool>(
       context,
