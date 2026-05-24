@@ -86,19 +86,16 @@ class _WorkoutCard extends ConsumerWidget {
         title: Text(workout.name,
             style: Theme.of(context).textTheme.headlineSmall),
         subtitle: Text(
-            '${workout.exercises.length} exercises · ${durationMinutes}min'),
+            '${workout.exercises.length} exercises · ${durationMinutes}min · Tap to start'),
+        onTap: () => Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => WorkoutSessionScreen(workout: workout),
+          ),
+        ),
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            IconButton(
-              icon: const Icon(Icons.play_arrow),
-              onPressed: () => Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => WorkoutSessionScreen(workout: workout),
-                ),
-              ),
-            ),
             IconButton(
               icon: const Icon(Icons.edit),
               onPressed: () => Navigator.push(

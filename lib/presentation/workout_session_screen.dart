@@ -89,6 +89,11 @@ class _WorkoutSessionScreenState extends ConsumerState<WorkoutSessionScreen> {
       return;
     }
     final restSeconds = _sequence[_index].restTime.inSeconds;
+    // Skip rest entirely when rest time is 0
+    if (restSeconds <= 0) {
+      _endRest();
+      return;
+    }
     setState(() {
       _isResting = true;
       _restSecondsRemaining = restSeconds;
@@ -212,7 +217,32 @@ class _WorkoutSessionScreenState extends ConsumerState<WorkoutSessionScreen> {
                 ]
               : [],
         ),
-        body: _isResting ? _buildRestView() : _buildExerciseView(),
+        body: _sequence.isEmpty
+            ? _buildEmptyState()
+            : (_isResting ? _buildRestView() : _buildExerciseView()),
+      ),
+    );
+  }
+
+  Widget _buildEmptyState() {
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.warning_amber_rounded, size: 64, color: Colors.orange),
+          const SizedBox(height: 16),
+          const Text(
+            'This workout has no sets to perform.',
+            style: TextStyle(fontSize: 18),
+          ),
+          const SizedBox(height: 8),
+          const Text('Edit the workout to add exercises with sets > 0.'),
+          const SizedBox(height: 24),
+          ElevatedButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Go Back'),
+          ),
+        ],
       ),
     );
   }
