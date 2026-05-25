@@ -1,4 +1,4 @@
-# fitness_planner
+# PlateUp
 
 ## MVP
 The minimum viable app. All of these must be done before the app is usable.
