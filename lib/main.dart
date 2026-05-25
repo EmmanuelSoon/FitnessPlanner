@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'domain/models/exercise_adapter.dart';
+import 'domain/models/superset_adapter.dart';
 import 'domain/models/workout_adapter.dart';
 import 'domain/models/workout_session_adapter.dart';
 import 'domain/models/logged_set_adapter.dart';
@@ -16,6 +17,7 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Hive.initFlutter();
   Hive.registerAdapter(ExerciseAdapter());
+  Hive.registerAdapter(SupersetAdapter());
   Hive.registerAdapter(WorkoutAdapter());
   Hive.registerAdapter(WorkoutSessionAdapter());
   Hive.registerAdapter(LoggedSetAdapter());
