@@ -1,14 +1,19 @@
 import 'dart:async';
 import 'dart:math' as math;
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:fitness_planner/domain/models/exercise.dart';
+import 'package:audioplayers/audioplayers.dart';
+import 'package:vibration/vibration.dart';
+import 'package:wakelock_plus/wakelock_plus.dart';
 import 'package:fitness_planner/domain/models/workout.dart';
+import 'package:fitness_planner/domain/models/workout_slot.dart';
 import 'package:fitness_planner/domain/models/workout_session.dart';
 import 'package:fitness_planner/domain/models/logged_set.dart';
 import 'package:fitness_planner/providers/session_providers.dart';
 import 'package:fitness_planner/presentation/widgets/app_widgets.dart';
+import 'package:fitness_planner/presentation/workout_complete_screen.dart';
 import 'package:fitness_planner/theme/app_theme.dart';
 
 class WorkoutSessionScreen extends ConsumerStatefulWidget {
@@ -22,21 +27,30 @@ class WorkoutSessionScreen extends ConsumerStatefulWidget {
 
 class _WorkoutSessionScreenState
     extends ConsumerState<WorkoutSessionScreen> {
-  late final List<Exercise> _sequence;
+  late final List<WorkoutSlot> _sequence;
   late final DateTime _startedAt;
 
   int _index = 0;
   final List<LoggedSet> _logged = [];
 
+  // Rest timer
   Timer? _restTimer;
   int _restSecondsRemaining = 0;
   int _restTotal = 0;
   bool _isResting = false;
   bool _isPaused = false;
 
-  // Stopwatch for elapsed time
+  // Elapsed timer
   Timer? _elapsedTimer;
   int _elapsedSeconds = 0;
+
+  // Countdown (Phase 2.3)
+  bool _isCountingDown = true;
+  int _countdownSeconds = 5;
+  Timer? _countdownTimer;
+
+  // Audio (Phase 2.2)
+  late final AudioPlayer _audioPlayer;
 
   final _actualRepsCtrl = TextEditingController();
   final _actualWeightCtrl = TextEditingController();
@@ -44,37 +58,139 @@ class _WorkoutSessionScreenState
   @override
   void initState() {
     super.initState();
-    _sequence = widget.workout.generateWorkoutSequence();
+    WakelockPlus.enable();
+    _sequence = widget.workout.generateWorkoutSlots();
     _startedAt = DateTime.now();
-    _prefillControllers();
-    _elapsedTimer = Timer.periodic(const Duration(seconds: 1), (_) {
-      if (mounted) setState(() => _elapsedSeconds++);
-    });
+    _audioPlayer = AudioPlayer();
+    if (_sequence.isNotEmpty) {
+      _prefillControllers();
+      _startCountdown();
+    } else {
+      _isCountingDown = false;
+    }
   }
 
   @override
   void dispose() {
+    WakelockPlus.disable();
     _restTimer?.cancel();
     _elapsedTimer?.cancel();
+    _countdownTimer?.cancel();
+    _audioPlayer.dispose();
     _actualRepsCtrl.dispose();
     _actualWeightCtrl.dispose();
     super.dispose();
   }
 
+  // ─── Countdown (Phase 2.3) ───────────────────────────────────────────
+  void _startCountdown() {
+    _countdownTimer = Timer.periodic(const Duration(seconds: 1), (t) {
+      if (!mounted) { t.cancel(); return; }
+      if (_countdownSeconds <= 1) {
+        t.cancel();
+        setState(() {
+          _isCountingDown = false;
+          _countdownSeconds = 0;
+        });
+        _vibrate(250);
+        HapticFeedback.heavyImpact();
+        _startElapsedTimer();
+      } else {
+        setState(() => _countdownSeconds--);
+        _beep();
+      }
+    });
+  }
+
+  void _startElapsedTimer() {
+    _elapsedTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (mounted) setState(() => _elapsedSeconds++);
+    });
+  }
+
+  // ─── Feedback helpers (Phase 2.2) ────────────────────────────────────
+  Future<void> _beep() async {
+    try {
+      await _audioPlayer.play(BytesSource(_generateBeepWav()));
+    } catch (_) {
+      // Ignore if audio fails — vibration is primary feedback
+    }
+    _vibrate(80);
+  }
+
+  void _vibrate(int durationMs) {
+    Vibration.hasVibrator().then((has) {
+      if (has == true) {
+        Vibration.vibrate(duration: durationMs);
+      } else {
+        HapticFeedback.mediumImpact();
+      }
+    });
+  }
+
+  /// Generates a 250 ms 880 Hz sine-wave WAV in memory — no bundled asset needed.
+  Uint8List _generateBeepWav({
+    double frequency = 880.0,
+    int durationMs = 250,
+    int sampleRate = 44100,
+  }) {
+    final numSamples = (sampleRate * durationMs / 1000).round();
+    final pcm = Int16List(numSamples);
+    for (int i = 0; i < numSamples; i++) {
+      final t = i / sampleRate;
+      // Fade in/out over first/last 10 ms to avoid clicks
+      final fadeSamples = (sampleRate * 0.01).round();
+      double envelope = 1.0;
+      if (i < fadeSamples) envelope = i / fadeSamples;
+      if (i > numSamples - fadeSamples) {
+        envelope = (numSamples - i) / fadeSamples;
+      }
+      pcm[i] = (32767 * 0.5 * envelope * math.sin(2 * math.pi * frequency * t))
+          .round()
+          .clamp(-32768, 32767);
+    }
+
+    final header = ByteData(44);
+    final dataLen = numSamples * 2;
+    // RIFF header
+    for (final entry in {
+      0: 0x52, 1: 0x49, 2: 0x46, 3: 0x46, // 'RIFF'
+      8: 0x57, 9: 0x41, 10: 0x56, 11: 0x45, // 'WAVE'
+      12: 0x66, 13: 0x6D, 14: 0x74, 15: 0x20, // 'fmt '
+      36: 0x64, 37: 0x61, 38: 0x74, 39: 0x61, // 'data'
+    }.entries) {
+      header.setUint8(entry.key, entry.value);
+    }
+    header.setUint32(4, 36 + dataLen, Endian.little);
+    header.setUint32(16, 16, Endian.little);  // fmt chunk size
+    header.setUint16(20, 1, Endian.little);   // PCM
+    header.setUint16(22, 1, Endian.little);   // mono
+    header.setUint32(24, sampleRate, Endian.little);
+    header.setUint32(28, sampleRate * 2, Endian.little); // byte rate
+    header.setUint16(32, 2, Endian.little);   // block align
+    header.setUint16(34, 16, Endian.little);  // bits per sample
+    header.setUint32(40, dataLen, Endian.little);
+
+    final bytes = Uint8List(44 + dataLen);
+    bytes.setAll(0, header.buffer.asUint8List());
+    bytes.setAll(44, pcm.buffer.asUint8List());
+    return bytes;
+  }
+
+  // ─── Exercise helpers ────────────────────────────────────────────────
   void _prefillControllers() {
     if (_index < _sequence.length) {
-      final e = _sequence[_index];
+      final e = _sequence[_index].exercise;
       _actualRepsCtrl.text = e.reps.toString();
       _actualWeightCtrl.text = e.weight.toString();
     }
   }
 
   void _finishSet() {
-    final e = _sequence[_index];
-    final actualReps =
-        int.tryParse(_actualRepsCtrl.text) ?? e.reps;
-    final actualWeight =
-        double.tryParse(_actualWeightCtrl.text) ?? e.weight;
+    final slot = _sequence[_index];
+    final e = slot.exercise;
+    final actualReps = int.tryParse(_actualRepsCtrl.text) ?? e.reps;
+    final actualWeight = double.tryParse(_actualWeightCtrl.text) ?? e.weight;
     _logged.add(LoggedSet(
       exerciseName: e.name,
       targetReps: e.reps,
@@ -83,11 +199,13 @@ class _WorkoutSessionScreenState
       actualWeight: actualWeight,
       skipped: false,
     ));
+    _vibrate(150);
     _advance();
   }
 
   void _skipSet() {
-    final e = _sequence[_index];
+    final slot = _sequence[_index];
+    final e = slot.exercise;
     _logged.add(LoggedSet(
       exerciseName: e.name,
       targetReps: e.reps,
@@ -104,15 +222,21 @@ class _WorkoutSessionScreenState
       _finishWorkout(completed: true);
       return;
     }
-    final restSeconds = _sequence[_index].restTime.inSeconds;
-    if (restSeconds <= 0) {
-      _endRest();
+    final slot = _sequence[_index];
+    final restSecs = slot.restAfter.inSeconds;
+    if (restSecs <= 0) {
+      // Intra-superset instant transition
+      setState(() {
+        _index++;
+        _isResting = false;
+      });
+      _prefillControllers();
       return;
     }
     setState(() {
       _isResting = true;
-      _restSecondsRemaining = restSeconds;
-      _restTotal = restSeconds;
+      _restSecondsRemaining = restSecs;
+      _restTotal = restSecs;
       _isPaused = false;
     });
     _startRestTimer();
@@ -121,15 +245,10 @@ class _WorkoutSessionScreenState
   void _startRestTimer() {
     _restTimer?.cancel();
     _restTimer = Timer.periodic(const Duration(seconds: 1), (t) {
-      if (!mounted) {
-        t.cancel();
-        return;
-      }
+      if (!mounted) { t.cancel(); return; }
       setState(() => _restSecondsRemaining--);
-      if (_restSecondsRemaining <= 3 &&
-          _restSecondsRemaining > 0) {
-        SystemSound.play(SystemSoundType.alert);
-        HapticFeedback.mediumImpact();
+      if (_restSecondsRemaining <= 3 && _restSecondsRemaining > 0) {
+        _beep();
       }
       if (_restSecondsRemaining <= 0) {
         t.cancel();
@@ -153,9 +272,15 @@ class _WorkoutSessionScreenState
     _endRest();
   }
 
-  void _addRestTime(int extraSeconds) {
-    setState(
-        () => _restSecondsRemaining += extraSeconds);
+  void _addRestTime(int extra) {
+    setState(() => _restSecondsRemaining += extra);
+  }
+
+  void _subtractRestTime(int secs) {
+    setState(() {
+      _restSecondsRemaining =
+          (_restSecondsRemaining - secs).clamp(0, _restTotal + 3600);
+    });
   }
 
   void _endRest() {
@@ -170,6 +295,7 @@ class _WorkoutSessionScreenState
   Future<void> _finishWorkout({required bool completed}) async {
     _restTimer?.cancel();
     _elapsedTimer?.cancel();
+    WakelockPlus.disable();
     final session = WorkoutSession(
       id: DateTime.now().millisecondsSinceEpoch.toString(),
       workoutId: widget.workout.id,
@@ -181,15 +307,25 @@ class _WorkoutSessionScreenState
     );
     await ref.read(sessionsProvider.notifier).saveSession(session);
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-          content:
-              Text(completed ? 'Workout complete!' : 'Progress saved.')),
-    );
-    Navigator.of(context).pop();
+    if (completed) {
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(
+          builder: (_) => WorkoutCompleteScreen(session: session),
+        ),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Progress saved.')),
+      );
+      Navigator.of(context).pop();
+    }
   }
 
   Future<void> _handleBackPressed() async {
+    if (_logged.isEmpty && _isCountingDown) {
+      Navigator.of(context).pop();
+      return;
+    }
     if (_logged.isEmpty) {
       Navigator.of(context).pop();
       return;
@@ -239,8 +375,7 @@ class _WorkoutSessionScreenState
                     letterSpacing: -0.3)),
             const SizedBox(height: 10),
             Text('Save your partial progress to history?',
-                style: bodyStyle(
-                    fontSize: 14, color: c.inkDim, height: 1.5)),
+                style: bodyStyle(fontSize: 14, color: c.inkDim, height: 1.5)),
             const SizedBox(height: 20),
             Row(
               children: [
@@ -248,14 +383,12 @@ class _WorkoutSessionScreenState
                     child: AppButton(
                         label: 'Discard',
                         kind: ButtonKind.outline,
-                        onPressed: () =>
-                            Navigator.pop(ctx, 'discard'))),
+                        onPressed: () => Navigator.pop(ctx, 'discard'))),
                 const SizedBox(width: 10),
                 Expanded(
                     child: AppButton(
                         label: 'Save progress',
-                        onPressed: () =>
-                            Navigator.pop(ctx, 'save'))),
+                        onPressed: () => Navigator.pop(ctx, 'save'))),
               ],
             ),
           ],
@@ -264,12 +397,27 @@ class _WorkoutSessionScreenState
     );
   }
 
+  // ─── Progress helpers ────────────────────────────────────────────────
+  List<String> get _orderedSupersetIds {
+    final seen = <String>[];
+    for (final slot in _sequence) {
+      if (!seen.contains(slot.supersetId)) seen.add(slot.supersetId);
+    }
+    return seen;
+  }
+
+  int get _currentSupersetIndex =>
+      _orderedSupersetIds.indexOf(_sequence[_index].supersetId);
+
+  int get _totalSupersets => _orderedSupersetIds.length;
+
   String _fmtElapsed() {
     final m = _elapsedSeconds ~/ 60;
     final s = _elapsedSeconds % 60;
     return '${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
   }
 
+  // ─── Build ────────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
     return PopScope(
@@ -279,10 +427,13 @@ class _WorkoutSessionScreenState
       },
       child: _sequence.isEmpty
           ? _buildEmptyState()
-          : (_isResting ? _buildRestView() : _buildExerciseView()),
+          : _isCountingDown
+              ? _buildCountdownView()
+              : (_isResting ? _buildRestView() : _buildExerciseView()),
     );
   }
 
+  // ─── Empty state ─────────────────────────────────────────────────────
   Widget _buildEmptyState() {
     final theme = AppThemeData.of(context);
     final c = theme.c;
@@ -295,22 +446,18 @@ class _WorkoutSessionScreenState
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(Icons.warning_amber_rounded,
-                    size: 56, color: c.inkMute),
+                Icon(Icons.warning_amber_rounded, size: 56, color: c.inkMute),
                 const SizedBox(height: 18),
                 Text(
                   'No sets to perform',
                   style: displayStyle(
-                      fontSize: 24,
-                      fontWeight: FontWeight.w500,
-                      color: c.ink),
+                      fontSize: 24, fontWeight: FontWeight.w500, color: c.ink),
                   textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 10),
                 Text(
                   'Edit the workout to add exercises with sets > 0.',
-                  style: bodyStyle(
-                      fontSize: 14, color: c.inkDim, height: 1.5),
+                  style: bodyStyle(fontSize: 14, color: c.inkDim, height: 1.5),
                   textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 24),
@@ -327,40 +474,15 @@ class _WorkoutSessionScreenState
     );
   }
 
-  // ─── Active exercise view ────────────────────────────────────────────
-  Widget _buildExerciseView() {
+  // ─── Countdown view (Phase 2.3) ───────────────────────────────────────
+  Widget _buildCountdownView() {
     final theme = AppThemeData.of(context);
     final c = theme.c;
-    final e = _sequence[_index];
-    final nextEx =
-        _index + 1 < _sequence.length ? _sequence[_index + 1] : null;
-
-    // Compute set progress: count how many completed sets belong to
-    // this exercise by looking backward in the logged list.
-    final completedSetsSoFar = _logged
-        .where((l) => l.exerciseName == e.name)
-        .length;
-
-    // Total sets for this exercise in the sequence
-    final totalSetsForExercise =
-        _sequence.where((s) => s.name == e.name).length;
-    final currentSetIndex = completedSetsSoFar;
-
-    // Overall exercise progress
-    final exercisesDone = _logged
-        .map((l) => l.exerciseName)
-        .toSet()
-        .where((name) =>
-            _sequence.where((s) => s.name == name).length ==
-            _logged.where((l) => l.exerciseName == name).length)
-        .length;
-
     return Scaffold(
       backgroundColor: c.bg,
       body: SafeArea(
         child: Column(
           children: [
-            // Header: close + elapsed timer
             Padding(
               padding: const EdgeInsets.fromLTRB(8, 14, 8, 14),
               child: Row(
@@ -369,30 +491,87 @@ class _WorkoutSessionScreenState
                     icon: Icons.close_rounded,
                     onPressed: _handleBackPressed,
                   ),
-                  const Spacer(),
-                  Text(
-                    _fmtElapsed(),
-                    style: monoStyle(
-                      fontSize: 12,
-                      color: c.inkDim,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
                 ],
               ),
             ),
-            // Progress info
+            Expanded(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    'GET READY',
+                    style: bodyStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                      color: c.inkMute,
+                      letterSpacing: 1.5,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    '$_countdownSeconds',
+                    style: displayStyle(
+                      fontSize: 120,
+                      fontWeight: FontWeight.w400,
+                      color: c.ink,
+                      letterSpacing: -8,
+                      height: 1.0,
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  Text(
+                    widget.workout.name,
+                    style: bodyStyle(fontSize: 15, color: c.inkDim),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ─── Active exercise view ─────────────────────────────────────────────
+  Widget _buildExerciseView() {
+    final theme = AppThemeData.of(context);
+    final c = theme.c;
+    final slot = _sequence[_index];
+    final e = slot.exercise;
+    final nextSlot = _index + 1 < _sequence.length ? _sequence[_index + 1] : null;
+
+    final currentSetIndex = slot.setNum - 1;
+    final totalSets = slot.totalSets;
+    final supersetIdx = _currentSupersetIndex;
+
+    return Scaffold(
+      backgroundColor: c.bg,
+      body: SafeArea(
+        child: Column(
+          children: [
+            // ── Header (close button only) ───────────────────────────
             Padding(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 22),
+              padding: const EdgeInsets.fromLTRB(8, 14, 8, 0),
+              child: Row(
+                children: [
+                  AppIconButton(
+                    icon: Icons.close_rounded,
+                    onPressed: _handleBackPressed,
+                  ),
+                ],
+              ),
+            ),
+            // ── Progress bar ─────────────────────────────────────────
+            Padding(
+              padding: const EdgeInsets.fromLTRB(22, 14, 22, 0),
               child: Column(
                 children: [
                   Row(
-                    mainAxisAlignment:
-                        MainAxisAlignment.spaceBetween,
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Text(
-                        'EXERCISE ${exercisesDone + 1} / $_totalExercises',
+                        'EXERCISE ${supersetIdx + 1} / $_totalSupersets',
                         style: bodyStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.w500,
@@ -401,31 +580,23 @@ class _WorkoutSessionScreenState
                         ),
                       ),
                       Text(
-                        'Set ${currentSetIndex + 1} / $totalSetsForExercise',
-                        style: bodyStyle(
-                          fontSize: 12,
-                          color: c.inkDim,
-                        ),
+                        'Set ${currentSetIndex + 1} / $totalSets',
+                        style: bodyStyle(fontSize: 12, color: c.inkDim),
                       ),
                     ],
                   ),
                   const SizedBox(height: 6),
-                  // Progress dots
                   Row(
-                    children: List.generate(
-                        totalSetsForExercise, (i) {
+                    children: List.generate(totalSets, (i) {
                       final done = i < currentSetIndex;
                       final active = i == currentSetIndex;
                       return Expanded(
                         child: Container(
                           margin: EdgeInsets.only(
-                              right: i < totalSetsForExercise - 1
-                                  ? 3
-                                  : 0),
+                              right: i < totalSets - 1 ? 3 : 0),
                           height: 3,
                           decoration: BoxDecoration(
-                            borderRadius:
-                                BorderRadius.circular(2),
+                            borderRadius: BorderRadius.circular(2),
                             color: done
                                 ? c.accent
                                 : active
@@ -439,14 +610,21 @@ class _WorkoutSessionScreenState
                 ],
               ),
             ),
-            // Hero content
+            // ── Elapsed timer — centred, prominent (Phase 1.3) ───────
+            Padding(
+              padding: const EdgeInsets.only(top: 10),
+              child: Text(
+                _fmtElapsed(),
+                style: monoStyle(fontSize: 28, color: c.inkDim),
+              ),
+            ),
+            // ── Hero content ─────────────────────────────────────────
             Expanded(
               child: Padding(
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 22, vertical: 20),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 22, vertical: 20),
                 child: Column(
-                  mainAxisAlignment:
-                      MainAxisAlignment.center,
+                  mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     // Exercise name
                     Text(
@@ -461,52 +639,57 @@ class _WorkoutSessionScreenState
                       textAlign: TextAlign.center,
                     ),
                     const SizedBox(height: 28),
-                    // Hero numbers
+                    // Reps | [Weight] (Phase 1.2: hide weight when 0)
                     Row(
-                      mainAxisAlignment:
-                          MainAxisAlignment.center,
-                      crossAxisAlignment:
-                          CrossAxisAlignment.center,
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
                         _BigNumber(
                           value: _actualRepsCtrl.text.isEmpty
                               ? '${e.reps}'
                               : _actualRepsCtrl.text,
                           label: 'reps',
-                          onChanged: (v) => setState(
-                              () => _actualRepsCtrl.text = v),
+                          onChanged: (v) =>
+                              setState(() => _actualRepsCtrl.text = v),
                         ),
-                        Container(
-                          width: 1,
-                          height: 64,
-                          color: c.hairline,
-                          margin: const EdgeInsets.symmetric(
-                              horizontal: 28),
-                        ),
-                        _BigNumber(
-                          value: _actualWeightCtrl.text.isEmpty
-                              ? '${e.weight}'
-                              : _actualWeightCtrl.text,
-                          label: 'weight',
-                          unit: 'kg',
-                          decimal: true,
-                          onChanged: (v) => setState(
-                              () => _actualWeightCtrl.text = v),
-                        ),
+                        if (e.weight > 0) ...[
+                          Container(
+                            width: 1,
+                            height: 64,
+                            color: c.hairline,
+                            margin: const EdgeInsets.symmetric(horizontal: 28),
+                          ),
+                          _BigNumber(
+                            value: _actualWeightCtrl.text.isEmpty
+                                ? '${e.weight}'
+                                : _actualWeightCtrl.text,
+                            label: 'weight',
+                            unit: 'kg',
+                            decimal: true,
+                            onChanged: (v) =>
+                                setState(() => _actualWeightCtrl.text = v),
+                          ),
+                        ],
                       ],
                     ),
                     const SizedBox(height: 28),
-                    // Next exercise
-                    if (nextEx != null)
+                    // Next exercise hint
+                    if (nextSlot != null)
                       Row(
-                        mainAxisAlignment:
-                            MainAxisAlignment.center,
+                        mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Icon(Icons.chevron_right_rounded,
-                              size: 12, color: c.inkMute),
+                          Icon(
+                            slot.isIntraSuperset
+                                ? Icons.swap_horiz_rounded
+                                : Icons.chevron_right_rounded,
+                            size: 12,
+                            color: c.inkMute,
+                          ),
                           const SizedBox(width: 4),
                           Text(
-                            'Next: ${nextEx.name}',
+                            slot.isIntraSuperset
+                                ? 'Then: ${nextSlot.exercise.name}'
+                                : 'Next: ${nextSlot.exercise.name}',
                             style: bodyStyle(
                               fontSize: 12,
                               fontWeight: FontWeight.w500,
@@ -520,13 +703,10 @@ class _WorkoutSessionScreenState
                 ),
               ),
             ),
-            // CTA + skip
+            // ── CTA ─────────────────────────────────────────────────
             Padding(
               padding: EdgeInsets.fromLTRB(
-                  18,
-                  0,
-                  18,
-                  16 + MediaQuery.of(context).padding.bottom),
+                  18, 0, 18, 16 + MediaQuery.of(context).padding.bottom),
               child: Column(
                 children: [
                   GestureDetector(
@@ -536,12 +716,10 @@ class _WorkoutSessionScreenState
                       height: 64,
                       decoration: BoxDecoration(
                         color: c.accent,
-                        borderRadius:
-                            BorderRadius.circular(kRadius + 6),
+                        borderRadius: BorderRadius.circular(kRadius + 6),
                       ),
                       child: Row(
-                        mainAxisAlignment:
-                            MainAxisAlignment.center,
+                        mainAxisAlignment: MainAxisAlignment.center,
                         children: [
                           Icon(Icons.check_rounded,
                               size: 22, color: c.accentInk),
@@ -576,14 +754,11 @@ class _WorkoutSessionScreenState
     );
   }
 
-  int get _totalExercises =>
-      _sequence.map((e) => e.name).toSet().length;
-
-  // ─── Rest timer view ─────────────────────────────────────────────────
+  // ─── Rest view (Phase 1.5 redesign: exercise info above ring) ─────────
   Widget _buildRestView() {
     final theme = AppThemeData.of(context);
     final c = theme.c;
-    final nextEx =
+    final nextSlot =
         _index + 1 < _sequence.length ? _sequence[_index + 1] : null;
     final progress = _restTotal > 0
         ? (1.0 - _restSecondsRemaining / _restTotal).clamp(0.0, 1.0)
@@ -627,130 +802,111 @@ class _WorkoutSessionScreenState
                 ],
               ),
             ),
-            Expanded(
-              child: Padding(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 22),
+            // Elapsed timer (Phase 1.3 — also in rest view)
+            Text(
+              _fmtElapsed(),
+              style: monoStyle(fontSize: 28, color: c.inkDim),
+            ),
+            const SizedBox(height: 16),
+            // Exercise info ABOVE ring (Phase 1.5)
+            if (nextSlot != null)
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 22),
                 child: Column(
-                  mainAxisAlignment:
-                      MainAxisAlignment.center,
                   children: [
-                    // Circular timer
-                    SizedBox(
-                      width: 240,
-                      height: 240,
-                      child: Stack(
-                        alignment: Alignment.center,
-                        children: [
-                          CustomPaint(
-                            size: const Size(240, 240),
-                            painter: _RingPainter(
-                              progress: progress,
-                              trackColor: c.hairline,
-                              progressColor: c.accent,
-                            ),
-                          ),
-                          Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text(
-                                fmtSec(_restSecondsRemaining),
-                                style: displayStyle(
-                                  fontSize: 76,
-                                  fontWeight:
-                                      FontWeight.w400,
-                                  color: c.ink,
-                                  letterSpacing: -3,
-                                  height: 1.0,
-                                ),
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                'of ${_restTotal}s rest',
-                                style: bodyStyle(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w500,
-                                  color: c.inkMute,
-                                  letterSpacing: 0.8,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
+                    Text(
+                      'SET ${nextSlot.setNum}',
+                      style: bodyStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                        color: c.inkMute,
+                        letterSpacing: 1.0,
                       ),
                     ),
-                    const SizedBox(height: 28),
-                    // Up next card
-                    if (nextEx != null)
-                      Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.fromLTRB(
-                            18, 14, 18, 14),
-                        decoration: BoxDecoration(
-                          color: c.surface,
-                          borderRadius:
-                              BorderRadius.circular(kRadius),
-                          border: Border.all(
-                              color: c.hairlineSoft),
-                        ),
-                        child: Row(
-                          mainAxisAlignment:
-                              MainAxisAlignment.spaceBetween,
-                          crossAxisAlignment:
-                              CrossAxisAlignment.baseline,
-                          textBaseline:
-                              TextBaseline.alphabetic,
-                          children: [
-                            Column(
-                              crossAxisAlignment:
-                                  CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  'UP NEXT',
-                                  style: bodyStyle(
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.w500,
-                                    color: c.inkMute,
-                                    letterSpacing: 1.0,
-                                  ),
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  '${nextEx.name} · Set ${_loggedSetsFor(nextEx.name) + 1}',
-                                  style: displayStyle(
-                                    fontSize: 18,
-                                    fontWeight: FontWeight.w600,
-                                    color: c.ink,
-                                    letterSpacing: -0.3,
-                                  ),
-                                ),
-                              ],
-                            ),
-                            Text(
-                              '${nextEx.reps} × ${nextEx.weight}kg',
-                              style: displayStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.w600,
-                                color: c.ink,
-                                letterSpacing: -0.3,
-                              ),
-                            ),
-                          ],
-                        ),
+                    const SizedBox(height: 8),
+                    Text(
+                      nextSlot.exercise.name,
+                      style: displayStyle(
+                        fontSize: 26,
+                        fontWeight: FontWeight.w500,
+                        color: c.ink,
+                        letterSpacing: -0.5,
                       ),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 4),
+                    // Phase 1.2: omit weight if 0
+                    Text(
+                      nextSlot.exercise.weight > 0
+                          ? '${nextSlot.exercise.reps} × ${nextSlot.exercise.weight}kg'
+                          : '${nextSlot.exercise.reps} reps',
+                      style: bodyStyle(fontSize: 14, color: c.inkDim),
+                    ),
+                    const SizedBox(height: 18),
+                    Divider(color: c.hairlineSoft, height: 1),
+                    const SizedBox(height: 18),
                   ],
                 ),
               ),
+            // Ring timer
+            SizedBox(
+              width: 200,
+              height: 200,
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  CustomPaint(
+                    size: const Size(200, 200),
+                    painter: _RingPainter(
+                      progress: progress,
+                      trackColor: c.hairline,
+                      progressColor: c.accent,
+                    ),
+                  ),
+                  Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        fmtSec(_restSecondsRemaining),
+                        style: displayStyle(
+                          fontSize: 64,
+                          fontWeight: FontWeight.w400,
+                          color: c.ink,
+                          letterSpacing: -3,
+                          height: 1.0,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'of ${_restTotal}s rest',
+                        style: bodyStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w500,
+                          color: c.inkMute,
+                          letterSpacing: 0.8,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ),
-            // +15s / Skip rest
+            const Spacer(),
+            // −15s | +15s | Skip rest (Phase 1.1)
             Padding(
               padding: EdgeInsets.fromLTRB(
-                  18,
-                  0,
-                  18,
-                  16 + MediaQuery.of(context).padding.bottom),
+                  18, 0, 18, 16 + MediaQuery.of(context).padding.bottom),
               child: Row(
                 children: [
+                  Expanded(
+                    child: AppButton(
+                      label: '−15s',
+                      kind: ButtonKind.outline,
+                      icon: Icons.remove_rounded,
+                      onPressed: () => _subtractRestTime(15),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
                   Expanded(
                     child: AppButton(
                       label: '+15s',
@@ -759,7 +915,7 @@ class _WorkoutSessionScreenState
                       onPressed: () => _addRestTime(15),
                     ),
                   ),
-                  const SizedBox(width: 10),
+                  const SizedBox(width: 8),
                   Expanded(
                     flex: 2,
                     child: AppButton(
@@ -776,12 +932,9 @@ class _WorkoutSessionScreenState
       ),
     );
   }
-
-  int _loggedSetsFor(String name) =>
-      _logged.where((l) => l.exerciseName == name).length;
 }
 
-// ─── Big editable number widget ──────────────────────────────────────
+// ─── Big editable number widget ───────────────────────────────────────
 class _BigNumber extends StatefulWidget {
   final String value;
   final String label;
@@ -828,7 +981,6 @@ class _BigNumberState extends State<_BigNumber> {
   Widget build(BuildContext context) {
     final theme = AppThemeData.of(context);
     final c = theme.c;
-
     return Column(
       children: [
         Row(
@@ -904,27 +1056,25 @@ class _RingPainter extends CustomPainter {
     final radius = size.width / 2 - 4;
     const strokeWidth = 3.0;
 
-    // Track
-    final trackPaint = Paint()
-      ..color = trackColor
-      ..strokeWidth = strokeWidth
-      ..style = PaintingStyle.stroke;
-    canvas.drawCircle(center, radius, trackPaint);
+    canvas.drawCircle(
+      center,
+      radius,
+      Paint()
+        ..color = trackColor
+        ..strokeWidth = strokeWidth
+        ..style = PaintingStyle.stroke,
+    );
 
-    // Progress arc
-    final progressPaint = Paint()
-      ..color = progressColor
-      ..strokeWidth = strokeWidth
-      ..style = PaintingStyle.stroke
-      ..strokeCap = StrokeCap.round;
-    const startAngle = -math.pi / 2;
-    final sweepAngle = 2 * math.pi * progress;
     canvas.drawArc(
       Rect.fromCircle(center: center, radius: radius),
-      startAngle,
-      sweepAngle,
+      -math.pi / 2,
+      2 * math.pi * progress,
       false,
-      progressPaint,
+      Paint()
+        ..color = progressColor
+        ..strokeWidth = strokeWidth
+        ..style = PaintingStyle.stroke
+        ..strokeCap = StrokeCap.round,
     );
   }
 
