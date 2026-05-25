@@ -69,7 +69,8 @@ class _CreateWorkoutScreenState extends State<CreateWorkoutScreen> {
   final _nameCtrl = TextEditingController();
   final List<_ExRow> _rows = [];
   final List<_WuRow> _warmupRows = [];
-  bool _warmupExpanded = true;
+  bool _warmupExpanded = false;
+  final _scrollCtrl = ScrollController();
 
   @override
   void initState() {
@@ -122,6 +123,7 @@ class _CreateWorkoutScreenState extends State<CreateWorkoutScreen> {
   @override
   void dispose() {
     _nameCtrl.dispose();
+    _scrollCtrl.dispose();
     for (final r in _rows) { r.dispose(); }
     for (final r in _warmupRows) { r.dispose(); }
     super.dispose();
@@ -137,6 +139,15 @@ class _CreateWorkoutScreenState extends State<CreateWorkoutScreen> {
         setsCtrl: TextEditingController(text: '3'),
         restCtrl: TextEditingController(text: '60'),
       ));
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_scrollCtrl.hasClients) {
+        _scrollCtrl.animateTo(
+          _scrollCtrl.position.maxScrollExtent,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeOut,
+        );
+      }
     });
   }
 
@@ -284,6 +295,7 @@ class _CreateWorkoutScreenState extends State<CreateWorkoutScreen> {
                 ),
                 Expanded(
                   child: ListView(
+                    controller: _scrollCtrl,
                     padding: const EdgeInsets.only(bottom: 110),
                     children: [
                       // ── Workout name ─────────────────────────────────
@@ -384,7 +396,7 @@ class _CreateWorkoutScreenState extends State<CreateWorkoutScreen> {
                             const EdgeInsets.symmetric(horizontal: 16),
                         child: Column(
                           children: [
-                            for (int i = 0; i < _rows.length; i++)
+                            for (int i = 0; i < _rows.length; i++) ...[
                               _ExerciseEditCard(
                                 key: ValueKey(_rows[i].uid),
                                 row: _rows[i],
@@ -392,16 +404,21 @@ class _CreateWorkoutScreenState extends State<CreateWorkoutScreen> {
                                 isLastInGroup: _isLastInGroup(i),
                                 isGrouped: i > 0 &&
                                     _rows[i - 1].groupedWithNext,
-                                showGroupToggle: i < _rows.length - 1,
+                                showGroupToggle: false,
                                 onRemove: () => _removeExercise(i),
-                                onGroupToggle: () {
-                                  setState(() {
-                                    _rows[i].groupedWithNext =
-                                        !_rows[i].groupedWithNext;
-                                  });
-                                },
+                                onGroupToggle: () {},
                                 c: c,
                               ),
+                              if (i < _rows.length - 1)
+                                _SupersetConnector(
+                                  isLinked: _rows[i].groupedWithNext,
+                                  onToggle: () => setState(() {
+                                    _rows[i].groupedWithNext =
+                                        !_rows[i].groupedWithNext;
+                                  }),
+                                  c: c,
+                                ),
+                            ],
                             // Add exercise button
                             GestureDetector(
                               onTap: _addExercise,
@@ -846,6 +863,87 @@ class _ExerciseEditCard extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+// ─── Superset connector (between exercise cards) ──────────────────────
+class _SupersetConnector extends StatelessWidget {
+  final bool isLinked;
+  final VoidCallback onToggle;
+  final AppColors c;
+
+  const _SupersetConnector({
+    required this.isLinked,
+    required this.onToggle,
+    required this.c,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onToggle,
+      child: Padding(
+        padding: const EdgeInsets.only(bottom: 8),
+        child: Row(
+          children: [
+            Expanded(
+              child: Container(
+                height: 1,
+                color: isLinked
+                    ? c.accent.withValues(alpha: 0.3)
+                    : c.hairlineSoft,
+              ),
+            ),
+            Container(
+              margin: const EdgeInsets.symmetric(horizontal: 10),
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(
+                color: isLinked
+                    ? c.accent.withValues(alpha: 0.10)
+                    : Colors.transparent,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: isLinked
+                      ? c.accent.withValues(alpha: 0.5)
+                      : c.hairline,
+                  width: 1,
+                ),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    isLinked ? Icons.link_rounded : Icons.add_link_rounded,
+                    size: 12,
+                    color: isLinked ? c.accent : c.inkMute,
+                  ),
+                  const SizedBox(width: 5),
+                  Text(
+                    isLinked ? 'SUPERSET' : 'ADD SUPERSET',
+                    style: bodyStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w600,
+                      color: isLinked ? c.accent : c.inkMute,
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Expanded(
+              child: Container(
+                height: 1,
+                color: isLinked
+                    ? c.accent.withValues(alpha: 0.3)
+                    : c.hairlineSoft,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
