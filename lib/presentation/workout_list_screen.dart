@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:fitness_planner/domain/models/workout.dart';
 import 'package:fitness_planner/providers/workout_providers.dart';
 import 'package:fitness_planner/presentation/create_workout.dart';
-import 'package:fitness_planner/presentation/warmup_screen.dart';
 import 'package:fitness_planner/presentation/workout_session_screen.dart';
 import 'package:fitness_planner/presentation/history_screen.dart';
 import 'package:fitness_planner/presentation/widgets/app_widgets.dart';
@@ -159,7 +158,13 @@ class _WorkoutList extends ConsumerWidget {
                     name: w.name,
                     exerciseCount: w.exercises.length,
                     durationMinutes: dur > 0 ? dur : null,
-                    onTap: () => _startWorkout(context, w),
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) =>
+                            WorkoutSessionScreen(workout: w),
+                      ),
+                    ),
                     onEdit: () => Navigator.push(
                       context,
                       MaterialPageRoute(
@@ -189,21 +194,6 @@ class _WorkoutList extends ConsumerWidget {
         ),
       ],
     );
-  }
-
-  void _startWorkout(BuildContext context, Workout workout) {
-    if (workout.warmup.isNotEmpty) {
-      Navigator.push(
-        context,
-        MaterialPageRoute(builder: (_) => WarmupScreen(workout: workout)),
-      );
-    } else {
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-            builder: (_) => WorkoutSessionScreen(workout: workout)),
-      );
-    }
   }
 
   Future<void> _confirmDelete(

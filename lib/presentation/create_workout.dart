@@ -1,62 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:fitness_planner/domain/models/exercise.dart';
-import 'package:fitness_planner/domain/models/superset.dart';
 import 'package:fitness_planner/domain/models/workout.dart';
-import 'package:fitness_planner/domain/models/default_warmup.dart';
 import 'package:fitness_planner/providers/workout_providers.dart';
 import 'package:fitness_planner/presentation/widgets/app_widgets.dart';
 import 'package:fitness_planner/theme/app_theme.dart';
 
-// ─── Flat edit row (one exercise in the list) ─────────────────────────
-class _ExRow {
-  final String uid;
-  final TextEditingController nameCtrl;
-  final TextEditingController repsCtrl;
-  final TextEditingController weightCtrl;
-  // Sets & rest live at the LAST exercise of a superset group
-  final TextEditingController setsCtrl;
-  final TextEditingController restCtrl;
-  bool groupedWithNext; // true → connects this row to the next row
-
-  _ExRow({
-    required this.uid,
-    required this.nameCtrl,
-    required this.repsCtrl,
-    required this.weightCtrl,
-    required this.setsCtrl,
-    required this.restCtrl,
-    this.groupedWithNext = false,
-  });
-
-  void dispose() {
-    nameCtrl.dispose();
-    repsCtrl.dispose();
-    weightCtrl.dispose();
-    setsCtrl.dispose();
-    restCtrl.dispose();
-  }
-}
-
-// ─── Warmup row data ──────────────────────────────────────────────────
-class _WuRow {
-  final TextEditingController nameCtrl;
-  final TextEditingController durationCtrl; // seconds
-  bool isTimed;
-
-  _WuRow({
-    required this.nameCtrl,
-    required this.durationCtrl,
-    this.isTimed = true,
-  });
-
-  void dispose() {
-    nameCtrl.dispose();
-    durationCtrl.dispose();
-  }
-}
-
-// ─── CreateWorkoutScreen ──────────────────────────────────────────────
 class CreateWorkoutScreen extends StatefulWidget {
   final Workout? existingWorkout;
   const CreateWorkoutScreen({super.key, this.existingWorkout});
@@ -67,10 +16,7 @@ class CreateWorkoutScreen extends StatefulWidget {
 
 class _CreateWorkoutScreenState extends State<CreateWorkoutScreen> {
   final _nameCtrl = TextEditingController();
-  final List<_ExRow> _rows = [];
-  final List<_WuRow> _warmupRows = [];
-  bool _warmupExpanded = false;
-  final _scrollCtrl = ScrollController();
+  final List<Exercise> _exercises = [];
 
   @override
   void initState() {
@@ -78,154 +24,39 @@ class _CreateWorkoutScreenState extends State<CreateWorkoutScreen> {
     final existing = widget.existingWorkout;
     if (existing != null) {
       _nameCtrl.text = existing.name;
-      _loadSupersets(existing.exercises);
-      for (final ex in existing.warmup) {
-        _warmupRows.add(_WuRow(
-          nameCtrl: TextEditingController(text: ex.name),
-          durationCtrl: TextEditingController(
-              text: ex.timedDuration?.inSeconds.toString() ?? '30'),
-          isTimed: ex.timedDuration != null,
-        ));
-      }
-    } else {
-      // Pre-populate default warmup for new workouts
-      for (final ex in defaultWarmupExercises()) {
-        _warmupRows.add(_WuRow(
-          nameCtrl: TextEditingController(text: ex.name),
-          durationCtrl: TextEditingController(
-              text: ex.timedDuration!.inSeconds.toString()),
-          isTimed: true,
-        ));
-      }
-    }
-  }
-
-  void _loadSupersets(List<Superset> supersets) {
-    for (final superset in supersets) {
-      for (int i = 0; i < superset.exercises.length; i++) {
-        final ex = superset.exercises[i];
-        final isLast = i == superset.exercises.length - 1;
-        _rows.add(_ExRow(
-          uid: '${superset.id}_$i',
-          nameCtrl: TextEditingController(text: ex.name),
-          repsCtrl: TextEditingController(text: ex.reps.toString()),
-          weightCtrl: TextEditingController(text: ex.weight.toString()),
-          setsCtrl: TextEditingController(
-              text: isLast ? superset.sets.toString() : '3'),
-          restCtrl: TextEditingController(
-              text: isLast ? superset.restAfterSet.inSeconds.toString() : '60'),
-          groupedWithNext: !isLast,
-        ));
-      }
+      _exercises.addAll(existing.exercises.map(
+        (e) => Exercise(
+          name: e.name,
+          reps: e.reps,
+          sets: e.sets,
+          restTime: e.restTime,
+          weight: e.weight,
+        ),
+      ));
     }
   }
 
   @override
   void dispose() {
     _nameCtrl.dispose();
-    _scrollCtrl.dispose();
-    for (final r in _rows) { r.dispose(); }
-    for (final r in _warmupRows) { r.dispose(); }
     super.dispose();
   }
 
   void _addExercise() {
     setState(() {
-      _rows.add(_ExRow(
-        uid: DateTime.now().microsecondsSinceEpoch.toString(),
-        nameCtrl: TextEditingController(),
-        repsCtrl: TextEditingController(text: '10'),
-        weightCtrl: TextEditingController(text: '0'),
-        setsCtrl: TextEditingController(text: '3'),
-        restCtrl: TextEditingController(text: '60'),
-      ));
-    });
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_scrollCtrl.hasClients) {
-        _scrollCtrl.animateTo(
-          _scrollCtrl.position.maxScrollExtent,
-          duration: const Duration(milliseconds: 300),
-          curve: Curves.easeOut,
-        );
-      }
-    });
-  }
-
-  void _removeExercise(int i) {
-    setState(() {
-      // If the row before was grouped with this, remove the group flag
-      if (i > 0 && _rows[i - 1].groupedWithNext) {
-        _rows[i - 1].groupedWithNext = false;
-      }
-      _rows[i].dispose();
-      _rows.removeAt(i);
-    });
-  }
-
-  void _addWarmupExercise() {
-    setState(() {
-      _warmupRows.add(_WuRow(
-        nameCtrl: TextEditingController(),
-        durationCtrl: TextEditingController(text: '30'),
-        isTimed: true,
-      ));
-    });
-  }
-
-  void _removeWarmupExercise(int i) {
-    setState(() {
-      _warmupRows[i].dispose();
-      _warmupRows.removeAt(i);
-    });
-  }
-
-  /// Converts flat rows to Superset list, grouping consecutive connected rows.
-  List<Superset> _buildSupersets() {
-    final supersets = <Superset>[];
-    int i = 0;
-    while (i < _rows.length) {
-      final exList = <Exercise>[];
-      int j = i;
-      while (j < _rows.length) {
-        final row = _rows[j];
-        exList.add(Exercise(
-          name: row.nameCtrl.text.trim(),
-          reps: int.tryParse(row.repsCtrl.text) ?? 10,
-          weight: double.tryParse(row.weightCtrl.text) ?? 0.0,
-        ));
-        if (j < _rows.length - 1 && row.groupedWithNext) {
-          j++;
-        } else {
-          break;
-        }
-      }
-      final lastRow = _rows[j];
-      supersets.add(Superset(
-        id: '${lastRow.uid}_ss',
-        exercises: exList,
-        sets: int.tryParse(lastRow.setsCtrl.text) ?? 3,
-        restAfterSet:
-            Duration(seconds: int.tryParse(lastRow.restCtrl.text) ?? 60),
-      ));
-      i = j + 1;
-    }
-    return supersets;
-  }
-
-  List<Exercise> _buildWarmup() {
-    return _warmupRows.map((r) {
-      final secs = int.tryParse(r.durationCtrl.text) ?? 30;
-      return Exercise(
-        name: r.nameCtrl.text.trim(),
-        reps: 0,
-        timedDuration: r.isTimed ? Duration(seconds: secs) : null,
+      _exercises.add(
+        Exercise(
+            name: '',
+            reps: 10,
+            sets: 3,
+            restTime: const Duration(seconds: 60),
+            weight: 0),
       );
-    }).toList();
+    });
   }
 
-  bool _isLastInGroup(int i) {
-    if (i >= _rows.length - 1) return true;
-    return !_rows[i].groupedWithNext;
+  void _removeExercise(int index) {
+    setState(() => _exercises.removeAt(index));
   }
 
   void _goToPreview() {
@@ -236,7 +67,7 @@ class _CreateWorkoutScreenState extends State<CreateWorkoutScreen> {
       );
       return;
     }
-    if (_rows.any((r) => r.nameCtrl.text.trim().isEmpty)) {
+    if (_exercises.any((e) => e.name.trim().isEmpty)) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('All exercises must have a name')),
       );
@@ -247,23 +78,24 @@ class _CreateWorkoutScreenState extends State<CreateWorkoutScreen> {
       id: widget.existingWorkout?.id ??
           DateTime.now().millisecondsSinceEpoch.toString(),
       name: name,
-      exercises: _buildSupersets(),
-      warmup: _buildWarmup(),
+      exercises: List.of(_exercises),
     );
     Navigator.push<bool>(
       context,
       MaterialPageRoute(
-        builder: (_) => WorkoutPreviewScreen(workout: workout),
+        builder: (_) => WorkoutPreviewScreen(
+          workout: workout,
+          sequence: workout.generateWorkoutSequence(),
+        ),
       ),
     ).then((saved) {
       if (!mounted) return;
       if (saved == true) {
         if (widget.existingWorkout != null) {
-          // Editing: single pop back to list/detail
           Navigator.pop(context);
         } else {
-          // New workout: pop all the way to workout list (Phase 1.4)
-          Navigator.of(context).popUntil((route) => route.isFirst);
+          setState(() => _exercises.clear());
+          _nameCtrl.clear();
         }
       }
     });
@@ -282,6 +114,7 @@ class _CreateWorkoutScreenState extends State<CreateWorkoutScreen> {
           children: [
             Column(
               children: [
+                // Header bar
                 AppHeaderBar(
                   title: isEdit ? 'Edit workout' : 'New workout',
                   leading: AppIconButton(
@@ -295,10 +128,9 @@ class _CreateWorkoutScreenState extends State<CreateWorkoutScreen> {
                 ),
                 Expanded(
                   child: ListView(
-                    controller: _scrollCtrl,
                     padding: const EdgeInsets.only(bottom: 110),
                     children: [
-                      // ── Workout name ─────────────────────────────────
+                      // Workout name field
                       Padding(
                         padding: const EdgeInsets.fromLTRB(18, 8, 18, 18),
                         child: Column(
@@ -331,39 +163,27 @@ class _CreateWorkoutScreenState extends State<CreateWorkoutScreen> {
                                   letterSpacing: -0.5,
                                 ),
                                 border: UnderlineInputBorder(
-                                    borderSide:
-                                        BorderSide(color: c.hairline)),
+                                  borderSide: BorderSide(color: c.hairline),
+                                ),
                                 enabledBorder: UnderlineInputBorder(
-                                    borderSide:
-                                        BorderSide(color: c.hairline)),
+                                  borderSide: BorderSide(color: c.hairline),
+                                ),
                                 focusedBorder: UnderlineInputBorder(
-                                    borderSide: BorderSide(
-                                        color: c.accent, width: 1.5)),
+                                  borderSide:
+                                      BorderSide(color: c.accent, width: 1.5),
+                                ),
                                 contentPadding:
                                     const EdgeInsets.only(bottom: 8),
                               ),
-                              onSubmitted: (_) =>
-                                  FocusScope.of(context).unfocus(),
+                              onSubmitted: (_) => FocusScope.of(context).unfocus(),
                             ),
                           ],
                         ),
                       ),
-
-                      // ── Warm-up section ──────────────────────────────
-                      _WarmupSection(
-                        rows: _warmupRows,
-                        expanded: _warmupExpanded,
-                        onToggle: () =>
-                            setState(() => _warmupExpanded = !_warmupExpanded),
-                        onAdd: _addWarmupExercise,
-                        onRemove: _removeWarmupExercise,
-                        c: c,
-                      ),
-
-                      // ── Exercises header ─────────────────────────────
+                      // Exercises header
                       Padding(
                         padding:
-                            const EdgeInsets.fromLTRB(22, 12, 22, 10),
+                            const EdgeInsets.fromLTRB(22, 4, 22, 10),
                         child: Row(
                           mainAxisAlignment:
                               MainAxisAlignment.spaceBetween,
@@ -378,7 +198,7 @@ class _CreateWorkoutScreenState extends State<CreateWorkoutScreen> {
                               ),
                             ),
                             Text(
-                              '${_rows.length}',
+                              '${_exercises.length}',
                               style: bodyStyle(
                                 fontSize: 11,
                                 fontWeight: FontWeight.w500,
@@ -389,36 +209,24 @@ class _CreateWorkoutScreenState extends State<CreateWorkoutScreen> {
                           ],
                         ),
                       ),
-
-                      // ── Exercise cards ───────────────────────────────
+                      // Exercise cards
                       Padding(
-                        padding:
-                            const EdgeInsets.symmetric(horizontal: 16),
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
                         child: Column(
                           children: [
-                            for (int i = 0; i < _rows.length; i++) ...[
-                              _ExerciseEditCard(
-                                key: ValueKey(_rows[i].uid),
-                                row: _rows[i],
-                                index: i + 1,
-                                isLastInGroup: _isLastInGroup(i),
-                                isGrouped: i > 0 &&
-                                    _rows[i - 1].groupedWithNext,
-                                showGroupToggle: false,
-                                onRemove: () => _removeExercise(i),
-                                onGroupToggle: () {},
-                                c: c,
-                              ),
-                              if (i < _rows.length - 1)
-                                _SupersetConnector(
-                                  isLinked: _rows[i].groupedWithNext,
-                                  onToggle: () => setState(() {
-                                    _rows[i].groupedWithNext =
-                                        !_rows[i].groupedWithNext;
-                                  }),
-                                  c: c,
+                            ..._exercises.asMap().entries.map((entry) {
+                              final i = entry.key;
+                              final ex = entry.value;
+                              return Padding(
+                                padding:
+                                    const EdgeInsets.only(bottom: 12),
+                                child: ExerciseEditCard(
+                                  exercise: ex,
+                                  index: i + 1,
+                                  onRemove: () => _removeExercise(i),
                                 ),
-                            ],
+                              );
+                            }),
                             // Add exercise button
                             GestureDetector(
                               onTap: _addExercise,
@@ -431,6 +239,7 @@ class _CreateWorkoutScreenState extends State<CreateWorkoutScreen> {
                                   border: Border.all(
                                     color: c.hairline,
                                     width: 1.5,
+                                    style: BorderStyle.solid,
                                   ),
                                 ),
                                 child: Row(
@@ -460,7 +269,7 @@ class _CreateWorkoutScreenState extends State<CreateWorkoutScreen> {
                 ),
               ],
             ),
-            // ── Sticky bottom CTA ──────────────────────────────────────
+            // Sticky bottom CTA
             Positioned(
               left: 0,
               right: 0,
@@ -474,8 +283,7 @@ class _CreateWorkoutScreenState extends State<CreateWorkoutScreen> {
                     colors: [c.bg, c.bg.withValues(alpha: 0)],
                   ),
                 ),
-                padding:
-                    const EdgeInsets.fromLTRB(16, 12, 16, 16),
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
                 child: AppButton(
                   label: 'Preview workout →',
                   full: true,
@@ -490,460 +298,155 @@ class _CreateWorkoutScreenState extends State<CreateWorkoutScreen> {
   }
 }
 
-// ─── Warm-up collapsible section ───────────────────────────────────────
-class _WarmupSection extends StatelessWidget {
-  final List<_WuRow> rows;
-  final bool expanded;
-  final VoidCallback onToggle;
-  final VoidCallback onAdd;
-  final void Function(int) onRemove;
-  final AppColors c;
-
-  const _WarmupSection({
-    required this.rows,
-    required this.expanded,
-    required this.onToggle,
-    required this.onAdd,
-    required this.onRemove,
-    required this.c,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // Header row
-        GestureDetector(
-          onTap: onToggle,
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(22, 4, 22, 0),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Row(
-                  children: [
-                    Text(
-                      'WARM-UP',
-                      style: bodyStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w500,
-                        color: c.inkMute,
-                        letterSpacing: 0.8,
-                      ),
-                    ),
-                    const SizedBox(width: 6),
-                    Text(
-                      '${rows.length}',
-                      style: bodyStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w500,
-                        color: c.inkMute,
-                        letterSpacing: 0.8,
-                      ),
-                    ),
-                  ],
-                ),
-                Icon(
-                  expanded
-                      ? Icons.keyboard_arrow_up_rounded
-                      : Icons.keyboard_arrow_down_rounded,
-                  size: 18,
-                  color: c.inkMute,
-                ),
-              ],
-            ),
-          ),
-        ),
-        if (expanded) ...[
-          const SizedBox(height: 10),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Column(
-              children: [
-                for (int i = 0; i < rows.length; i++)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 8),
-                    child: _WarmupEditCard(
-                      row: rows[i],
-                      index: i + 1,
-                      onRemove: () => onRemove(i),
-                      c: c,
-                    ),
-                  ),
-                GestureDetector(
-                  onTap: onAdd,
-                  child: Container(
-                    height: 44,
-                    decoration: BoxDecoration(
-                      color: Colors.transparent,
-                      borderRadius: BorderRadius.circular(kRadius),
-                      border: Border.all(color: c.hairline, width: 1.5),
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.add_rounded, size: 16, color: c.inkDim),
-                        const SizedBox(width: 6),
-                        Text(
-                          'Add warm-up exercise',
-                          style: bodyStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w600,
-                              color: c.inkDim),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 4),
-              ],
-            ),
-          ),
-        ],
-      ],
-    );
-  }
-}
-
-// ─── Warmup exercise card (name + duration only) ──────────────────────
-class _WarmupEditCard extends StatelessWidget {
-  final _WuRow row;
+// ─── Exercise edit card ─────────────────────────────────────────────────
+class ExerciseEditCard extends StatefulWidget {
+  final Exercise exercise;
   final int index;
   final VoidCallback onRemove;
-  final AppColors c;
 
-  const _WarmupEditCard({
-    required this.row,
+  const ExerciseEditCard({
+    super.key,
+    required this.exercise,
     required this.index,
     required this.onRemove,
-    required this.c,
   });
 
   @override
+  State<ExerciseEditCard> createState() => _ExerciseEditCardState();
+}
+
+class _ExerciseEditCardState extends State<ExerciseEditCard> {
+  late final TextEditingController _nameCtrl;
+  late final TextEditingController _setsCtrl;
+  late final TextEditingController _repsCtrl;
+  late final TextEditingController _weightCtrl;
+  late final TextEditingController _restCtrl;
+
+  @override
+  void initState() {
+    super.initState();
+    final e = widget.exercise;
+    _nameCtrl = TextEditingController(text: e.name);
+    _setsCtrl = TextEditingController(text: e.sets.toString());
+    _repsCtrl = TextEditingController(text: e.reps.toString());
+    _weightCtrl = TextEditingController(text: e.weight.toString());
+    _restCtrl =
+        TextEditingController(text: e.restTime.inSeconds.toString());
+  }
+
+  @override
+  void dispose() {
+    _nameCtrl.dispose();
+    _setsCtrl.dispose();
+    _repsCtrl.dispose();
+    _weightCtrl.dispose();
+    _restCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final theme = AppThemeData.of(context);
+    final c = theme.c;
+    final e = widget.exercise;
+
     return Container(
       decoration: BoxDecoration(
         color: c.surface,
         borderRadius: BorderRadius.circular(kRadius),
         border: Border.all(color: c.hairlineSoft),
       ),
-      padding: const EdgeInsets.all(12),
-      child: Row(
+      padding: const EdgeInsets.all(14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            width: 22,
-            height: 22,
-            decoration: BoxDecoration(
-              color: c.surfaceAlt,
-              shape: BoxShape.circle,
-            ),
-            alignment: Alignment.center,
-            child: Text(
-              '$index',
-              style: monoStyle(
-                  fontSize: 10, fontWeight: FontWeight.w600, color: c.inkDim),
-            ),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: TextField(
-              controller: row.nameCtrl,
-              style: bodyStyle(
-                  fontSize: 14, fontWeight: FontWeight.w500, color: c.ink),
-              decoration: InputDecoration(
-                hintText: 'Exercise name',
-                hintStyle: bodyStyle(fontSize: 14, color: c.inkMute),
-                border: InputBorder.none,
-                contentPadding: EdgeInsets.zero,
-              ),
-            ),
-          ),
-          const SizedBox(width: 8),
-          SizedBox(
-            width: 56,
-            child: TextField(
-              controller: row.durationCtrl,
-              keyboardType: TextInputType.number,
-              textAlign: TextAlign.center,
-              style: displayStyle(
-                  fontSize: 15, fontWeight: FontWeight.w600, color: c.ink),
-              decoration: InputDecoration(
-                suffix: Text('s',
-                    style: bodyStyle(fontSize: 11, color: c.inkMute)),
-                border: InputBorder.none,
-                isDense: true,
-                contentPadding: EdgeInsets.zero,
-              ),
-            ),
-          ),
-          SizedBox(
-            width: 32,
-            height: 32,
-            child: IconButton(
-              padding: EdgeInsets.zero,
-              icon: Icon(Icons.close_rounded, size: 16, color: c.inkMute),
-              onPressed: onRemove,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// ─── Exercise edit card (with superset grouping) ──────────────────────
-class _ExerciseEditCard extends StatelessWidget {
-  final _ExRow row;
-  final int index;
-  final bool isLastInGroup;
-  final bool isGrouped;
-  final bool showGroupToggle;
-  final VoidCallback onRemove;
-  final VoidCallback onGroupToggle;
-  final AppColors c;
-
-  const _ExerciseEditCard({
-    super.key,
-    required this.row,
-    required this.index,
-    required this.isLastInGroup,
-    required this.isGrouped,
-    required this.showGroupToggle,
-    required this.onRemove,
-    required this.onGroupToggle,
-    required this.c,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final isSuperset = isGrouped || row.groupedWithNext;
-
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 0),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          // Superset accent bar
-          if (isSuperset)
-            Container(
-              width: 3,
-              margin: const EdgeInsets.only(right: 6, bottom: 4),
-              decoration: BoxDecoration(
-                color: c.accent.withValues(alpha: 0.5),
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-          Expanded(
-            child: Column(
-              children: [
-                Container(
-                  margin: const EdgeInsets.only(bottom: 8),
-                  decoration: BoxDecoration(
-                    color: c.surface,
-                    borderRadius: BorderRadius.circular(kRadius),
-                    border: Border.all(color: c.hairlineSoft),
-                  ),
-                  padding: const EdgeInsets.all(14),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Header row
-                      Row(
-                        children: [
-                          Container(
-                            width: 24,
-                            height: 24,
-                            decoration: BoxDecoration(
-                              color: isSuperset
-                                  ? c.accent.withValues(alpha: 0.12)
-                                  : c.surfaceAlt,
-                              shape: BoxShape.circle,
-                            ),
-                            alignment: Alignment.center,
-                            child: Text(
-                              '$index',
-                              style: monoStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w600,
-                                color: isSuperset ? c.accent : c.inkDim,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: TextField(
-                              controller: row.nameCtrl,
-                              style: bodyStyle(
-                                fontSize: 15,
-                                fontWeight: FontWeight.w600,
-                                color: c.ink,
-                              ),
-                              decoration: InputDecoration(
-                                hintText: 'Exercise name',
-                                hintStyle:
-                                    bodyStyle(fontSize: 15, color: c.inkMute),
-                                border: InputBorder.none,
-                                contentPadding: EdgeInsets.zero,
-                              ),
-                            ),
-                          ),
-                          // Group-with-next toggle (not on last overall row)
-                          if (showGroupToggle)
-                            GestureDetector(
-                              onTap: onGroupToggle,
-                              child: Padding(
-                                padding: const EdgeInsets.only(left: 4, right: 4),
-                                child: Icon(
-                                  row.groupedWithNext
-                                      ? Icons.link_rounded
-                                      : Icons.link_off_rounded,
-                                  size: 18,
-                                  color: row.groupedWithNext
-                                      ? c.accent
-                                      : c.inkMute,
-                                ),
-                              ),
-                            ),
-                          SizedBox(
-                            width: 32,
-                            height: 32,
-                            child: IconButton(
-                              padding: EdgeInsets.zero,
-                              icon: Icon(Icons.close_rounded,
-                                  size: 18, color: c.inkMute),
-                              onPressed: onRemove,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-                      // Number fields row
-                      Row(
-                        children: [
-                          // REPS always shown
-                          _NumField(
-                            label: 'REPS',
-                            ctrl: row.repsCtrl,
-                            unit: null,
-                            onChanged: (_) {},
-                          ),
-                          const SizedBox(width: 6),
-                          // WEIGHT always shown
-                          _NumField(
-                            label: 'WEIGHT',
-                            ctrl: row.weightCtrl,
-                            unit: 'kg',
-                            onChanged: (_) {},
-                            decimal: true,
-                          ),
-                          // SETS and REST only on last in group
-                          if (isLastInGroup) ...[
-                            const SizedBox(width: 6),
-                            _NumField(
-                              label: 'SETS',
-                              ctrl: row.setsCtrl,
-                              unit: null,
-                              onChanged: (_) {},
-                            ),
-                            const SizedBox(width: 6),
-                            _NumField(
-                              label: 'REST',
-                              ctrl: row.restCtrl,
-                              unit: 's',
-                              onChanged: (_) {},
-                            ),
-                          ],
-                        ],
-                      ),
-                    ],
+          // Header row: index pill + name + remove
+          Row(
+            children: [
+              Container(
+                width: 24,
+                height: 24,
+                decoration: BoxDecoration(
+                  color: c.surfaceAlt,
+                  shape: BoxShape.circle,
+                ),
+                alignment: Alignment.center,
+                child: Text(
+                  '${widget.index}',
+                  style: monoStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: c.inkDim,
                   ),
                 ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// ─── Superset connector (between exercise cards) ──────────────────────
-class _SupersetConnector extends StatelessWidget {
-  final bool isLinked;
-  final VoidCallback onToggle;
-  final AppColors c;
-
-  const _SupersetConnector({
-    required this.isLinked,
-    required this.onToggle,
-    required this.c,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTap: onToggle,
-      child: Padding(
-        padding: const EdgeInsets.only(bottom: 8),
-        child: Row(
-          children: [
-            Expanded(
-              child: Container(
-                height: 1,
-                color: isLinked
-                    ? c.accent.withValues(alpha: 0.3)
-                    : c.hairlineSoft,
               ),
-            ),
-            Container(
-              margin: const EdgeInsets.symmetric(horizontal: 10),
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-              decoration: BoxDecoration(
-                color: isLinked
-                    ? c.accent.withValues(alpha: 0.10)
-                    : Colors.transparent,
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(
-                  color: isLinked
-                      ? c.accent.withValues(alpha: 0.5)
-                      : c.hairline,
-                  width: 1,
+              const SizedBox(width: 10),
+              Expanded(
+                child: TextField(
+                  controller: _nameCtrl,
+                  style: bodyStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                    color: c.ink,
+                  ),
+                  decoration: InputDecoration(
+                    hintText: 'Exercise name',
+                    hintStyle: bodyStyle(fontSize: 15, color: c.inkMute),
+                    border: InputBorder.none,
+                    contentPadding: EdgeInsets.zero,
+                  ),
+                  onChanged: (v) => e.name = v,
                 ),
               ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    isLinked ? Icons.link_rounded : Icons.add_link_rounded,
-                    size: 12,
-                    color: isLinked ? c.accent : c.inkMute,
-                  ),
-                  const SizedBox(width: 5),
-                  Text(
-                    isLinked ? 'SUPERSET' : 'ADD SUPERSET',
-                    style: bodyStyle(
-                      fontSize: 10,
-                      fontWeight: FontWeight.w600,
-                      color: isLinked ? c.accent : c.inkMute,
-                      letterSpacing: 0.5,
-                    ),
-                  ),
-                ],
+              SizedBox(
+                width: 32,
+                height: 32,
+                child: IconButton(
+                  padding: EdgeInsets.zero,
+                  icon: Icon(Icons.close_rounded,
+                      size: 18, color: c.inkMute),
+                  onPressed: widget.onRemove,
+                ),
               ),
-            ),
-            Expanded(
-              child: Container(
-                height: 1,
-                color: isLinked
-                    ? c.accent.withValues(alpha: 0.3)
-                    : c.hairlineSoft,
+            ],
+          ),
+          const SizedBox(height: 12),
+          // 4-field grid: SETS / REPS / WEIGHT / REST
+          Row(
+            children: [
+              _NumField(
+                label: 'SETS',
+                ctrl: _setsCtrl,
+                unit: null,
+                onChanged: (v) => e.sets = int.tryParse(v) ?? e.sets,
               ),
-            ),
-          ],
-        ),
+              const SizedBox(width: 6),
+              _NumField(
+                label: 'REPS',
+                ctrl: _repsCtrl,
+                unit: null,
+                onChanged: (v) => e.reps = int.tryParse(v) ?? e.reps,
+              ),
+              const SizedBox(width: 6),
+              _NumField(
+                label: 'WEIGHT',
+                ctrl: _weightCtrl,
+                unit: 'kg',
+                onChanged: (v) =>
+                    e.weight = double.tryParse(v) ?? e.weight,
+                decimal: true,
+              ),
+              const SizedBox(width: 6),
+              _NumField(
+                label: 'REST',
+                ctrl: _restCtrl,
+                unit: 's',
+                onChanged: (v) => e.restTime = Duration(
+                    seconds: int.tryParse(v) ?? e.restTime.inSeconds),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
@@ -998,7 +501,8 @@ class _NumField extends StatelessWidget {
                   child: TextField(
                     controller: ctrl,
                     keyboardType: decimal
-                        ? const TextInputType.numberWithOptions(decimal: true)
+                        ? const TextInputType.numberWithOptions(
+                            decimal: true)
                         : TextInputType.number,
                     style: displayStyle(
                       fontSize: 18,
@@ -1017,8 +521,11 @@ class _NumField extends StatelessWidget {
                 if (unit != null)
                   Text(
                     unit!,
-                    style:
-                        bodyStyle(fontSize: 11, color: c.inkMute, letterSpacing: 0),
+                    style: bodyStyle(
+                      fontSize: 11,
+                      color: c.inkMute,
+                      letterSpacing: 0,
+                    ),
                   ),
               ],
             ),
@@ -1029,13 +536,15 @@ class _NumField extends StatelessWidget {
   }
 }
 
-// ─── Workout Preview Screen ────────────────────────────────────────────
+// ─── Workout Preview Screen ─────────────────────────────────────────────
 class WorkoutPreviewScreen extends ConsumerStatefulWidget {
   final Workout workout;
+  final List<Exercise> sequence;
 
   const WorkoutPreviewScreen({
     super.key,
     required this.workout,
+    required this.sequence,
   });
 
   @override
@@ -1061,18 +570,12 @@ class _WorkoutPreviewScreenState
     final theme = AppThemeData.of(context);
     final c = theme.c;
     final w = widget.workout;
-    final supersets = w.exercises;
+    final exercises = w.exercises;
 
     final totalSets =
-        supersets.fold<int>(0, (a, s) => a + s.sets * s.exercises.length);
-    final totalVol = supersets.fold<double>(
-      0,
-      (a, s) => a +
-          s.exercises.fold<double>(
-            0,
-            (b, e) => b + s.sets * e.reps * e.weight,
-          ),
-    );
+        exercises.fold<int>(0, (a, e) => a + e.sets);
+    final totalVol = exercises.fold<double>(
+        0, (a, e) => a + e.sets * e.reps * e.weight);
     final durMin = w.totalDuration.inMinutes;
 
     String fmtDur(int min) {
@@ -1081,22 +584,19 @@ class _WorkoutPreviewScreenState
       return m > 0 ? '${h}h ${m}m' : '${h}h';
     }
 
-    // Build preview rows
-    final rows = <_PreviewRow>[];
-    for (final ss in supersets) {
-      for (int set = 1; set <= ss.sets; set++) {
-        for (final ex in ss.exercises) {
-          rows.add(_PreviewRow(
-            exName: ex.name,
-            setNum: set,
-            totalSets: ss.sets,
-            reps: ex.reps,
-            weight: ex.weight,
-            restSec: ex.weight > 0 ? ss.restAfterSet.inSeconds : 0,
-            isFirstOfSuperset: set == 1 && ex == ss.exercises.first,
-            isSupersetMember: ss.isSuperset,
-          ));
-        }
+    // Build set rows grouped by exercise
+    final rows = <_SetRow>[];
+    for (final ex in exercises) {
+      for (int s = 1; s <= ex.sets; s++) {
+        rows.add(_SetRow(
+          exName: ex.name,
+          setNum: s,
+          totalSets: ex.sets,
+          reps: ex.reps,
+          weight: ex.weight,
+          restSec: ex.restTime.inSeconds,
+          isFirstSet: s == 1,
+        ));
       }
     }
 
@@ -1118,6 +618,7 @@ class _WorkoutPreviewScreenState
                   child: ListView(
                     padding: const EdgeInsets.only(bottom: 110),
                     children: [
+                      // Title + stats
                       Padding(
                         padding:
                             const EdgeInsets.fromLTRB(22, 0, 22, 18),
@@ -1135,6 +636,7 @@ class _WorkoutPreviewScreenState
                               ),
                             ),
                             const SizedBox(height: 14),
+                            // Stats grid
                             Container(
                               decoration: BoxDecoration(
                                 color: c.surface,
@@ -1164,9 +666,8 @@ class _WorkoutPreviewScreenState
                                     ),
                                     Expanded(
                                       child: _StatCell(
-                                        value: totalVol > 0
-                                            ? '${(totalVol / 1000).toStringAsFixed(1)}t'
-                                            : '—',
+                                        value:
+                                            '${(totalVol / 1000).toStringAsFixed(1)}t',
                                         label: 'volume',
                                         leftBorder: true,
                                       ),
@@ -1178,13 +679,14 @@ class _WorkoutPreviewScreenState
                           ],
                         ),
                       ),
+                      // Set sequence
                       Padding(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 18),
+                        padding:
+                            const EdgeInsets.symmetric(horizontal: 18),
                         child: Column(
                           children: [
                             for (int i = 0; i < rows.length; i++)
-                              _PreviewRowTile(
+                              _SetRowTile(
                                   row: rows[i],
                                   prevRow:
                                       i > 0 ? rows[i - 1] : null),
@@ -1196,6 +698,7 @@ class _WorkoutPreviewScreenState
                 ),
               ],
             ),
+            // Sticky bottom buttons
             Positioned(
               left: 0,
               right: 0,
@@ -1209,8 +712,7 @@ class _WorkoutPreviewScreenState
                     colors: [c.bg, c.bg.withValues(alpha: 0)],
                   ),
                 ),
-                padding:
-                    const EdgeInsets.fromLTRB(16, 12, 16, 16),
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
                 child: Row(
                   children: [
                     AppButton(
@@ -1290,33 +792,31 @@ class _StatCell extends StatelessWidget {
   }
 }
 
-class _PreviewRow {
+class _SetRow {
   final String exName;
   final int setNum;
   final int totalSets;
   final int reps;
   final double weight;
   final int restSec;
-  final bool isFirstOfSuperset;
-  final bool isSupersetMember;
+  final bool isFirstSet;
 
-  const _PreviewRow({
+  const _SetRow({
     required this.exName,
     required this.setNum,
     required this.totalSets,
     required this.reps,
     required this.weight,
     required this.restSec,
-    required this.isFirstOfSuperset,
-    required this.isSupersetMember,
+    required this.isFirstSet,
   });
 }
 
-class _PreviewRowTile extends StatelessWidget {
-  final _PreviewRow row;
-  final _PreviewRow? prevRow;
+class _SetRowTile extends StatelessWidget {
+  final _SetRow row;
+  final _SetRow? prevRow;
 
-  const _PreviewRowTile({required this.row, this.prevRow});
+  const _SetRowTile({required this.row, this.prevRow});
 
   @override
   Widget build(BuildContext context) {
@@ -1326,36 +826,24 @@ class _PreviewRowTile extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        if (row.isFirstOfSuperset) ...[
+        if (row.isFirstSet) ...[
           SizedBox(height: prevRow != null ? 18 : 6),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             crossAxisAlignment: CrossAxisAlignment.baseline,
             textBaseline: TextBaseline.alphabetic,
             children: [
-              Row(
-                children: [
-                  if (row.isSupersetMember)
-                    Padding(
-                      padding: const EdgeInsets.only(right: 6),
-                      child: Icon(Icons.link_rounded,
-                          size: 12, color: c.accent),
-                    ),
-                  Text(
-                    row.exName,
-                    style: bodyStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: c.ink,
-                      letterSpacing: -0.2,
-                    ),
-                  ),
-                ],
+              Text(
+                row.exName,
+                style: bodyStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: c.ink,
+                  letterSpacing: -0.2,
+                ),
               ),
               Text(
-                row.weight > 0
-                    ? '${row.totalSets} × ${row.reps} · ${row.weight}kg'
-                    : '${row.totalSets} × ${row.reps} reps',
+                '${row.totalSets} × ${row.reps} · ${row.weight}kg',
                 style: bodyStyle(
                   fontSize: 11,
                   color: c.inkMute,
@@ -1366,11 +854,13 @@ class _PreviewRowTile extends StatelessWidget {
           ),
           const SizedBox(height: 8),
         ],
+        // Set row
         Container(
-          padding:
-              const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
+          padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
           decoration: BoxDecoration(
-            border: Border(top: BorderSide(color: c.hairlineSoft)),
+            border: Border(
+              top: BorderSide(color: c.hairlineSoft),
+            ),
           ),
           child: Row(
             children: [
@@ -1378,7 +868,10 @@ class _PreviewRowTile extends StatelessWidget {
                 width: 26,
                 child: Text(
                   row.setNum.toString().padLeft(2, '0'),
-                  style: monoStyle(fontSize: 12, color: c.inkMute),
+                  style: monoStyle(
+                    fontSize: 12,
+                    color: c.inkMute,
+                  ),
                 ),
               ),
               Expanded(
@@ -1393,40 +886,43 @@ class _PreviewRowTile extends StatelessWidget {
                         letterSpacing: -0.3,
                       ),
                     ),
-                    Text(' reps',
-                        style:
-                            bodyStyle(fontSize: 14, color: c.inkMute)),
-                    if (row.weight > 0) ...[
-                      const SizedBox(width: 8),
-                      Text(
-                        '${row.weight}',
-                        style: displayStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                          color: c.ink,
-                          letterSpacing: -0.3,
-                        ),
-                      ),
-                      Text(' kg',
-                          style: bodyStyle(
-                              fontSize: 14, color: c.inkMute)),
-                    ],
-                  ],
-                ),
-              ),
-              if (row.restSec > 0)
-                Row(
-                  children: [
-                    Icon(Icons.timer_outlined,
-                        size: 12, color: c.inkMute),
-                    const SizedBox(width: 4),
                     Text(
-                      '${row.restSec}s',
-                      style:
-                          bodyStyle(fontSize: 12, color: c.inkMute),
+                      ' reps',
+                      style: bodyStyle(
+                          fontSize: 14, color: c.inkMute),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      '${row.weight}',
+                      style: displayStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: c.ink,
+                        letterSpacing: -0.3,
+                      ),
+                    ),
+                    Text(
+                      ' kg',
+                      style: bodyStyle(
+                          fontSize: 14, color: c.inkMute),
                     ),
                   ],
                 ),
+              ),
+              Row(
+                children: [
+                  Icon(Icons.timer_outlined,
+                      size: 12, color: c.inkMute),
+                  const SizedBox(width: 4),
+                  Text(
+                    '${row.restSec}s',
+                    style: bodyStyle(
+                      fontSize: 12,
+                      color: c.inkMute,
+                    ),
+                  ),
+                ],
+              ),
             ],
           ),
         ),
