@@ -892,40 +892,37 @@ class _WorkoutSessionScreenState
               ),
             ),
             const Spacer(),
-            // −15s / +15s row, then Skip rest full-width
+            // −15s | +15s | Skip rest (Phase 1.1)
             Padding(
               padding: EdgeInsets.fromLTRB(
                   18, 0, 18, 16 + MediaQuery.of(context).padding.bottom),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
+              child: Row(
                 children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: AppButton(
-                          label: '−15s',
-                          kind: ButtonKind.outline,
-                          icon: Icons.remove_rounded,
-                          onPressed: () => _subtractRestTime(15),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: AppButton(
-                          label: '+15s',
-                          kind: ButtonKind.outline,
-                          icon: Icons.add_rounded,
-                          onPressed: () => _addRestTime(15),
-                        ),
-                      ),
-                    ],
+                  Expanded(
+                    child: AppButton(
+                      label: '−15s',
+                      kind: ButtonKind.outline,
+                      icon: Icons.remove_rounded,
+                      onPressed: () => _subtractRestTime(15),
+                    ),
                   ),
-                  const SizedBox(height: 8),
-                  AppButton(
-                    label: 'Skip rest',
-                    full: true,
-                    icon: Icons.skip_next_rounded,
-                    onPressed: _skipRest,
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: AppButton(
+                      label: '+15s',
+                      kind: ButtonKind.outline,
+                      icon: Icons.add_rounded,
+                      onPressed: () => _addRestTime(15),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    flex: 2,
+                    child: AppButton(
+                      label: 'Skip rest',
+                      icon: Icons.skip_next_rounded,
+                      onPressed: _skipRest,
+                    ),
                   ),
                 ],
               ),
