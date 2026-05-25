@@ -172,47 +172,9 @@ Haptic + beep on each tick. On 0: heavy impact, transition to exercise view.
 
 ## Phase 3 — New features (model changes required)
 
-### 3.1 — Supersets *(Item 10)*
+> **Note:** Supersets (originally Item 10) have been moved to their own plan: `250526-supersets.md`.
 
-#### New model: `Superset`
-
-```dart
-// lib/domain/models/superset.dart
-class Superset {
-  String id;
-  List<Exercise> exercises;  // ≥1; if length > 1 it's a true superset
-  int sets;
-  Duration restAfterSet;     // rest only after all exercises in the group complete once
-
-  bool get isSuperset => exercises.length > 1;
-}
-```
-
-`Exercise` loses its `sets` and `restTime` fields (they move to `Superset`).  
-`Workout.exercises` becomes `List<Superset>`.
-
-**Migration:** On load from Hive, wrap each legacy `Exercise` in a single-exercise `Superset`. Bump the Hive adapter version for both `Exercise` and `Workout`.
-
-#### Sequence generation
-
-```dart
-// Superset.generateSlots() — returns flat list of execution slots
-// For 3 sets of [Bench, Fly] with 90s rest:
-//   Bench(s1) → Fly(s1) → REST 90s → Bench(s2) → Fly(s2) → REST 90s → Bench(s3) → Fly(s3)
-```
-
-Between exercises within the same set of a superset: no rest, just an "intra-group next" label.  
-Rest only fires after the last exercise of each set (except the final set of the workout).
-
-#### UI changes
-
-- **CreateWorkout:** Add a "group with next exercise" toggle on each exercise card. When enabled, a vertical accent bar visually connects the cards and the REST field is hidden (rest lives at the `Superset` level, shown on the last exercise of the group).
-- **WorkoutSessionScreen:** During a superset, replace the rest timer between intra-group exercises with an instant "→ Next: [exercise]" transition.
-- **WorkoutPreview:** Show supersets with a bracket / grouping indicator and a shared set count.
-
----
-
-### 3.2 — Warm-up session before workout *(Item 4)*
+### 3.1 — Warm-up session before workout *(Item 4)*
 
 #### Model changes
 
@@ -283,7 +245,7 @@ Add a collapsible "Warm-up" section above the main exercises. Pre-filled with `k
 
 ---
 
-### 3.3 — Workout complete screen *(Item 11)*
+### 3.2 — Workout complete screen *(Item 11)*
 
 **New file:** `lib/presentation/workout_complete_screen.dart`
 
@@ -324,13 +286,10 @@ Read `scheduledWorkouts` from Hive (to be added in the calendar phase). If prese
 |---|---|
 | `pubspec.yaml` | Add `wakelock_plus`, `audioplayers`, `vibration` |
 | `assets/sounds/beep.mp3` | **New** |
-| `lib/domain/models/exercise.dart` | Remove `sets`, `restTime` → moved to `Superset`; add `timedDuration` field |
-| `lib/domain/models/exercise_adapter.dart` | Version bump |
+| `lib/domain/models/exercise.dart` | Add `timedDuration` field |
 | `lib/domain/models/default_warmup.dart` | **New** — `kDefaultWarmup` constant |
-| `lib/domain/models/superset.dart` | **New** |
-| `lib/domain/models/superset_adapter.dart` | **New** Hive adapter |
-| `lib/domain/models/workout.dart` | `exercises` → `List<Superset>`, add `warmup: List<Exercise>` field |
-| `lib/domain/models/workout_adapter.dart` | Version bump + migration fallback |
+| `lib/domain/models/workout.dart` | Add `warmup: List<Exercise>` field |
+| `lib/domain/models/workout_adapter.dart` | Version bump |
 | `lib/presentation/workout_session_screen.dart` | Items 1, 2, 3, 5, 6, 8, 9, 10 |
 | `lib/presentation/create_workout.dart` | Items 4, 7, 10 |
 | `lib/presentation/warmup_screen.dart` | **New** (Item 4) |
@@ -348,7 +307,9 @@ Phase 2 (add packages first, then behaviour):
   2.1 → 2.2 → 2.3
 
 Phase 3 (all model changes land together in one commit):
-  3.1 (Superset model + sequence + UI) → 3.2 (warmup) → 3.3 (end screen)
+  3.1 (warmup model + UI + WarmupScreen) → 3.2 (end screen)
+
+Note: Supersets are tracked separately in 250526-supersets.md
 ```
 
 Phase 3 items should land in a single PR because the model changes are breaking — the Hive adapter version bump and migration wrapper must ship together with the UI.
@@ -358,5 +319,4 @@ Phase 3 items should land in a single PR because the model changes are breaking 
 ## Open questions
 
 - **Beep asset**: bundle a `.mp3` vs generate a tone programmatically? Bundling is simpler and avoids runtime synthesis.
-- **Superset rest field in edit UI**: show rest on the last exercise card of the group, or on a group-level header row? Recommend group-level header to avoid ambiguity.
 - **Warm-up logging**: should warm-up sets be included in session history? Suggested: no — they're prep, not working sets.
