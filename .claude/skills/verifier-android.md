@@ -52,8 +52,18 @@ commands.
 
 ## 4. Take screenshots
 
-From the second terminal, any time you want to capture the current
-emulator screen:
+**Always wake the screen first** — the emulator display goes off and
+screenshots will be blank if you skip this:
+
+```powershell
+# Turn the screen on and dismiss the lock screen
+adb -s $deviceId shell input keyevent KEYCODE_WAKEUP
+Start-Sleep -Seconds 1
+adb -s $deviceId shell input swipe 540 1600 540 800 300
+Start-Sleep -Seconds 1
+```
+
+Then capture:
 
 ```powershell
 $deviceId = (flutter devices 2>&1 |
