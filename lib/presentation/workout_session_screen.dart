@@ -851,7 +851,7 @@ class _WorkoutSessionScreenState
                 children: [
                   Expanded(
                     child: AppButton(
-                      label: '−15s',
+                      label: '15s',
                       kind: ButtonKind.outline,
                       icon: Icons.remove_rounded,
                       onPressed: () => _subtractRestTime(15),
@@ -860,7 +860,7 @@ class _WorkoutSessionScreenState
                   const SizedBox(width: 8),
                   Expanded(
                     child: AppButton(
-                      label: '+15s',
+                      label: '15s',
                       kind: ButtonKind.outline,
                       icon: Icons.add_rounded,
                       onPressed: () => _addRestTime(15),

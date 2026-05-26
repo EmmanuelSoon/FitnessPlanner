@@ -19,7 +19,7 @@ class _CreateWorkoutScreenState extends State<CreateWorkoutScreen> {
   final _nameCtrl = TextEditingController();
   final List<Exercise> _exercises = [];
   final List<Exercise> _warmup = [];
-  bool _warmupExpanded = true;
+  bool _warmupExpanded = false;
 
   @override
   void initState() {
@@ -224,47 +224,46 @@ class _CreateWorkoutScreenState extends State<CreateWorkoutScreen> {
                       ),
 
                       // ── Warm-up section ─────────────────────────────
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(22, 4, 22, 4),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text(
-                              'WARM-UP',
-                              style: bodyStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w500,
-                                color: c.inkMute,
-                                letterSpacing: 0.8,
-                              ),
-                            ),
-                            Row(
-                              children: [
-                                Text(
-                                  '${_warmup.length}',
-                                  style: bodyStyle(
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w500,
-                                    color: c.inkMute,
-                                    letterSpacing: 0.8,
-                                  ),
+                      GestureDetector(
+                        onTap: () => setState(
+                            () => _warmupExpanded = !_warmupExpanded),
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(22, 4, 22, 4),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(
+                                'WARM-UP',
+                                style: bodyStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w500,
+                                  color: c.inkMute,
+                                  letterSpacing: 0.8,
                                 ),
-                                const SizedBox(width: 6),
-                                GestureDetector(
-                                  onTap: () => setState(
-                                      () => _warmupExpanded =
-                                          !_warmupExpanded),
-                                  child: Icon(
+                              ),
+                              Row(
+                                children: [
+                                  Text(
+                                    '${_warmup.length}',
+                                    style: bodyStyle(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w500,
+                                      color: c.inkMute,
+                                      letterSpacing: 0.8,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Icon(
                                     _warmupExpanded
                                         ? Icons.expand_less_rounded
                                         : Icons.expand_more_rounded,
                                     size: 20,
                                     color: c.inkMute,
                                   ),
-                                ),
-                              ],
-                            ),
-                          ],
+                                ],
+                              ),
+                            ],
+                          ),
                         ),
                       ),
                       if (_warmupExpanded) ...[
@@ -490,8 +489,8 @@ class _WarmupExerciseCardState extends State<WarmupExerciseCard> {
         _valueCtrl.text = secs.toString();
       } else {
         e.timedDuration = null;
-        e.reps = int.tryParse(_valueCtrl.text) ?? 10;
-        _valueCtrl.text = e.reps.toString();
+        e.reps = 10;
+        _valueCtrl.text = '10';
       }
     });
   }
