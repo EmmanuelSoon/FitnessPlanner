@@ -4,6 +4,7 @@ import 'package:fitness_planner/domain/models/workout.dart';
 import 'package:fitness_planner/providers/workout_providers.dart';
 import 'package:fitness_planner/presentation/create_workout.dart';
 import 'package:fitness_planner/presentation/workout_session_screen.dart';
+import 'package:fitness_planner/presentation/warmup_screen.dart';
 import 'package:fitness_planner/presentation/history_screen.dart';
 import 'package:fitness_planner/presentation/widgets/app_widgets.dart';
 import 'package:fitness_planner/presentation/widgets/appearance_picker.dart';
@@ -161,8 +162,9 @@ class _WorkoutList extends ConsumerWidget {
                     onTap: () => Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (_) =>
-                            WorkoutSessionScreen(workout: w),
+                        builder: (_) => w.warmup.isNotEmpty
+                            ? WarmupScreen(workout: w)
+                            : WorkoutSessionScreen(workout: w),
                       ),
                     ),
                     onEdit: () => Navigator.push(

@@ -4,8 +4,14 @@ class Workout {
   final String id;
   final String name;
   final List<Exercise> exercises;
+  final List<Exercise> warmup;
 
-  Workout({required this.id, required this.name, required this.exercises});
+  Workout({
+    required this.id,
+    required this.name,
+    required this.exercises,
+    List<Exercise>? warmup,
+  }) : warmup = warmup ?? [];
 
   List<Exercise> generateWorkoutSequence() {
     return exercises.expand((e) => e.generateSequence()).toList();
@@ -25,6 +31,7 @@ class Workout {
     'id': id,
     'name': name,
     'exercises': exercises.map((e) => e.toJson()).toList(),
+    'warmup': warmup.map((e) => e.toJson()).toList(),
   };
 
   factory Workout.fromJson(Map<String, dynamic> json) => Workout(
@@ -33,5 +40,10 @@ class Workout {
     exercises: (json['exercises'] as List)
         .map((e) => Exercise.fromJson(e as Map<String, dynamic>))
         .toList(),
+    warmup: json['warmup'] != null
+        ? (json['warmup'] as List)
+            .map((e) => Exercise.fromJson(e as Map<String, dynamic>))
+            .toList()
+        : [],
   );
 }

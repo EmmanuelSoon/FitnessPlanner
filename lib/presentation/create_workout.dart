@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:fitness_planner/domain/models/exercise.dart';
 import 'package:fitness_planner/domain/models/workout.dart';
+import 'package:fitness_planner/domain/models/default_warmup.dart';
 import 'package:fitness_planner/providers/workout_providers.dart';
 import 'package:fitness_planner/presentation/widgets/app_widgets.dart';
 import 'package:fitness_planner/theme/app_theme.dart';
@@ -17,6 +18,8 @@ class CreateWorkoutScreen extends StatefulWidget {
 class _CreateWorkoutScreenState extends State<CreateWorkoutScreen> {
   final _nameCtrl = TextEditingController();
   final List<Exercise> _exercises = [];
+  final List<Exercise> _warmup = [];
+  bool _warmupExpanded = false;
 
   @override
   void initState() {
@@ -31,8 +34,22 @@ class _CreateWorkoutScreenState extends State<CreateWorkoutScreen> {
           sets: e.sets,
           restTime: e.restTime,
           weight: e.weight,
+          timedDuration: e.timedDuration,
         ),
       ));
+      _warmup.addAll(existing.warmup.map(
+        (e) => Exercise(
+          name: e.name,
+          reps: e.reps,
+          sets: e.sets,
+          restTime: e.restTime,
+          weight: e.weight,
+          timedDuration: e.timedDuration,
+        ),
+      ));
+    } else {
+      // New workout: pre-populate with default warm-up
+      _warmup.addAll(createDefaultWarmup());
     }
   }
 
@@ -59,6 +76,24 @@ class _CreateWorkoutScreenState extends State<CreateWorkoutScreen> {
     setState(() => _exercises.removeAt(index));
   }
 
+  void _addWarmupExercise() {
+    setState(() {
+      _warmup.add(
+        Exercise(
+          name: '',
+          reps: 0,
+          sets: 1,
+          restTime: Duration.zero,
+          timedDuration: const Duration(seconds: 30),
+        ),
+      );
+    });
+  }
+
+  void _removeWarmupExercise(int index) {
+    setState(() => _warmup.removeAt(index));
+  }
+
   void _goToPreview() {
     final name = _nameCtrl.text.trim();
     if (name.isEmpty) {
@@ -73,12 +108,19 @@ class _CreateWorkoutScreenState extends State<CreateWorkoutScreen> {
       );
       return;
     }
+    if (_warmup.any((e) => e.name.trim().isEmpty)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('All warm-up exercises must have a name')),
+      );
+      return;
+    }
 
     final workout = Workout(
       id: widget.existingWorkout?.id ??
           DateTime.now().millisecondsSinceEpoch.toString(),
       name: name,
       exercises: List.of(_exercises),
+      warmup: List.of(_warmup),
     );
     Navigator.push<bool>(
       context,
@@ -92,10 +134,10 @@ class _CreateWorkoutScreenState extends State<CreateWorkoutScreen> {
       if (!mounted) return;
       if (saved == true) {
         if (widget.existingWorkout != null) {
-          Navigator.pop(context);
+          Navigator.pop(context); // editing: single pop back to list
         } else {
-          setState(() => _exercises.clear());
-          _nameCtrl.clear();
+          // Item 1.4 — new workout: pop all the way back to workout list
+          Navigator.of(context).popUntil((route) => route.isFirst);
         }
       }
     });
@@ -114,7 +156,6 @@ class _CreateWorkoutScreenState extends State<CreateWorkoutScreen> {
           children: [
             Column(
               children: [
-                // Header bar
                 AppHeaderBar(
                   title: isEdit ? 'Edit workout' : 'New workout',
                   leading: AppIconButton(
@@ -175,18 +216,120 @@ class _CreateWorkoutScreenState extends State<CreateWorkoutScreen> {
                                 contentPadding:
                                     const EdgeInsets.only(bottom: 8),
                               ),
-                              onSubmitted: (_) => FocusScope.of(context).unfocus(),
+                              onSubmitted: (_) =>
+                                  FocusScope.of(context).unfocus(),
                             ),
                           ],
                         ),
                       ),
-                      // Exercises header
+
+                      // ── Warm-up section ─────────────────────────────
+                      GestureDetector(
+                        onTap: () => setState(
+                            () => _warmupExpanded = !_warmupExpanded),
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(22, 4, 22, 4),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(
+                                'WARM-UP',
+                                style: bodyStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w500,
+                                  color: c.inkMute,
+                                  letterSpacing: 0.8,
+                                ),
+                              ),
+                              Row(
+                                children: [
+                                  Text(
+                                    '${_warmup.length}',
+                                    style: bodyStyle(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w500,
+                                      color: c.inkMute,
+                                      letterSpacing: 0.8,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Icon(
+                                    _warmupExpanded
+                                        ? Icons.expand_less_rounded
+                                        : Icons.expand_more_rounded,
+                                    size: 20,
+                                    color: c.inkMute,
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      if (_warmupExpanded) ...[
+                        Padding(
+                          padding:
+                              const EdgeInsets.symmetric(horizontal: 16),
+                          child: Column(
+                            children: [
+                              ..._warmup.asMap().entries.map((entry) {
+                                final i = entry.key;
+                                final ex = entry.value;
+                                return Padding(
+                                  padding:
+                                      const EdgeInsets.only(bottom: 10),
+                                  child: WarmupExerciseCard(
+                                    exercise: ex,
+                                    index: i + 1,
+                                    onRemove: () =>
+                                        _removeWarmupExercise(i),
+                                  ),
+                                );
+                              }),
+                              // Add warm-up exercise button
+                              GestureDetector(
+                                onTap: _addWarmupExercise,
+                                child: Container(
+                                  height: 44,
+                                  decoration: BoxDecoration(
+                                    color: Colors.transparent,
+                                    borderRadius:
+                                        BorderRadius.circular(kRadius),
+                                    border: Border.all(
+                                      color: c.hairline,
+                                      width: 1.5,
+                                    ),
+                                  ),
+                                  child: Row(
+                                    mainAxisAlignment:
+                                        MainAxisAlignment.center,
+                                    children: [
+                                      Icon(Icons.add_rounded,
+                                          size: 16, color: c.inkDim),
+                                      const SizedBox(width: 6),
+                                      Text(
+                                        'Add warm-up exercise',
+                                        style: bodyStyle(
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.w600,
+                                          color: c.inkDim,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                      const SizedBox(height: 18),
+
+                      // ── Main exercises section ───────────────────────
                       Padding(
-                        padding:
-                            const EdgeInsets.fromLTRB(22, 4, 22, 10),
+                        padding: const EdgeInsets.fromLTRB(22, 4, 22, 10),
                         child: Row(
-                          mainAxisAlignment:
-                              MainAxisAlignment.spaceBetween,
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
                             Text(
                               'EXERCISES',
@@ -209,7 +352,6 @@ class _CreateWorkoutScreenState extends State<CreateWorkoutScreen> {
                           ],
                         ),
                       ),
-                      // Exercise cards
                       Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 16),
                         child: Column(
@@ -218,8 +360,7 @@ class _CreateWorkoutScreenState extends State<CreateWorkoutScreen> {
                               final i = entry.key;
                               final ex = entry.value;
                               return Padding(
-                                padding:
-                                    const EdgeInsets.only(bottom: 12),
+                                padding: const EdgeInsets.only(bottom: 12),
                                 child: ExerciseEditCard(
                                   exercise: ex,
                                   index: i + 1,
@@ -227,7 +368,6 @@ class _CreateWorkoutScreenState extends State<CreateWorkoutScreen> {
                                 ),
                               );
                             }),
-                            // Add exercise button
                             GestureDetector(
                               onTap: _addExercise,
                               child: Container(
@@ -239,7 +379,6 @@ class _CreateWorkoutScreenState extends State<CreateWorkoutScreen> {
                                   border: Border.all(
                                     color: c.hairline,
                                     width: 1.5,
-                                    style: BorderStyle.solid,
                                   ),
                                 ),
                                 child: Row(
@@ -298,7 +437,207 @@ class _CreateWorkoutScreenState extends State<CreateWorkoutScreen> {
   }
 }
 
-// ─── Exercise edit card ─────────────────────────────────────────────────
+// ─── Warm-up exercise card ───────────────────────────────────────────────
+class WarmupExerciseCard extends StatefulWidget {
+  final Exercise exercise;
+  final int index;
+  final VoidCallback onRemove;
+
+  const WarmupExerciseCard({
+    super.key,
+    required this.exercise,
+    required this.index,
+    required this.onRemove,
+  });
+
+  @override
+  State<WarmupExerciseCard> createState() => _WarmupExerciseCardState();
+}
+
+class _WarmupExerciseCardState extends State<WarmupExerciseCard> {
+  late final TextEditingController _nameCtrl;
+  late final TextEditingController _valueCtrl;
+  late bool _isTimed;
+
+  @override
+  void initState() {
+    super.initState();
+    final e = widget.exercise;
+    _nameCtrl = TextEditingController(text: e.name);
+    _isTimed = e.timedDuration != null;
+    _valueCtrl = TextEditingController(
+      text: _isTimed
+          ? (e.timedDuration!.inSeconds.toString())
+          : e.reps.toString(),
+    );
+  }
+
+  @override
+  void dispose() {
+    _nameCtrl.dispose();
+    _valueCtrl.dispose();
+    super.dispose();
+  }
+
+  void _toggleMode() {
+    final e = widget.exercise;
+    setState(() {
+      _isTimed = !_isTimed;
+      if (_isTimed) {
+        final secs = int.tryParse(_valueCtrl.text) ?? 30;
+        e.timedDuration = Duration(seconds: secs);
+        _valueCtrl.text = secs.toString();
+      } else {
+        e.timedDuration = null;
+        e.reps = 10;
+        _valueCtrl.text = '10';
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = AppThemeData.of(context);
+    final c = theme.c;
+    final e = widget.exercise;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: c.surface,
+        borderRadius: BorderRadius.circular(kRadius),
+        border: Border.all(color: c.hairlineSoft),
+      ),
+      padding: const EdgeInsets.all(12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              // Index pill
+              Container(
+                width: 22,
+                height: 22,
+                decoration:
+                    BoxDecoration(color: c.surfaceAlt, shape: BoxShape.circle),
+                alignment: Alignment.center,
+                child: Text(
+                  '${widget.index}',
+                  style:
+                      monoStyle(fontSize: 10, fontWeight: FontWeight.w600, color: c.inkDim),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: TextField(
+                  controller: _nameCtrl,
+                  style:
+                      bodyStyle(fontSize: 14, fontWeight: FontWeight.w600, color: c.ink),
+                  decoration: InputDecoration(
+                    hintText: 'Exercise name',
+                    hintStyle: bodyStyle(fontSize: 14, color: c.inkMute),
+                    border: InputBorder.none,
+                    contentPadding: EdgeInsets.zero,
+                  ),
+                  onChanged: (v) => e.name = v,
+                ),
+              ),
+              // Toggle timed / rep-based
+              GestureDetector(
+                onTap: _toggleMode,
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: c.surfaceAlt,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    _isTimed ? '⏱ Timed' : '🔢 Reps',
+                    style: bodyStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w500,
+                        color: c.inkDim),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 4),
+              SizedBox(
+                width: 30,
+                height: 30,
+                child: IconButton(
+                  padding: EdgeInsets.zero,
+                  icon: Icon(Icons.close_rounded, size: 16, color: c.inkMute),
+                  onPressed: widget.onRemove,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          // Duration / reps field
+          Container(
+            padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
+            decoration: BoxDecoration(
+              color: c.bg,
+              borderRadius: BorderRadius.circular(kRadius - 6),
+              border: Border.all(color: c.hairlineSoft),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  _isTimed ? 'DURATION' : 'REPS',
+                  style: bodyStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w500,
+                      color: c.inkMute,
+                      letterSpacing: 0.6),
+                ),
+                const SizedBox(height: 2),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.baseline,
+                  textBaseline: TextBaseline.alphabetic,
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: _valueCtrl,
+                        keyboardType: TextInputType.number,
+                        style: displayStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w600,
+                            color: c.ink,
+                            letterSpacing: -0.3),
+                        decoration: const InputDecoration(
+                          border: InputBorder.none,
+                          isDense: true,
+                          contentPadding: EdgeInsets.zero,
+                        ),
+                        onChanged: (v) {
+                          if (_isTimed) {
+                            e.timedDuration =
+                                Duration(seconds: int.tryParse(v) ?? 30);
+                          } else {
+                            e.reps = int.tryParse(v) ?? e.reps;
+                          }
+                        },
+                      ),
+                    ),
+                    Text(
+                      _isTimed ? 's' : 'reps',
+                      style: bodyStyle(
+                          fontSize: 11, color: c.inkMute, letterSpacing: 0),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─── Exercise edit card ──────────────────────────────────────────────────
 class ExerciseEditCard extends StatefulWidget {
   final Exercise exercise;
   final int index;
@@ -391,7 +730,8 @@ class _ExerciseEditCardState extends State<ExerciseEditCard> {
                   ),
                   decoration: InputDecoration(
                     hintText: 'Exercise name',
-                    hintStyle: bodyStyle(fontSize: 15, color: c.inkMute),
+                    hintStyle:
+                        bodyStyle(fontSize: 15, color: c.inkMute),
                     border: InputBorder.none,
                     contentPadding: EdgeInsets.zero,
                   ),
@@ -536,7 +876,7 @@ class _NumField extends StatelessWidget {
   }
 }
 
-// ─── Workout Preview Screen ─────────────────────────────────────────────
+// ─── Workout Preview Screen ──────────────────────────────────────────────
 class WorkoutPreviewScreen extends ConsumerStatefulWidget {
   final Workout workout;
   final List<Exercise> sequence;
@@ -584,7 +924,6 @@ class _WorkoutPreviewScreenState
       return m > 0 ? '${h}h ${m}m' : '${h}h';
     }
 
-    // Build set rows grouped by exercise
     final rows = <_SetRow>[];
     for (final ex in exercises) {
       for (int s = 1; s <= ex.sets; s++) {
@@ -636,7 +975,6 @@ class _WorkoutPreviewScreenState
                               ),
                             ),
                             const SizedBox(height: 14),
-                            // Stats grid
                             Container(
                               decoration: BoxDecoration(
                                 color: c.surface,
@@ -854,13 +1192,11 @@ class _SetRowTile extends StatelessWidget {
           ),
           const SizedBox(height: 8),
         ],
-        // Set row
         Container(
-          padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
+          padding:
+              const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
           decoration: BoxDecoration(
-            border: Border(
-              top: BorderSide(color: c.hairlineSoft),
-            ),
+            border: Border(top: BorderSide(color: c.hairlineSoft)),
           ),
           child: Row(
             children: [
@@ -868,10 +1204,7 @@ class _SetRowTile extends StatelessWidget {
                 width: 26,
                 child: Text(
                   row.setNum.toString().padLeft(2, '0'),
-                  style: monoStyle(
-                    fontSize: 12,
-                    color: c.inkMute,
-                  ),
+                  style: monoStyle(fontSize: 12, color: c.inkMute),
                 ),
               ),
               Expanded(
@@ -888,8 +1221,8 @@ class _SetRowTile extends StatelessWidget {
                     ),
                     Text(
                       ' reps',
-                      style: bodyStyle(
-                          fontSize: 14, color: c.inkMute),
+                      style:
+                          bodyStyle(fontSize: 14, color: c.inkMute),
                     ),
                     const SizedBox(width: 8),
                     Text(
@@ -903,8 +1236,8 @@ class _SetRowTile extends StatelessWidget {
                     ),
                     Text(
                       ' kg',
-                      style: bodyStyle(
-                          fontSize: 14, color: c.inkMute),
+                      style:
+                          bodyStyle(fontSize: 14, color: c.inkMute),
                     ),
                   ],
                 ),
@@ -916,10 +1249,8 @@ class _SetRowTile extends StatelessWidget {
                   const SizedBox(width: 4),
                   Text(
                     '${row.restSec}s',
-                    style: bodyStyle(
-                      fontSize: 12,
-                      color: c.inkMute,
-                    ),
+                    style:
+                        bodyStyle(fontSize: 12, color: c.inkMute),
                   ),
                 ],
               ),
