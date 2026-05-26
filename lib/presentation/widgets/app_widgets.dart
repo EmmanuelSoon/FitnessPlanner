@@ -129,24 +129,27 @@ class AppButton extends StatelessWidget {
         border = Border.all(color: c.hairline);
     }
 
-    Widget child = Row(
-      mainAxisSize: MainAxisSize.min,
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        if (icon != null) ...[
-          Icon(icon, size: small ? 16 : 18, color: fg),
-          const SizedBox(width: 8),
-        ],
-        Text(
-          label,
-          style: bodyStyle(
-            fontSize: small ? 13 : 15,
-            fontWeight: FontWeight.w600,
-            color: fg,
-            letterSpacing: 0.1,
+    Widget child = FittedBox(
+      fit: BoxFit.scaleDown,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          if (icon != null) ...[
+            Icon(icon, size: small ? 16 : 18, color: fg),
+            const SizedBox(width: 8),
+          ],
+          Text(
+            label,
+            style: bodyStyle(
+              fontSize: small ? 13 : 15,
+              fontWeight: FontWeight.w600,
+              color: fg,
+              letterSpacing: 0.1,
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
 
     return GestureDetector(

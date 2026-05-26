@@ -750,61 +750,65 @@ class _WorkoutSessionScreenState
               _fmtElapsed(),
               style: monoStyle(fontSize: 28, color: c.inkDim),
             ),
-            const SizedBox(height: 6),
+            const SizedBox(height: 12),
+            // Item 1.5 — next set info, near the top
+            if (nextEx != null)
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 22),
+                child: Column(
+                  children: [
+                    Text(
+                      'SET ${_loggedSetsFor(nextEx.name) + 1}',
+                      style: bodyStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w500,
+                        color: c.inkMute,
+                        letterSpacing: 0.8,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      nextEx.name,
+                      style: displayStyle(
+                        fontSize: 26,
+                        fontWeight: FontWeight.w500,
+                        color: c.ink,
+                        letterSpacing: -0.5,
+                        height: 1.1,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      nextEx.weight > 0
+                          ? '${nextEx.reps} × ${nextEx.weight}kg'
+                          : '${nextEx.reps} reps',
+                      style: bodyStyle(
+                        fontSize: 15,
+                        color: c.inkDim,
+                        letterSpacing: 0.1,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Divider(color: c.hairline, thickness: 1),
+                  ],
+                ),
+              ),
             Expanded(
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 22),
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    // Item 1.5 — exercise info ABOVE the ring
-                    if (nextEx != null) ...[
-                      Text(
-                        'SET ${_loggedSetsFor(nextEx.name) + 1}',
-                        style: bodyStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w500,
-                          color: c.inkMute,
-                          letterSpacing: 0.8,
-                        ),
-                      ),
-                      const SizedBox(height: 6),
-                      Text(
-                        nextEx.name,
-                        style: displayStyle(
-                          fontSize: 26,
-                          fontWeight: FontWeight.w500,
-                          color: c.ink,
-                          letterSpacing: -0.5,
-                          height: 1.1,
-                        ),
-                        textAlign: TextAlign.center,
-                      ),
-                      const SizedBox(height: 6),
-                      // Item 1.2 — omit weight if 0
-                      Text(
-                        nextEx.weight > 0
-                            ? '${nextEx.reps} × ${nextEx.weight}kg'
-                            : '${nextEx.reps} reps',
-                        style: bodyStyle(
-                          fontSize: 15,
-                          color: c.inkDim,
-                          letterSpacing: 0.1,
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      Divider(color: c.hairline, thickness: 1),
-                      const SizedBox(height: 16),
-                    ],
-                    // Circular timer — constrained to 200×200
+                    // Circular timer — constrained to 260×260
                     SizedBox(
-                      width: 200,
-                      height: 200,
+                      width: 260,
+                      height: 260,
                       child: Stack(
                         alignment: Alignment.center,
                         children: [
                           CustomPaint(
-                            size: const Size(200, 200),
+                            size: const Size(260, 260),
                             painter: _RingPainter(
                               progress: progress,
                               trackColor: c.hairline,
@@ -817,7 +821,7 @@ class _WorkoutSessionScreenState
                               Text(
                                 fmtSec(_restSecondsRemaining),
                                 style: displayStyle(
-                                  fontSize: 64,
+                                  fontSize: 72,
                                   fontWeight: FontWeight.w400,
                                   color: c.ink,
                                   letterSpacing: -3,
@@ -839,43 +843,45 @@ class _WorkoutSessionScreenState
                         ],
                       ),
                     ),
+                    // Item 1.1 — −15s | +15s under the ring
+                    const SizedBox(height: 20),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        SizedBox(
+                          width: 120,
+                          child: AppButton(
+                            label: '15s',
+                            kind: ButtonKind.outline,
+                            icon: Icons.remove_rounded,
+                            onPressed: () => _subtractRestTime(15),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        SizedBox(
+                          width: 120,
+                          child: AppButton(
+                            label: '15s',
+                            kind: ButtonKind.outline,
+                            icon: Icons.add_rounded,
+                            onPressed: () => _addRestTime(15),
+                          ),
+                        ),
+                      ],
+                    ),
                   ],
                 ),
               ),
             ),
-            // Item 1.1 — −15s | +15s | Skip rest
+            // Skip rest — full-width at the bottom
             Padding(
               padding: EdgeInsets.fromLTRB(
                   18, 0, 18, 16 + MediaQuery.of(context).padding.bottom),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: AppButton(
-                      label: '15s',
-                      kind: ButtonKind.outline,
-                      icon: Icons.remove_rounded,
-                      onPressed: () => _subtractRestTime(15),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: AppButton(
-                      label: '15s',
-                      kind: ButtonKind.outline,
-                      icon: Icons.add_rounded,
-                      onPressed: () => _addRestTime(15),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    flex: 2,
-                    child: AppButton(
-                      label: 'Skip rest',
-                      icon: Icons.skip_next_rounded,
-                      onPressed: _skipRest,
-                    ),
-                  ),
-                ],
+              child: AppButton(
+                label: 'Skip rest',
+                icon: Icons.skip_next_rounded,
+                full: true,
+                onPressed: _skipRest,
               ),
             ),
           ],
