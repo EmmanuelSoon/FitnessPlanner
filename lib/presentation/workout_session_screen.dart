@@ -484,13 +484,18 @@ class _WorkoutSessionScreenState
         _sequence.where((s) => s.name == e.name).length;
     final currentSetIndex = completedSetsSoFar;
 
-    final exercisesDone = _logged
-        .map((l) => l.exerciseName)
-        .toSet()
-        .where((name) =>
-            _sequence.where((s) => s.name == name).length ==
-            _logged.where((l) => l.exerciseName == name).length)
-        .length;
+    // Build the ordered list of unique exercise names as they first appear in
+    // the sequence.  This gives the correct 1-based display number even during
+    // superset interleaving (where exercises alternate before any one of them
+    // finishes all its sets).
+    final orderedUniqueExercises = <String>[];
+    for (final slot in _sequence) {
+      if (!orderedUniqueExercises.contains(slot.name)) {
+        orderedUniqueExercises.add(slot.name);
+      }
+    }
+    final currentExerciseNumber =
+        orderedUniqueExercises.indexOf(e.name) + 1;
 
     return Scaffold(
       backgroundColor: c.bg,
@@ -518,7 +523,7 @@ class _WorkoutSessionScreenState
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Text(
-                        'EXERCISE ${exercisesDone + 1} / $_totalExercises',
+                        'EXERCISE $currentExerciseNumber / $_totalExercises',
                         style: bodyStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.w500,
