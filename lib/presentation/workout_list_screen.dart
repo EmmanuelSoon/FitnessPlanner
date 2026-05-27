@@ -157,7 +157,8 @@ class _WorkoutList extends ConsumerWidget {
                   final dur = w.totalDuration.inMinutes;
                   return WorkoutListCard(
                     name: w.name,
-                    exerciseCount: w.exercises.length,
+                    exerciseCount: w.exercises
+                        .fold(0, (sum, s) => sum + s.exercises.length),
                     durationMinutes: dur > 0 ? dur : null,
                     onTap: () => Navigator.push(
                       context,

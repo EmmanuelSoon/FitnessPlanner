@@ -572,6 +572,28 @@ class _WorkoutSessionScreenState
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
+                    // Superset badge (shown when this exercise is part of a superset run)
+                    if (_currentExerciseIsInSuperset)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 10),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 10, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: c.accent.withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            'SUPERSET',
+                            style: bodyStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w700,
+                              color: c.accent,
+                              letterSpacing: 1.2,
+                            ),
+                          ),
+                        ),
+                      ),
                     // Exercise name
                     Text(
                       e.name,
@@ -621,23 +643,58 @@ class _WorkoutSessionScreenState
                     ),
                     const SizedBox(height: 28),
                     if (nextEx != null)
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(Icons.chevron_right_rounded,
-                              size: 12, color: c.inkMute),
-                          const SizedBox(width: 4),
-                          Text(
-                            'Next: ${nextEx.name}',
-                            style: bodyStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w500,
-                              color: c.inkMute,
-                              letterSpacing: 0.6,
+                      _sequence[_index].restTime == Duration.zero
+                          // Intra-superset: instant transition to next exercise
+                          ? Row(
+                              mainAxisAlignment:
+                                  MainAxisAlignment.center,
+                              children: [
+                                Icon(Icons.link_rounded,
+                                    size: 12, color: c.accent),
+                                const SizedBox(width: 6),
+                                Text(
+                                  'SUPERSET',
+                                  style: bodyStyle(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w700,
+                                    color: c.accent,
+                                    letterSpacing: 1.0,
+                                  ),
+                                ),
+                                const SizedBox(width: 6),
+                                Icon(Icons.arrow_forward_rounded,
+                                    size: 12, color: c.inkMute),
+                                const SizedBox(width: 4),
+                                Text(
+                                  nextEx.name,
+                                  style: bodyStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w500,
+                                    color: c.inkMute,
+                                    letterSpacing: 0.3,
+                                  ),
+                                ),
+                              ],
+                            )
+                          // Normal next-exercise hint
+                          : Row(
+                              mainAxisAlignment:
+                                  MainAxisAlignment.center,
+                              children: [
+                                Icon(Icons.chevron_right_rounded,
+                                    size: 12, color: c.inkMute),
+                                const SizedBox(width: 4),
+                                Text(
+                                  'Next: ${nextEx.name}',
+                                  style: bodyStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w500,
+                                    color: c.inkMute,
+                                    letterSpacing: 0.6,
+                                  ),
+                                ),
+                              ],
                             ),
-                          ),
-                        ],
-                      ),
                   ],
                 ),
               ),
@@ -696,6 +753,17 @@ class _WorkoutSessionScreenState
 
   int get _totalExercises =>
       _sequence.map((e) => e.name).toSet().length;
+
+  /// True when the current exercise is part of a superset run — either we just
+  /// came from an intra-superset instant transition, or we're about to do one.
+  bool get _currentExerciseIsInSuperset {
+    if (_index >= _sequence.length) return false;
+    final comingFromIntra =
+        _index > 0 && _sequence[_index - 1].restTime == Duration.zero;
+    final goingToIntra = _index < _sequence.length - 1 &&
+        _sequence[_index].restTime == Duration.zero;
+    return comingFromIntra || goingToIntra;
+  }
 
   // ─── Rest timer view ──────────────────────────────────────────────────
   Widget _buildRestView() {
