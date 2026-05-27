@@ -1,0 +1,30 @@
+name: Flutter CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  analyze:
+    name: Upgrade & Analyze
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+
+      - name: Upgrade dependencies
+        run: flutter pub upgrade
+
+      - name: Analyze code
+        run: flutter analyze
+
+      - name: Build APK (compile check)
+        run: flutter build apk --debug
