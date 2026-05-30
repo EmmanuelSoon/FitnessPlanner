@@ -30,7 +30,7 @@ class NotificationService {
       // Fall back to UTC if timezone detection fails.
     }
 
-    const androidSettings = AndroidInitializationSettings('ic_launcher');
+    const androidSettings = AndroidInitializationSettings('ic_launcher_foreground');
     await _plugin.initialize(
       const InitializationSettings(android: androidSettings),
     );

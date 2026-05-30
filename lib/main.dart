@@ -33,7 +33,11 @@ void main() async {
   await Hive.openBox<WorkoutSession>('sessions');
   await Hive.openBox<Mesocycle>('mesocycles');
   await Hive.openBox<DayOverride>('overrides');
-  await NotificationService.instance.init();
+  try {
+    await NotificationService.instance.init();
+  } catch (_) {
+    // Notification init failure must not prevent the app from launching.
+  }
 
   runApp(const ProviderScope(child: FitnessPlannerApp()));
 }
