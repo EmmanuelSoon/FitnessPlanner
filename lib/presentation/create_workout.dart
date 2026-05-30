@@ -1,3 +1,4 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:fitness_planner/domain/models/exercise.dart';
@@ -18,6 +19,7 @@ class CreateWorkoutScreen extends StatefulWidget {
 
 class _CreateWorkoutScreenState extends State<CreateWorkoutScreen> {
   final _nameCtrl = TextEditingController();
+  final _scrollCtrl = ScrollController();
   final List<Superset> _exercises = [];
   final List<Exercise> _warmup = [];
   bool _warmupExpanded = false;
@@ -62,6 +64,7 @@ class _CreateWorkoutScreenState extends State<CreateWorkoutScreen> {
   @override
   void dispose() {
     _nameCtrl.dispose();
+    _scrollCtrl.dispose();
     super.dispose();
   }
 
@@ -82,6 +85,13 @@ class _CreateWorkoutScreenState extends State<CreateWorkoutScreen> {
         sets: 3,
         restAfterSet: const Duration(seconds: 60),
       ));
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _scrollCtrl.animateTo(
+        _scrollCtrl.position.maxScrollExtent,
+        duration: const Duration(milliseconds: 350),
+        curve: Curves.easeOut,
+      );
     });
   }
 
@@ -285,6 +295,7 @@ class _CreateWorkoutScreenState extends State<CreateWorkoutScreen> {
                 ),
                 Expanded(
                   child: ListView(
+                    controller: _scrollCtrl,
                     padding: const EdgeInsets.only(bottom: 110),
                     children: [
                       // Workout name field
@@ -570,8 +581,9 @@ class WarmupExerciseCard extends StatefulWidget {
 
 class _WarmupExerciseCardState extends State<WarmupExerciseCard> {
   late final TextEditingController _nameCtrl;
-  late final TextEditingController _valueCtrl;
   late bool _isTimed;
+  late int _repsValue;
+  late Duration _timedValue;
 
   @override
   void initState() {
@@ -579,17 +591,13 @@ class _WarmupExerciseCardState extends State<WarmupExerciseCard> {
     final e = widget.exercise;
     _nameCtrl = TextEditingController(text: e.name);
     _isTimed = e.timedDuration != null;
-    _valueCtrl = TextEditingController(
-      text: _isTimed
-          ? (e.timedDuration!.inSeconds.toString())
-          : e.reps.toString(),
-    );
+    _repsValue = e.reps;
+    _timedValue = e.timedDuration ?? const Duration(seconds: 30);
   }
 
   @override
   void dispose() {
     _nameCtrl.dispose();
-    _valueCtrl.dispose();
     super.dispose();
   }
 
@@ -598,13 +606,11 @@ class _WarmupExerciseCardState extends State<WarmupExerciseCard> {
     setState(() {
       _isTimed = !_isTimed;
       if (_isTimed) {
-        final secs = int.tryParse(_valueCtrl.text) ?? 30;
-        e.timedDuration = Duration(seconds: secs);
-        _valueCtrl.text = secs.toString();
+        e.timedDuration = _timedValue;
       } else {
         e.timedDuration = null;
+        _repsValue = 10;
         e.reps = 10;
-        _valueCtrl.text = '10';
       }
     });
   }
@@ -645,6 +651,7 @@ class _WarmupExerciseCardState extends State<WarmupExerciseCard> {
               Expanded(
                 child: TextField(
                   controller: _nameCtrl,
+                  textCapitalization: TextCapitalization.words,
                   style: bodyStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.w600,
@@ -691,62 +698,29 @@ class _WarmupExerciseCardState extends State<WarmupExerciseCard> {
             ],
           ),
           const SizedBox(height: 10),
-          Container(
-            padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
-            decoration: BoxDecoration(
-              color: c.bg,
-              borderRadius: BorderRadius.circular(kRadius - 6),
-              border: Border.all(color: c.hairlineSoft),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  _isTimed ? 'DURATION' : 'REPS',
-                  style: bodyStyle(
-                      fontSize: 10,
-                      fontWeight: FontWeight.w500,
-                      color: c.inkMute,
-                      letterSpacing: 0.6),
-                ),
-                const SizedBox(height: 2),
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.baseline,
-                  textBaseline: TextBaseline.alphabetic,
-                  children: [
-                    Expanded(
-                      child: TextField(
-                        controller: _valueCtrl,
-                        keyboardType: TextInputType.number,
-                        style: displayStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w600,
-                            color: c.ink,
-                            letterSpacing: -0.3),
-                        decoration: const InputDecoration(
-                          border: InputBorder.none,
-                          isDense: true,
-                          contentPadding: EdgeInsets.zero,
-                        ),
-                        onChanged: (v) {
-                          if (_isTimed) {
-                            e.timedDuration =
-                                Duration(seconds: int.tryParse(v) ?? 30);
-                          } else {
-                            e.reps = int.tryParse(v) ?? e.reps;
-                          }
-                        },
-                      ),
-                    ),
-                    Text(
-                      _isTimed ? 's' : 'reps',
-                      style: bodyStyle(
-                          fontSize: 11, color: c.inkMute, letterSpacing: 0),
-                    ),
-                  ],
-                ),
-              ],
-            ),
+          Row(
+            children: [
+              _PickerField(
+                label: _isTimed ? 'DURATION' : 'REPS',
+                value: _isTimed
+                    ? _fmtDuration(_timedValue)
+                    : '$_repsValue',
+                onTap: () => _isTimed
+                    ? _openTimePicker(
+                        context, _timedValue, 'DURATION', (v) {
+                        setState(() {
+                          _timedValue = v;
+                          e.timedDuration = v;
+                        });
+                      })
+                    : _openRepsPicker(context, _repsValue, (v) {
+                        setState(() {
+                          _repsValue = v;
+                          e.reps = v;
+                        });
+                      }),
+              ),
+            ],
           ),
         ],
       ),
@@ -785,9 +759,9 @@ class _ExerciseSlotCard extends StatefulWidget {
 class _ExerciseSlotCardState extends State<_ExerciseSlotCard> {
   late final TextEditingController _nameCtrl;
   late final TextEditingController _setsCtrl;
-  late final TextEditingController _repsCtrl;
   late final TextEditingController _weightCtrl;
-  late final TextEditingController _restCtrl;
+  late int _repsValue;
+  late Duration _restDuration;
 
   @override
   void initState() {
@@ -796,19 +770,16 @@ class _ExerciseSlotCardState extends State<_ExerciseSlotCard> {
     final s = widget.superset;
     _nameCtrl = TextEditingController(text: e.name);
     _setsCtrl = TextEditingController(text: s.sets.toString());
-    _repsCtrl = TextEditingController(text: e.reps.toString());
     _weightCtrl = TextEditingController(text: e.weight.toString());
-    _restCtrl =
-        TextEditingController(text: s.restAfterSet.inSeconds.toString());
+    _repsValue = e.reps;
+    _restDuration = s.restAfterSet;
   }
 
   @override
   void dispose() {
     _nameCtrl.dispose();
     _setsCtrl.dispose();
-    _repsCtrl.dispose();
     _weightCtrl.dispose();
-    _restCtrl.dispose();
     super.dispose();
   }
 
@@ -854,6 +825,7 @@ class _ExerciseSlotCardState extends State<_ExerciseSlotCard> {
               Expanded(
                 child: TextField(
                   controller: _nameCtrl,
+                  textCapitalization: TextCapitalization.words,
                   style: bodyStyle(
                     fontSize: 15,
                     fontWeight: FontWeight.w600,
@@ -894,11 +866,15 @@ class _ExerciseSlotCardState extends State<_ExerciseSlotCard> {
                 ),
                 const SizedBox(width: 6),
               ],
-              _NumField(
+              _PickerField(
                 label: 'REPS',
-                ctrl: _repsCtrl,
-                unit: null,
-                onChanged: (v) => e.reps = int.tryParse(v) ?? e.reps,
+                value: '$_repsValue',
+                onTap: () => _openRepsPicker(context, _repsValue, (v) {
+                  setState(() {
+                    _repsValue = v;
+                    e.reps = v;
+                  });
+                }),
               ),
               const SizedBox(width: 6),
               _NumField(
@@ -911,13 +887,16 @@ class _ExerciseSlotCardState extends State<_ExerciseSlotCard> {
               ),
               if (widget.showRest) ...[
                 const SizedBox(width: 6),
-                _NumField(
+                _PickerField(
                   label: 'REST',
-                  ctrl: _restCtrl,
-                  unit: 's',
-                  onChanged: (v) => s.restAfterSet = Duration(
-                      seconds:
-                          int.tryParse(v) ?? s.restAfterSet.inSeconds),
+                  value: _fmtDuration(_restDuration),
+                  onTap: () => _openTimePicker(
+                      context, _restDuration, 'REST', (v) {
+                    setState(() {
+                      _restDuration = v;
+                      s.restAfterSet = v;
+                    });
+                  }),
                 ),
               ],
             ],
@@ -1416,6 +1395,275 @@ class _SetRow {
     this.isSupersetTransition = false,
     this.supersetBadge,
   });
+}
+
+// ─── Duration formatter ───────────────────────────────────────────────────
+String _fmtDuration(Duration d) {
+  final m = d.inMinutes;
+  final s = d.inSeconds % 60;
+  return '$m:${s.toString().padLeft(2, '0')}';
+}
+
+// ─── Picker bottom sheets ─────────────────────────────────────────────────
+void _openRepsPicker(
+    BuildContext context, int current, void Function(int) onSelect) {
+  int selected = current.clamp(1, 50);
+  showModalBottomSheet<void>(
+    context: context,
+    builder: (sheetCtx) {
+      final c = AppThemeData.of(context).c;
+      return SizedBox(
+        height: 280,
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 8, 0),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'REPS',
+                    style: bodyStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: c.inkMute,
+                      letterSpacing: 0.8,
+                    ),
+                  ),
+                  TextButton(
+                    onPressed: () {
+                      onSelect(selected);
+                      Navigator.pop(sheetCtx);
+                    },
+                    child: Text(
+                      'Done',
+                      style: bodyStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: c.accent,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Expanded(
+              child: CupertinoPicker(
+                scrollController:
+                    FixedExtentScrollController(initialItem: selected - 1),
+                itemExtent: 44,
+                onSelectedItemChanged: (i) => selected = i + 1,
+                children: List.generate(
+                  50,
+                  (i) => Center(
+                    child: Text(
+                      '${i + 1}',
+                      style: displayStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w500,
+                        color: c.ink,
+                        letterSpacing: -0.3,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    },
+  );
+}
+
+void _openTimePicker(BuildContext context, Duration current, String label,
+    void Function(Duration) onSelect) {
+  int selMin = current.inMinutes.clamp(0, 9);
+  int selSecIdx = ((current.inSeconds % 60) ~/ 5).clamp(0, 11);
+
+  showModalBottomSheet<void>(
+    context: context,
+    builder: (sheetCtx) {
+      final c = AppThemeData.of(context).c;
+      return SizedBox(
+        height: 280,
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 8, 0),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    label,
+                    style: bodyStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: c.inkMute,
+                      letterSpacing: 0.8,
+                    ),
+                  ),
+                  TextButton(
+                    onPressed: () {
+                      onSelect(Duration(
+                          minutes: selMin, seconds: selSecIdx * 5));
+                      Navigator.pop(sheetCtx);
+                    },
+                    child: Text(
+                      'Done',
+                      style: bodyStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: c.accent,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Center(
+                      child: Text(
+                        'min',
+                        style: bodyStyle(
+                          fontSize: 11,
+                          color: c.inkMute,
+                          letterSpacing: 0.4,
+                        ),
+                      ),
+                    ),
+                  ),
+                  Expanded(
+                    child: Center(
+                      child: Text(
+                        'sec',
+                        style: bodyStyle(
+                          fontSize: 11,
+                          color: c.inkMute,
+                          letterSpacing: 0.4,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Expanded(
+              child: Row(
+                children: [
+                  Expanded(
+                    child: CupertinoPicker(
+                      scrollController:
+                          FixedExtentScrollController(initialItem: selMin),
+                      itemExtent: 44,
+                      onSelectedItemChanged: (i) => selMin = i,
+                      children: List.generate(
+                        10,
+                        (i) => Center(
+                          child: Text(
+                            '$i',
+                            style: displayStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.w500,
+                              color: c.ink,
+                              letterSpacing: -0.3,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  Expanded(
+                    child: CupertinoPicker(
+                      scrollController: FixedExtentScrollController(
+                          initialItem: selSecIdx),
+                      itemExtent: 44,
+                      onSelectedItemChanged: (i) => selSecIdx = i,
+                      children: List.generate(
+                        12,
+                        (i) => Center(
+                          child: Text(
+                            (i * 5).toString().padLeft(2, '0'),
+                            style: displayStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.w500,
+                              color: c.ink,
+                              letterSpacing: -0.3,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      );
+    },
+  );
+}
+
+// ─── Picker field (tap-to-open, same visual style as _NumField) ───────────
+class _PickerField extends StatelessWidget {
+  final String label;
+  final String value;
+  final VoidCallback onTap;
+
+  const _PickerField({
+    required this.label,
+    required this.value,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = AppThemeData.of(context);
+    final c = theme.c;
+
+    return Expanded(
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
+          decoration: BoxDecoration(
+            color: c.bg,
+            borderRadius: BorderRadius.circular(kRadius - 6),
+            border: Border.all(color: c.hairlineSoft),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                style: bodyStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w500,
+                  color: c.inkMute,
+                  letterSpacing: 0.6,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                value,
+                style: displayStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w600,
+                  color: c.ink,
+                  letterSpacing: -0.3,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 class _SetRowTile extends StatelessWidget {
