@@ -6,6 +6,7 @@ import 'package:fitness_planner/presentation/create_workout.dart';
 import 'package:fitness_planner/presentation/workout_session_screen.dart';
 import 'package:fitness_planner/presentation/warmup_screen.dart';
 import 'package:fitness_planner/presentation/history_screen.dart';
+import 'package:fitness_planner/presentation/calendar_screen.dart';
 import 'package:fitness_planner/presentation/widgets/app_widgets.dart';
 import 'package:fitness_planner/presentation/widgets/appearance_picker.dart';
 import 'package:fitness_planner/theme/app_theme.dart';
@@ -115,6 +116,22 @@ class _WorkoutList extends ConsumerWidget {
                                   MaterialPageRoute(
                                       builder: (_) =>
                                           const HistoryScreen()),
+                                ),
+                              ),
+                            ),
+                            // Calendar
+                            SizedBox(
+                              width: 36,
+                              height: 36,
+                              child: IconButton(
+                                padding: EdgeInsets.zero,
+                                icon: Icon(Icons.calendar_month_rounded,
+                                    size: 20, color: c.inkDim),
+                                onPressed: () => Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                      builder: (_) =>
+                                          const CalendarScreen()),
                                 ),
                               ),
                             ),
