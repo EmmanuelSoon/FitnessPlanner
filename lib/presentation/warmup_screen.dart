@@ -1,6 +1,9 @@
 import 'dart:async';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:audioplayers/audioplayers.dart';
+import 'package:wakelock_plus/wakelock_plus.dart';
 import 'package:fitness_planner/domain/models/exercise.dart';
 import 'package:fitness_planner/domain/models/workout.dart';
 import 'package:fitness_planner/presentation/workout_session_screen.dart';
@@ -18,6 +21,10 @@ class WarmupScreen extends StatefulWidget {
 class _WarmupScreenState extends State<WarmupScreen> {
   int _index = 0;
 
+  // Pre-start countdown before first exercise
+  bool _isPreStart = true;
+  int _preStartSeconds = 3;
+
   // "Get ready" interstitial between exercises
   bool _isGetReady = false;
   int _getReadySeconds = 3;
@@ -27,23 +34,64 @@ class _WarmupScreenState extends State<WarmupScreen> {
   int _timedTotal = 0;
 
   Timer? _timer;
+  AudioPlayer? _audioPlayer;
 
   List<Exercise> get _warmup => widget.workout.warmup;
 
   @override
   void initState() {
     super.initState();
+    _audioPlayer = AudioPlayer();
+    WakelockPlus.enable();
     if (_warmup.isEmpty) {
       WidgetsBinding.instance.addPostFrameCallback((_) => _goToWorkout());
     } else {
-      _startCurrentExercise();
+      _startPreCountdown();
     }
   }
 
   @override
   void dispose() {
     _timer?.cancel();
+    _audioPlayer?.dispose();
+    WakelockPlus.disable();
     super.dispose();
+  }
+
+  Future<void> _playBeep() async {
+    try {
+      await _audioPlayer?.stop();
+      await _audioPlayer?.play(AssetSource('sounds/beep.wav'));
+    } catch (_) {}
+  }
+
+  void _startPreCountdown() {
+    setState(() {
+      _isPreStart = true;
+      _preStartSeconds = 3;
+    });
+    _playBeep();
+    HapticFeedback.mediumImpact();
+    _timer = Timer.periodic(const Duration(seconds: 1), (t) {
+      if (!mounted) {
+        t.cancel();
+        return;
+      }
+      final next = _preStartSeconds - 1;
+      if (next > 0) {
+        setState(() => _preStartSeconds = next);
+        _playBeep();
+        HapticFeedback.mediumImpact();
+      } else {
+        t.cancel();
+        setState(() {
+          _preStartSeconds = 0;
+          _isPreStart = false;
+        });
+        HapticFeedback.heavyImpact();
+        _startCurrentExercise();
+      }
+    });
   }
 
   void _startCurrentExercise() {
@@ -70,7 +118,11 @@ class _WarmupScreenState extends State<WarmupScreen> {
       setState(() => _timedSecondsRemaining--);
       if (_timedSecondsRemaining <= 0) {
         t.cancel();
+        HapticFeedback.heavyImpact();
         _advanceExercise();
+      } else {
+        _playBeep();
+        HapticFeedback.mediumImpact();
       }
     });
   }
@@ -86,6 +138,8 @@ class _WarmupScreenState extends State<WarmupScreen> {
       _isGetReady = true;
       _getReadySeconds = 3;
     });
+    _playBeep();
+    HapticFeedback.mediumImpact();
     _timer = Timer.periodic(const Duration(seconds: 1), (t) {
       if (!mounted) {
         t.cancel();
@@ -94,12 +148,15 @@ class _WarmupScreenState extends State<WarmupScreen> {
       final next = _getReadySeconds - 1;
       if (next > 0) {
         setState(() => _getReadySeconds = next);
+        _playBeep();
+        HapticFeedback.mediumImpact();
       } else {
         t.cancel();
         setState(() {
           _index++;
           _isGetReady = false;
         });
+        HapticFeedback.heavyImpact();
         _startCurrentExercise();
       }
     });
@@ -123,6 +180,9 @@ class _WarmupScreenState extends State<WarmupScreen> {
     if (_warmup.isEmpty) {
       return const SizedBox.shrink();
     }
+    if (_isPreStart) {
+      return _buildPreStart();
+    }
     if (_isGetReady) {
       return _buildGetReady();
     }
@@ -131,6 +191,56 @@ class _WarmupScreenState extends State<WarmupScreen> {
       return _buildTimedExercise(ex);
     }
     return _buildRepExercise(ex);
+  }
+
+  // ─── Pre-start countdown ──────────────────────────────────────────────
+  Widget _buildPreStart() {
+    final theme = AppThemeData.of(context);
+    final c = theme.c;
+    final firstEx = _warmup[0];
+
+    return Scaffold(
+      backgroundColor: c.bg,
+      body: SafeArea(
+        child: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(
+                'GET READY',
+                style: bodyStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: c.inkMute,
+                  letterSpacing: 1.4,
+                ),
+              ),
+              const SizedBox(height: 20),
+              Text(
+                '$_preStartSeconds',
+                style: monoStyle(fontSize: 96, color: c.ink),
+              ),
+              const SizedBox(height: 24),
+              Text(
+                'Up next',
+                style: bodyStyle(fontSize: 12, color: c.inkMute),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                firstEx.name,
+                style: displayStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.w500,
+                  color: c.ink,
+                  letterSpacing: -0.4,
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   // ─── Get-ready interstitial ───────────────────────────────────────────

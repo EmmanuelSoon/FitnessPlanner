@@ -54,7 +54,7 @@ class FitnessPlannerApp extends ConsumerWidget {
         return AppThemeScope(
           appTheme: appTheme,
           child: MaterialApp(
-            title: 'Fitness Planner',
+            title: 'PlateUp',
             debugShowCheckedModeBanner: false,
             theme: materialTheme,
             darkTheme: materialTheme,
