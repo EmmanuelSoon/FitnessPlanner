@@ -368,8 +368,9 @@ class _MesocycleSetupScreenState extends ConsumerState<MesocycleSetupScreen> {
                     label: 'Delete',
                     onPressed: () async {
                       Navigator.pop(ctx);
+                      final nav = Navigator.of(context);
                       await ref.read(mesocyclesProvider.notifier).delete(widget.existingMeso!.id);
-                      if (mounted) Navigator.of(context).pop();
+                      if (mounted) nav.pop();
                     },
                   ),
                 ),
