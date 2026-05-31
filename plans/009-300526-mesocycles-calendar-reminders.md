@@ -255,7 +255,7 @@ prevented `runApp()` from ever being called.
 - `lib/main.dart` — wrapped `await NotificationService.instance.init()` in `try/catch` so a
   notification init failure can never crash the app (permission may be denied at runtime).
 
-### Fix 2 — CircularDependencyError on mesocycle save
+### Fix 2 — CircularDependencyError on mesocycle save (attempt 1 — incomplete)
 
 **Root cause:** `activeMesocycleProvider` does `ref.watch(mesocyclesProvider)`. When
 `MesocyclesNotifier.save()` calls `_reschedule()` → `rescheduleNotifications(ref)` →
@@ -264,8 +264,35 @@ the mesocycles notifier's execution context — circular dependency. The error w
 silently, leaving the setup form frozen with no feedback.
 
 **Changes:**
-- `lib/providers/mesocycle_providers.dart` — `rescheduleNotifications` no longer reads
-  `activeMesocycleProvider`. Instead it reads `mesocyclesProvider` data and `activeMesoIdProvider`
-  directly, breaking the cycle.
+- `lib/providers/mesocycle_providers.dart` — `rescheduleNotifications` replaced
+  `ref.read(activeMesocycleProvider)` with `ref.read(mesocyclesProvider)` + `ref.read(activeMesoIdProvider)`.
+  ⚠️ Still broken: reading `mesocyclesProvider` from within its own notifier is the same self-dependency.
 - `lib/presentation/mesocycle_setup_screen.dart` — `_save` now wraps the save calls in
-  `try/catch` and shows a snack-bar on failure so errors are never silent.
+  `try/catch` and shows a snack-bar on failure so errors are never silent. ✅ Works.
+
+### Fix 3 — CircularDependencyError on mesocycle save (correct fix)
+
+**Root cause (refined):** `ref.read(mesocyclesProvider)` inside `rescheduleNotifications` still
+self-references when called from `MesocyclesNotifier` — Riverpod asserts `dependency != origin`.
+The fix is to avoid any `ref.read` of `mesocyclesProvider` entirely by passing the already-resolved
+list as a parameter.
+
+**Changes (`lib/providers/mesocycle_providers.dart` only):**
+
+1. `rescheduleNotifications` signature becomes `(Ref ref, List<Mesocycle> mesoList)` — the
+   `ref.read(mesocyclesProvider)` line is removed; `mesoList` is used directly to find the active meso.
+
+2. `MesocyclesNotifier._reschedule` passes the notifier's own `state` (no `ref.read`):
+   ```dart
+   Future<void> _reschedule() =>
+       rescheduleNotifications(ref, state.asData?.value ?? []);
+   ```
+   After `ref.invalidateSelf(); await future;`, `state` is the freshly loaded list — no provider
+   dependency created.
+
+3. `OverridesNotifier._reschedule` uses `ref.read(mesocyclesProvider)` (safe — different notifier,
+   no self-dependency):
+   ```dart
+   Future<void> _reschedule() =>
+       rescheduleNotifications(ref, ref.read(mesocyclesProvider).asData?.value ?? []);
+   ```

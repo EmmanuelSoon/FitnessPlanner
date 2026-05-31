@@ -94,7 +94,8 @@ class MesocyclesNotifier extends AsyncNotifier<List<Mesocycle>> {
   // top-level rescheduleNotifications directly since Ref ≠ WidgetRef).
   Future<void> reschedule() => _reschedule();
 
-  Future<void> _reschedule() => rescheduleNotifications(ref);
+  Future<void> _reschedule() =>
+      rescheduleNotifications(ref, state.asData?.value ?? []);
 }
 
 final mesocyclesProvider =
@@ -173,7 +174,8 @@ class OverridesNotifier extends AsyncNotifier<List<DayOverride>> {
     await _reschedule();
   }
 
-  Future<void> _reschedule() => rescheduleNotifications(ref);
+  Future<void> _reschedule() =>
+      rescheduleNotifications(ref, ref.read(mesocyclesProvider).asData?.value ?? []);
 }
 
 final overridesProvider =
@@ -181,8 +183,7 @@ final overridesProvider =
 
 // ─── Reminder reschedule helper (called from AsyncNotifier.ref only) ──
 
-Future<void> rescheduleNotifications(Ref ref) async {
-  final mesoList = ref.read(mesocyclesProvider).asData?.value ?? [];
+Future<void> rescheduleNotifications(Ref ref, List<Mesocycle> mesoList) async {
   final activeId = ref.read(activeMesoIdProvider).asData?.value;
   Mesocycle? meso;
   if (activeId != null) {
