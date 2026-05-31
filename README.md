@@ -41,11 +41,11 @@ The minimum viable app. All of these must be done before the app is usable.
 - [ ] Duplicate workout — copy an existing workout as a starting point
 - [ ] Exercise library — preset list of exercises with categories (chest, legs, back…), including common calisthenics movements (pull-ups, dips, push-up variations, etc.)
 - [ ] Reorder exercises via drag-and-drop
-- [ ] Calendar view of workouts with reminders (notify user of workout for the day)
+- [x] Calendar view of workouts with reminders (notify user of workout for the day)
 - [ ] Allow instead of reps, it is a timer for hold exercises
 
 ## Future Features
-- Mesocycles 
-- Progression charts — weight over time per exercise (or reps/sets progression for bodyweight exercises)
-- Volume tracking over time (rep volume for calisthenics; weight volume where applicable)
-- AI-powered progression recommendations — analyse workout history and recommend adjustments (add/remove a rep, increase sets, raise weight, progress to harder variation) to optimise progression for the user
+- [x] Mesocycles 
+- [ ] Progression charts — weight over time per exercise (or reps/sets progression for bodyweight exercises)
+- [ ] Volume tracking over time (rep volume for calisthenics; weight volume where applicable)
+- [ ] AI-powered progression recommendations — analyse workout history and recommend adjustments (add/remove a rep, increase sets, raise weight, progress to harder variation) to optimise progression for the user
