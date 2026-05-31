@@ -45,7 +45,7 @@ packages:
     dependency: "direct main"
     description:
       name: audioplayers
-      sha256: 1d0c1b1f2095e59080e2d5046639096417a86687d89778da41b0c9a06d683dfd
+      sha256: "1d0c1b1f2095e59080e2d5046639096417a86687d89778da41b0c9a06d683dfd"
       url: "https://pub.dev"
     source: hosted
     version: "6.7.0"
@@ -85,15 +85,15 @@ packages:
     dependency: transitive
     description:
       name: audioplayers_web
-      sha256: faa8fa6587f996a6f604433b53af44c57a1407d4fe8dff5766cf63d6875e8de9
+      sha256: "24a6f258062bd7da8cb2157e83fccb9816a08dd306cbaaa24f9813d071470545"
       url: "https://pub.dev"
     source: hosted
-    version: "5.2.0"
+    version: "5.2.1"
   audioplayers_windows:
     dependency: transitive
     description:
       name: audioplayers_windows
-      sha256: 95f875a96c88c3dbbcb608d4f8288e300b0113d256a81d0b3197fcc18f0dc91a
+      sha256: "95f875a96c88c3dbbcb608d4f8288e300b0113d256a81d0b3197fcc18f0dc91a"
       url: "https://pub.dev"
     source: hosted
     version: "4.3.1"
