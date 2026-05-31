@@ -7,10 +7,16 @@ import 'domain/models/exercise_adapter.dart';
 import 'domain/models/workout_adapter.dart';
 import 'domain/models/workout_session_adapter.dart';
 import 'domain/models/logged_set_adapter.dart';
+import 'domain/models/mesocycle_adapter.dart';
+import 'domain/models/day_override_adapter.dart';
 import 'domain/models/workout.dart';
 import 'domain/models/workout_session.dart';
+import 'domain/models/mesocycle.dart';
+import 'domain/models/day_override.dart';
 import 'presentation/workout_list_screen.dart';
 import 'providers/theme_provider.dart';
+import 'providers/mesocycle_providers.dart';
+import 'services/notification_service.dart';
 import 'theme/app_theme.dart';
 
 void main() async {
@@ -21,17 +27,51 @@ void main() async {
   Hive.registerAdapter(WorkoutAdapter());
   Hive.registerAdapter(WorkoutSessionAdapter());
   Hive.registerAdapter(LoggedSetAdapter());
+  Hive.registerAdapter(MesocycleAdapter());
+  Hive.registerAdapter(DayOverrideAdapter());
   await Hive.openBox<Workout>('workouts');
   await Hive.openBox<WorkoutSession>('sessions');
+  await Hive.openBox<Mesocycle>('mesocycles');
+  await Hive.openBox<DayOverride>('overrides');
+  try {
+    await NotificationService.instance.init();
+  } catch (_) {
+    // Notification init failure must not prevent the app from launching.
+  }
 
   runApp(const ProviderScope(child: FitnessPlannerApp()));
 }
 
-class FitnessPlannerApp extends ConsumerWidget {
+class FitnessPlannerApp extends ConsumerStatefulWidget {
   const FitnessPlannerApp({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<FitnessPlannerApp> createState() => _FitnessPlannerAppState();
+}
+
+class _FitnessPlannerAppState extends ConsumerState<FitnessPlannerApp>
+    with WidgetsBindingObserver {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      ref.read(mesocyclesProvider.notifier).reschedule();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final themeAsync = ref.watch(themeProvider);
 
     return themeAsync.when(

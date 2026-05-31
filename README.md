@@ -1,51 +1,49 @@
-# fitness_planner
+# PlateUp
 
-## MVP
-The minimum viable app. All of these must be done before the app is usable.
+A Flutter workout tracking app for Android that keeps everything local — no accounts, no cloud sync, no subscriptions.
 
-### Setup
-- [x] Wire up main.dart to the fitness planner (remove default counter app)
-- [x] Add state management (Riverpod or Provider)
-- [x] Add local persistence (Hive or sqflite)
+## What it does
 
-### Create Workout
-- [x] Fix ExerciseCard: replace display-only text with editable TextFormFields (name, reps, sets, rest time)
-- [x] Add optional weight field to Exercise model and form (weight is not required — many exercises are bodyweight/calisthenics)
-- [x] Save created workouts to local storage
+**PlateUp** lets you build your own workout programs and follow them at the gym. You design the workouts once, then the app handles the structure while you lift.
 
-### View Workouts
-- [x] Workout list screen (home screen)
-- [x] Edit/delete existing workouts
+### Core features
 
-### Start Workout
-- [x] Workout execution screen — step through generated sequence
-- [x] Finish button per exercise → immediately starts rest timer
-- [x] Audio cue when rest timer reaches 3 seconds
-- [x] Pause/resume workout
-- [x] Skip exercise
+**Workout builder** — Create workouts with any combination of exercises. Configure sets, reps, weight, and rest time per exercise. Supports supersets (two exercises back-to-back) and timed exercises (e.g. planks). Optional warm-up sequences can be added to any workout.
 
-### History
-- [x] Workout log screen — list of past sessions with date and duration
-- [x] Log actual weight/reps done per exercise during a session (weight optional for bodyweight/calisthenics exercises)
+**Live session screen** — Guides you through your workout set by set. Tracks rest timers between sets, keeps the screen on during sessions, and plays an audio cue when rest ends. Logs the weight and reps you actually completed.
 
-## Phase 2
+**Session history** — Every completed session is saved locally. Browse past sessions, see which workouts you did, and review the sets and weights logged.
 
-### Design Language
-- [x] App icon — Plates · Stacked · Minimal (Mint variant)
-- [x] Bundle Google Fonts locally (Manrope, Space Grotesk) — currently fetched at runtime; fails without network. Replace with asset fonts so the app works fully offline.
-- [x] Design system — consistent colour tokens, typography scale, spacing
+**Mesocycles** — Organise your training into structured training blocks. A mesocycle assigns specific workouts to days of the week and runs for a configurable number of training weeks followed by a deload/rest week. The app tracks which week of the cycle you're in and repeats the cycle automatically.
 
-### Features
-- [x] Adjust reps/weight on the fly during a workout (vs planned); weight field remains optional for calisthenics
-- [x] Completion summary screen after workout (total time, volume lifted where applicable)
-- [ ] Duplicate workout — copy an existing workout as a starting point
-- [ ] Exercise library — preset list of exercises with categories (chest, legs, back…), including common calisthenics movements (pull-ups, dips, push-up variations, etc.)
-- [ ] Reorder exercises via drag-and-drop
-- [ ] Calendar view of workouts with reminders (notify user of workout for the day)
-- [ ] Allow instead of reps, it is a timer for hold exercises
+**Calendar view** — See your scheduled workouts on a monthly calendar. Tap any day to start that day's assigned workout directly. Supports day-level overrides (swap or skip a specific day without changing the whole plan).
 
-## Future Features
-- Mesocycles 
-- Progression charts — weight over time per exercise (or reps/sets progression for bodyweight exercises)
-- Volume tracking over time (rep volume for calisthenics; weight volume where applicable)
-- AI-powered progression recommendations — analyse workout history and recommend adjustments (add/remove a rep, increase sets, raise weight, progress to harder variation) to optimise progression for the user
+**Workout reminders** — Set a daily reminder time and the app schedules notifications for the next 21 days that have a workout assigned, using your mesocycle schedule.
+
+**Appearance** — Multiple colour themes with light/dark variants. All fonts are bundled — no network requests.
+
+## Tech stack
+
+- **Flutter** (Dart) — Android only
+- **Riverpod** — state management
+- **Hive** — on-device storage (workouts, sessions, mesocycles, overrides)
+- **flutter_local_notifications** — workout reminder notifications
+
+## Building
+
+Requires Flutter SDK `^3.11.0`.
+
+```bash
+flutter pub get
+flutter run
+```
+
+To build a release APK:
+
+```bash
+flutter build apk --release
+```
+
+## Data & privacy
+
+All data is stored on-device using Hive. Nothing is sent to any server. Uninstalling the app removes all data.
