@@ -236,4 +236,36 @@ sheets styled like `_DeleteSheet` / appearance picker.
    cycle repeats after `cycleLen` weeks; `setCurrentWeek` only affects on/after `effectiveDate`
    (pre-adjustment date unchanged); early rest → current week rest, resumes at training week-1;
    overrides (move/clear/add) win over template; pre-anchor floor-mod.
-3. User will use the verify skill after all is completed to test the flow. 
+3. User will use the verify skill after all is completed to test the flow.
+
+---
+
+## Bug fixes (applied post-verification)
+
+### Fix 1 — Notification crash on startup
+
+**Root cause:** `AndroidInitializationSettings('ic_launcher')` looks for `ic_launcher` in
+`drawable/`, but that file only exists in `mipmap-*/`. The plugin throws
+`PlatformException(invalid_icon, ...)`, which propagated unhandled through `main()` and
+prevented `runApp()` from ever being called.
+
+**Changes:**
+- `lib/services/notification_service.dart` — changed `'ic_launcher'` → `'ic_launcher_foreground'`
+  (exists in all `drawable-{hdpi,mdpi,xhdpi,xxhdpi,xxxhdpi}/` densities).
+- `lib/main.dart` — wrapped `await NotificationService.instance.init()` in `try/catch` so a
+  notification init failure can never crash the app (permission may be denied at runtime).
+
+### Fix 2 — CircularDependencyError on mesocycle save
+
+**Root cause:** `activeMesocycleProvider` does `ref.watch(mesocyclesProvider)`. When
+`MesocyclesNotifier.save()` calls `_reschedule()` → `rescheduleNotifications(ref)` →
+`ref.read(activeMesocycleProvider)`, Riverpod builds `activeMesocycleProvider` from within
+the mesocycles notifier's execution context — circular dependency. The error was swallowed
+silently, leaving the setup form frozen with no feedback.
+
+**Changes:**
+- `lib/providers/mesocycle_providers.dart` — `rescheduleNotifications` no longer reads
+  `activeMesocycleProvider`. Instead it reads `mesocyclesProvider` data and `activeMesoIdProvider`
+  directly, breaking the cycle.
+- `lib/presentation/mesocycle_setup_screen.dart` — `_save` now wraps the save calls in
+  `try/catch` and shows a snack-bar on failure so errors are never silent.

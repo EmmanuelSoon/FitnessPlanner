@@ -182,7 +182,14 @@ final overridesProvider =
 // ─── Reminder reschedule helper (called from AsyncNotifier.ref only) ──
 
 Future<void> rescheduleNotifications(Ref ref) async {
-  final meso = ref.read(activeMesocycleProvider);
+  final mesoList = ref.read(mesocyclesProvider).asData?.value ?? [];
+  final activeId = ref.read(activeMesoIdProvider).asData?.value;
+  Mesocycle? meso;
+  if (activeId != null) {
+    try {
+      meso = mesoList.firstWhere((m) => m.id == activeId);
+    } catch (_) {}
+  }
   final overrideRepo = ref.read(overrideRepositoryProvider);
   final workouts = ref.read(workoutsProvider).asData?.value ?? [];
   final reminderState = ref.read(reminderProvider).asData?.value;

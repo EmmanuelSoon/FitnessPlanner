@@ -289,10 +289,17 @@ class _MesocycleSetupScreenState extends ConsumerState<MesocycleSetupScreen> {
       weekdayWorkouts: Map.from(_weekdayWorkouts),
     );
 
-    await ref.read(mesocyclesProvider.notifier).save(meso);
-    await ref.read(activeMesoIdProvider.notifier).setActive(meso.id);
-
-    if (mounted) Navigator.pop(context);
+    try {
+      await ref.read(mesocyclesProvider.notifier).save(meso);
+      await ref.read(activeMesoIdProvider.notifier).setActive(meso.id);
+      if (mounted) Navigator.pop(context);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to save: $e')),
+        );
+      }
+    }
   }
 
   String _formatDate(DateTime d) {
