@@ -296,3 +296,21 @@ list as a parameter.
    Future<void> _reschedule() =>
        rescheduleNotifications(ref, ref.read(mesocyclesProvider).asData?.value ?? []);
    ```
+
+### Fix 4 — Remaining gaps (typo, delete UI, permission denial UX)
+
+**Changes:**
+
+- `lib/presentation/calendar_screen.dart` — typo in Rest early dialog: `pass${"s"}` → `pass${"es"}`
+  so "After it passs" becomes "After it passes" when `restWeeks == 1`.
+
+- `lib/presentation/mesocycle_setup_screen.dart` — added "Delete mesocycle" `TextButton` (`c.danger`
+  color) below the Save button, shown only when `widget.existingMeso != null`. Tapping it opens a
+  confirmation bottom sheet (same pattern as `_confirmEarlyRest`). On confirm, calls
+  `MesocyclesNotifier.delete()` (already fully implemented) then pops back to the calendar, which
+  reactively shows the "No mesocycle set up" empty state because `activeMesocycleProvider` is now null.
+
+- `lib/presentation/widgets/reminder_picker.dart` — when `requestPermissions()` returns false,
+  instead of silently closing the sheet, reverts the toggle to off via `setState` and shows a
+  `ScaffoldMessenger` snackbar ("Enable notifications in system settings to use reminders.").
+  The sheet stays open so the user can save with reminders off.

@@ -168,12 +168,29 @@ class _MesocycleSetupScreenState extends ConsumerState<MesocycleSetupScreen> {
                 22,
                 24 + MediaQuery.of(context).padding.bottom,
               ),
-              child: AppButton(
-                label: widget.existingMeso != null
-                    ? 'Save changes'
-                    : 'Create mesocycle',
-                full: true,
-                onPressed: _save,
+              child: Column(
+                children: [
+                  AppButton(
+                    label: widget.existingMeso != null
+                        ? 'Save changes'
+                        : 'Create mesocycle',
+                    full: true,
+                    onPressed: _save,
+                  ),
+                  if (widget.existingMeso != null) ...[
+                    const SizedBox(height: 8),
+                    TextButton(
+                      onPressed: () => _confirmDelete(context),
+                      child: Text(
+                        'Delete mesocycle',
+                        style: bodyStyle(
+                          fontSize: 14,
+                          color: AppThemeData.of(context).c.danger,
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
               ),
             ),
           ],
@@ -300,6 +317,68 @@ class _MesocycleSetupScreenState extends ConsumerState<MesocycleSetupScreen> {
         );
       }
     }
+  }
+
+  void _confirmDelete(BuildContext context) {
+    final c = AppThemeData.of(context).c;
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => Container(
+        decoration: BoxDecoration(
+          color: c.surface,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(kRadius + 8)),
+        ),
+        padding: EdgeInsets.only(
+          left: 22, right: 22, top: 20,
+          bottom: 28 + MediaQuery.of(ctx).padding.bottom,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 36, height: 4,
+                decoration: BoxDecoration(color: c.hairline, borderRadius: BorderRadius.circular(2)),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Text('Delete mesocycle?',
+                style: displayStyle(fontSize: 22, fontWeight: FontWeight.w500, color: c.ink, letterSpacing: -0.3)),
+            const SizedBox(height: 10),
+            Text(
+              'This will permanently remove the mesocycle and all its overrides. This cannot be undone.',
+              style: bodyStyle(fontSize: 14, color: c.inkDim, height: 1.5),
+            ),
+            const SizedBox(height: 20),
+            Row(
+              children: [
+                Expanded(
+                  child: AppButton(
+                    label: 'Cancel',
+                    kind: ButtonKind.outline,
+                    onPressed: () => Navigator.pop(ctx),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: AppButton(
+                    label: 'Delete',
+                    onPressed: () async {
+                      Navigator.pop(ctx);
+                      await ref.read(mesocyclesProvider.notifier).delete(widget.existingMeso!.id);
+                      if (mounted) Navigator.of(context).pop();
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   String _formatDate(DateTime d) {

@@ -335,7 +335,7 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
                 style: displayStyle(fontSize: 22, fontWeight: FontWeight.w500, color: c.ink, letterSpacing: -0.3)),
             const SizedBox(height: 10),
             Text(
-              'This week becomes your rest week. After ${meso.restWeeks == 1 ? "it" : "${meso.restWeeks} rest weeks"} pass${meso.restWeeks == 1 ? "s" : ""}, a fresh training block will begin automatically.',
+              'This week becomes your rest week. After ${meso.restWeeks == 1 ? "it" : "${meso.restWeeks} rest weeks"} pass${meso.restWeeks == 1 ? "es" : ""}, a fresh training block will begin automatically.',
               style: bodyStyle(fontSize: 14, color: c.inkDim, height: 1.5),
             ),
             const SizedBox(height: 20),

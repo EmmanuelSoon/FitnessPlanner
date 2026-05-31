@@ -156,7 +156,14 @@ class _ReminderPickerSheetState extends ConsumerState<_ReminderPickerSheet> {
                 final granted =
                     await NotificationService.instance.requestPermissions();
                 if (!granted) {
-                  if (context.mounted) Navigator.pop(context);
+                  if (context.mounted) {
+                    setState(() => _enabled = false);
+                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                      content: Text(
+                        'Enable notifications in system settings to use reminders.',
+                      ),
+                    ));
+                  }
                   return;
                 }
               }
