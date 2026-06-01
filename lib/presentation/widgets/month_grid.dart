@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../domain/models/mesocycle.dart';
 import '../../domain/models/day_override.dart';
+import '../../domain/models/run_session.dart';
 import '../../domain/schedule/schedule_logic.dart';
 import '../../theme/app_theme.dart';
 
@@ -10,6 +11,8 @@ class MonthGrid extends StatelessWidget {
   final Mesocycle? meso;
   final DayOverride? Function(DateTime) overrideForDate;
   final Map<String, String> workoutNames; // workoutId -> display name
+  /// Runs keyed by 'yyyy-M-d' (same format as CalendarScreen._dateKey).
+  final Map<String, List<RunSession>> runsByDay;
   final void Function(DateTime date, String? workoutId, String? workoutName) onDayTap;
 
   const MonthGrid({
@@ -19,6 +22,7 @@ class MonthGrid extends StatelessWidget {
     required this.meso,
     required this.overrideForDate,
     required this.workoutNames,
+    this.runsByDay = const {},
     required this.onDayTap,
   });
 
@@ -77,12 +81,15 @@ class MonthGrid extends StatelessWidget {
             itemBuilder: (context, i) {
               final date = paddedCells[i];
               if (date == null) return const SizedBox.shrink();
+              final dayKey =
+                  '${date.year}-${date.month}-${date.day}';
               return _DayCell(
                 date: date,
                 today: today,
                 meso: meso,
                 overrideForDate: overrideForDate,
                 workoutNames: workoutNames,
+                runsForDay: runsByDay[dayKey] ?? const [],
                 isDark: isDark,
                 c: c,
                 onTap: onDayTap,
@@ -101,6 +108,7 @@ class _DayCell extends StatelessWidget {
   final Mesocycle? meso;
   final DayOverride? Function(DateTime) overrideForDate;
   final Map<String, String> workoutNames;
+  final List<RunSession> runsForDay;
   final bool isDark;
   final AppColors c;
   final void Function(DateTime, String?, String?) onTap;
@@ -111,6 +119,7 @@ class _DayCell extends StatelessWidget {
     required this.meso,
     required this.overrideForDate,
     required this.workoutNames,
+    required this.runsForDay,
     required this.isDark,
     required this.c,
     required this.onTap,
@@ -207,6 +216,17 @@ class _DayCell extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                   textAlign: TextAlign.center,
                 ),
+              ),
+            ],
+            // Run indicator — small shoe icon when there are runs on this day.
+            if (runsForDay.isNotEmpty) ...[
+              const SizedBox(height: 2),
+              Icon(
+                Icons.directions_run_rounded,
+                size: 7,
+                color: isToday
+                    ? c.accentInk.withValues(alpha: 0.7)
+                    : c.inkDim,
               ),
             ],
           ],
