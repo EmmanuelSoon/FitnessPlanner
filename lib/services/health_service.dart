@@ -77,17 +77,15 @@ class HealthService {
   Future<List<RunSession>> fetchRuns({required DateTime since}) async {
     await _ensureConfigured();
 
-    // Verify we have permission before querying.
-    final granted = await hasPermissions();
-    if (!granted) {
-      final ok = await requestAuthorization();
-      if (!ok) {
-        throw const HealthServiceException(
-          'Health Connect permission was not granted. '
-          'Please allow access in Health Connect settings.',
-        );
-      }
-    }
+    // hasPermissions() returns null (→ false) for READ-only on Android Health
+    // Connect — the platform intentionally hides read-permission status for
+    // privacy. Gating on it always re-triggers the consent flow. Instead, we
+    // fire requestAuthorization() to surface the dialog when truly needed but
+    // proceed regardless of its return value; the data fetch below is the
+    // real access test and will throw if permissions are genuinely missing.
+    try {
+      await requestAuthorization();
+    } catch (_) {}
 
     final now = DateTime.now();
 
