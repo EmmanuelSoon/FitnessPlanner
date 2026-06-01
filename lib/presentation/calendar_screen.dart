@@ -4,9 +4,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../domain/models/mesocycle.dart';
 import '../domain/models/day_override.dart';
 import '../domain/models/workout.dart';
+import '../domain/models/run_session.dart';
 import '../domain/schedule/schedule_logic.dart';
 import '../providers/mesocycle_providers.dart';
 import '../providers/workout_providers.dart';
+import '../providers/run_providers.dart';
+import 'run_detail_screen.dart';
+import 'record_run_screen.dart';
 import '../theme/app_theme.dart';
 import 'mesocycle_setup_screen.dart';
 import 'warmup_screen.dart';
@@ -39,6 +43,7 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
     final meso = ref.watch(activeMesocycleProvider);
     final overrides = ref.watch(overridesProvider).asData?.value ?? [];
     final workouts = ref.watch(workoutsProvider).asData?.value ?? [];
+    final runs = ref.watch(runsProvider).asData?.value ?? [];
 
     final overrideMap = <String, DayOverride>{};
     for (final o in overrides) {
@@ -46,6 +51,13 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
     }
     final workoutNames = <String, String>{for (final w in workouts) w.id: w.name};
     final workoutMap = <String, Workout>{for (final w in workouts) w.id: w};
+
+    // Group runs by local calendar day for the calendar grid.
+    final runsByDay = <String, List<RunSession>>{};
+    for (final r in runs) {
+      final key = _dateKey(r.startedAt);
+      runsByDay.putIfAbsent(key, () => []).add(r);
+    }
 
     return Scaffold(
       backgroundColor: c.bg,
@@ -60,7 +72,7 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
               onAdjustWeek: () => _showSetCurrentWeekSheet(context, meso),
             ),
             Expanded(
-              child: meso == null
+              child: (meso == null && runs.isEmpty)
                   ? _NoMesoState(onSetUp: () => _pushSetup(context, null))
                   : SingleChildScrollView(
                       child: Column(
@@ -72,6 +84,7 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
                             meso: meso,
                             overrideForDate: (date) => overrideMap[_dateKey(date)],
                             workoutNames: workoutNames,
+                            runsByDay: runsByDay,
                             onDayTap: (date, workoutId, workoutName) => _showDaySheet(
                               context,
                               date: date,
@@ -80,6 +93,7 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
                               workouts: workouts,
                               overrideMap: overrideMap,
                               meso: meso,
+                              runsForDate: runsByDay[_dateKey(date)] ?? [],
                             ),
                           ),
                           const SizedBox(height: 32),
@@ -161,7 +175,8 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
     required Workout? workout,
     required List<Workout> workouts,
     required Map<String, DayOverride> overrideMap,
-    required Mesocycle meso,
+    required Mesocycle? meso,
+    required List<RunSession> runsForDate,
   }) {
     final c = AppThemeData.of(context).c;
     final hasOverride = overrideMap.containsKey(_dateKey(date));
@@ -297,6 +312,80 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
                 },
               ),
             ],
+            // ── Runs for this day ──────────────────────────────────
+            if (runsForDate.isNotEmpty) ...[
+              const SizedBox(height: 20),
+              Text(
+                'RUNS',
+                style: bodyStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  color: c.inkMute,
+                  letterSpacing: 0.8,
+                ),
+              ),
+              const SizedBox(height: 8),
+              ...runsForDate.map((run) {
+                final distStr =
+                    '${run.distanceKm.toStringAsFixed(2)} km';
+                final durStr =
+                    '${run.duration.inMinutes}min';
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: GestureDetector(
+                    onTap: () {
+                      Navigator.pop(ctx);
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => RunDetailScreen(run: run),
+                        ),
+                      );
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 14, vertical: 12),
+                      decoration: BoxDecoration(
+                        color: c.surfaceAlt,
+                        borderRadius: BorderRadius.circular(kRadius - 4),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(Icons.directions_run_rounded,
+                              size: 16, color: c.accent),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              '$distStr · $durStr · ${run.formattedPace}/km',
+                              style: bodyStyle(
+                                  fontSize: 13, color: c.inkDim),
+                            ),
+                          ),
+                          Icon(Icons.chevron_right_rounded,
+                              size: 16, color: c.inkMute),
+                        ],
+                      ),
+                    ),
+                  ),
+                );
+              }),
+            ],
+            const SizedBox(height: 10),
+            AppButton(
+              label: 'Log a run',
+              icon: Icons.directions_run_rounded,
+              kind: ButtonKind.outline,
+              full: true,
+              onPressed: () {
+                Navigator.pop(ctx);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => RecordRunScreen(initialDate: date),
+                  ),
+                );
+              },
+            ),
           ],
         ),
       ),
