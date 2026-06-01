@@ -44,6 +44,7 @@ The minimum viable app. All of these must be done before the app is usable.
 - [x] Calendar view of workouts with reminders (notify user of workout for the day)
 - [ ] Allow instead of reps, it is a timer for hold exercises
 - [x] link running to app — manual entry + Health Connect import from Samsung watch; distance, duration, pace, avg HR, calories, cadence, run type, notes; run indicators on calendar
+- [ ] Schedule run days in a mesocycle — assign run type/distance targets to specific days alongside strength training days
 
 ## Future Features
 - [x] Mesocycles 
