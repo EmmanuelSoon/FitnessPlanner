@@ -272,7 +272,7 @@ class _RecordRunScreenState extends ConsumerState<RecordRunScreen> {
                             style: displayStyle(
                                 fontSize: 24,
                                 color: c.inkMute,
-                                fontWeight: FontWeight.w300)),
+                                fontWeight: FontWeight.w400)),
                       ),
                       Expanded(
                         child: _DurationField(
@@ -291,7 +291,7 @@ class _RecordRunScreenState extends ConsumerState<RecordRunScreen> {
                             style: displayStyle(
                                 fontSize: 24,
                                 color: c.inkMute,
-                                fontWeight: FontWeight.w300)),
+                                fontWeight: FontWeight.w400)),
                       ),
                       Expanded(
                         child: _DurationField(
