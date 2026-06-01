@@ -43,6 +43,7 @@ The minimum viable app. All of these must be done before the app is usable.
 - [ ] Reorder exercises via drag-and-drop
 - [x] Calendar view of workouts with reminders (notify user of workout for the day)
 - [ ] Allow instead of reps, it is a timer for hold exercises
+- [x] link running to app — manual entry + Health Connect import from Samsung watch; distance, duration, pace, avg HR, calories, cadence, run type, notes; run indicators on calendar
 
 ## Future Features
 - [x] Mesocycles 
