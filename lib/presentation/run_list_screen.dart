@@ -20,6 +20,15 @@ class _RunListScreenState extends ConsumerState<RunListScreen> {
   bool _syncing = false;
 
   @override
+  void initState() {
+    super.initState();
+    // Silently sync on open so runs are fresh without interrupting the user.
+    WidgetsBinding.instance.addPostFrameCallback(
+      (_) => _syncFromHealthConnect(silent: true),
+    );
+  }
+
+  @override
   Widget build(BuildContext context) {
     final runsAsync = ref.watch(runsProvider);
     final theme = AppThemeData.of(context);
@@ -74,22 +83,47 @@ class _RunListScreenState extends ConsumerState<RunListScreen> {
               ),
             ),
             Expanded(
-              child: runsAsync.when(
-                loading: () =>
-                    Center(child: CircularProgressIndicator(color: c.accent)),
-                error: (e, _) => Center(
-                    child: Text('Error: $e',
-                        style: bodyStyle(color: c.danger))),
-                data: (runs) => runs.isEmpty
-                    ? _EmptyState(onRecord: _openRecord)
-                    : ListView.separated(
-                        padding: const EdgeInsets.fromLTRB(16, 0, 16, 32),
-                        itemCount: runs.length,
-                        separatorBuilder: (_, _) =>
-                            const SizedBox(height: 10),
-                        itemBuilder: (context, index) =>
-                            _RunCard(run: runs[index]),
+              child: RefreshIndicator(
+                color: c.accent,
+                backgroundColor: c.surface,
+                onRefresh: _syncFromHealthConnect,
+                child: runsAsync.when(
+                  loading: () => ListView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    children: [
+                      SizedBox(
+                        height: 200,
+                        child: Center(
+                            child: CircularProgressIndicator(color: c.accent)),
                       ),
+                    ],
+                  ),
+                  error: (e, _) => ListView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    children: [
+                      SizedBox(
+                        height: 200,
+                        child: Center(
+                            child: Text('Error: $e',
+                                style: bodyStyle(color: c.danger))),
+                      ),
+                    ],
+                  ),
+                  data: (runs) => runs.isEmpty
+                      ? ListView(
+                          physics: const AlwaysScrollableScrollPhysics(),
+                          children: [_EmptyState(onRecord: _openRecord)],
+                        )
+                      : ListView.separated(
+                          physics: const AlwaysScrollableScrollPhysics(),
+                          padding: const EdgeInsets.fromLTRB(16, 0, 16, 32),
+                          itemCount: runs.length,
+                          separatorBuilder: (_, _) =>
+                              const SizedBox(height: 10),
+                          itemBuilder: (context, index) =>
+                              _RunCard(run: runs[index]),
+                        ),
+                ),
               ),
             ),
           ],
@@ -106,7 +140,7 @@ class _RunListScreenState extends ConsumerState<RunListScreen> {
     );
   }
 
-  Future<void> _syncFromHealthConnect() async {
+  Future<void> _syncFromHealthConnect({bool silent = false}) async {
     setState(() => _syncing = true);
     try {
       // Fetch the last 90 days by default.
@@ -127,45 +161,55 @@ class _RunListScreenState extends ConsumerState<RunListScreen> {
       }
 
       if (!mounted) return;
-      final c = AppThemeData.of(context).c;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          backgroundColor: c.surface,
-          content: Text(
-            added == 0
-                ? 'Already up to date.'
-                : '$added run${added == 1 ? '' : 's'} imported.',
-            style: bodyStyle(fontSize: 14, color: c.ink),
+      // On silent sync (auto-open), skip the "already up to date" snackbar —
+      // only surface a snackbar when new runs were actually imported.
+      if (!silent || added > 0) {
+        final c = AppThemeData.of(context).c;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            backgroundColor: c.surface,
+            content: Text(
+              added == 0
+                  ? 'Already up to date.'
+                  : '$added run${added == 1 ? '' : 's'} imported.',
+              style: bodyStyle(fontSize: 14, color: c.ink),
+            ),
+            duration: const Duration(seconds: 3),
           ),
-          duration: const Duration(seconds: 3),
-        ),
-      );
+        );
+      }
     } on HealthServiceException catch (e) {
       if (!mounted) return;
-      final c = AppThemeData.of(context).c;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          backgroundColor: c.surface,
-          content: Text(
-            e.message,
-            style: bodyStyle(fontSize: 14, color: c.danger),
+      // Suppress errors on silent sync to avoid jarring the user on open.
+      if (!silent) {
+        final c = AppThemeData.of(context).c;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            backgroundColor: c.surface,
+            content: Text(
+              e.message,
+              style: bodyStyle(fontSize: 14, color: c.danger),
+            ),
+            duration: const Duration(seconds: 5),
           ),
-          duration: const Duration(seconds: 5),
-        ),
-      );
+        );
+      }
     } catch (e) {
       if (!mounted) return;
-      final c = AppThemeData.of(context).c;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          backgroundColor: c.surface,
-          content: Text(
-            'Sync failed: $e',
-            style: bodyStyle(fontSize: 14, color: c.danger),
+      // Suppress errors on silent sync to avoid jarring the user on open.
+      if (!silent) {
+        final c = AppThemeData.of(context).c;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            backgroundColor: c.surface,
+            content: Text(
+              'Sync failed: $e',
+              style: bodyStyle(fontSize: 14, color: c.danger),
+            ),
+            duration: const Duration(seconds: 5),
           ),
-          duration: const Duration(seconds: 5),
-        ),
-      );
+        );
+      }
     } finally {
       if (mounted) setState(() => _syncing = false);
     }
