@@ -33,6 +33,11 @@ class _WarmupScreenState extends State<WarmupScreen> {
   int _timedSecondsRemaining = 0;
   int _timedTotal = 0;
 
+  // Set when handing off to the workout session, which owns the wakelock from
+  // that point on. Prevents dispose() from disabling the screen-on flag that
+  // WorkoutSessionScreen.initState() just enabled.
+  bool _navigatedToWorkout = false;
+
   Timer? _timer;
   AudioPlayer? _audioPlayer;
 
@@ -54,7 +59,11 @@ class _WarmupScreenState extends State<WarmupScreen> {
   void dispose() {
     _timer?.cancel();
     _audioPlayer?.dispose();
-    WakelockPlus.disable();
+    // Only release wakelock if we did not hand off to WorkoutSessionScreen.
+    // When we do hand off, WorkoutSessionScreen.initState() has already called
+    // WakelockPlus.enable() and owns the lock; disabling here would turn the
+    // screen off mid-workout.
+    if (!_navigatedToWorkout) WakelockPlus.disable();
     super.dispose();
   }
 
@@ -120,7 +129,8 @@ class _WarmupScreenState extends State<WarmupScreen> {
         t.cancel();
         HapticFeedback.heavyImpact();
         _advanceExercise();
-      } else {
+      } else if (_timedSecondsRemaining <= 3) {
+        // Beep only during the final countdown, matching the rest timer.
         _playBeep();
         HapticFeedback.mediumImpact();
       }
@@ -168,6 +178,7 @@ class _WarmupScreenState extends State<WarmupScreen> {
   }
 
   void _goToWorkout() {
+    _navigatedToWorkout = true;
     Navigator.of(context).pushReplacement(
       MaterialPageRoute(
         builder: (_) => WorkoutSessionScreen(workout: widget.workout),
