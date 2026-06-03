@@ -39,7 +39,7 @@ The minimum viable app. All of these must be done before the app is usable.
 - [x] Adjust reps/weight on the fly during a workout (vs planned); weight field remains optional for calisthenics
 - [x] Completion summary screen after workout (total time, volume lifted where applicable)
 - [ ] Duplicate workout — copy an existing workout as a starting point
-- [ ] Exercise library — preset list of exercises with categories (chest, legs, back…), including common calisthenics movements (pull-ups, dips, push-up variations, etc.)
+- [ ] Exercise library — preset list of exercises with categories (chest, legs, back…), including common calisthenics movements (pull-ups, dips, push-up variations, etc.). Includes a keyword search function. 
 - [ ] Reorder exercises via drag-and-drop
 - [x] Calendar view of workouts with reminders (notify user of workout for the day)
 - [ ] Allow instead of reps, it is a timer for hold exercises
