@@ -38,6 +38,12 @@ class _WorkoutSessionScreenState
   bool _isResting = false;
   bool _isPaused = false;
 
+  // Hold-timer state (timed exercises)
+  Timer? _holdTimer;
+  int _holdSecondsRemaining = 0;
+  int _holdTotal = 0;
+  bool _isHolding = false;
+
   // Elapsed timer
   Timer? _elapsedTimer;
   int _elapsedSeconds = 0;
@@ -71,6 +77,7 @@ class _WorkoutSessionScreenState
   @override
   void dispose() {
     _restTimer?.cancel();
+    _holdTimer?.cancel();
     _elapsedTimer?.cancel();
     _countdownTimer?.cancel();
     _audioPlayer?.dispose();
@@ -114,6 +121,7 @@ class _WorkoutSessionScreenState
         });
         HapticFeedback.heavyImpact();
         _startElapsedTimer();
+        _maybeStartHold();
       }
     });
   }
@@ -122,6 +130,51 @@ class _WorkoutSessionScreenState
     _elapsedTimer = Timer.periodic(const Duration(seconds: 1), (_) {
       if (mounted) setState(() => _elapsedSeconds++);
     });
+  }
+
+  void _maybeStartHold() {
+    if (_index < _sequence.length) {
+      final e = _sequence[_index];
+      if (e.timedDuration != null) {
+        setState(() {
+          _holdTotal = e.timedDuration!.inSeconds;
+          _holdSecondsRemaining = _holdTotal;
+          _isHolding = true;
+          _isPaused = false;
+        });
+        _startHoldTimer();
+      }
+    }
+  }
+
+  void _startHoldTimer() {
+    _holdTimer?.cancel();
+    _holdTimer = Timer.periodic(const Duration(seconds: 1), (t) {
+      if (!mounted) {
+        t.cancel();
+        return;
+      }
+      setState(() => _holdSecondsRemaining--);
+      if (_holdSecondsRemaining <= 3 && _holdSecondsRemaining > 0) {
+        _playBeep();
+        _vibrate(100);
+      }
+      if (_holdSecondsRemaining <= 0) {
+        t.cancel();
+        _vibrate(250);
+        _finishSet();
+      }
+    });
+  }
+
+  void _toggleHoldPause() {
+    if (_isPaused) {
+      setState(() => _isPaused = false);
+      _startHoldTimer();
+    } else {
+      _holdTimer?.cancel();
+      setState(() => _isPaused = true);
+    }
   }
 
   // ─── Sound & haptic helpers (Item 2.2) ───────────────────────────────
@@ -139,24 +192,43 @@ class _WorkoutSessionScreenState
   // ─── Set actions ──────────────────────────────────────────────────────
   void _finishSet() {
     final e = _sequence[_index];
-    final actualReps =
-        int.tryParse(_actualRepsCtrl.text) ?? e.reps;
-    final actualWeight =
-        double.tryParse(_actualWeightCtrl.text) ?? e.weight;
-    _logged.add(LoggedSet(
-      exerciseName: e.name,
-      targetReps: e.reps,
-      targetWeight: e.weight,
-      actualReps: actualReps,
-      actualWeight: actualWeight,
-      skipped: false,
-    ));
+    if (e.timedDuration != null) {
+      _holdTimer?.cancel();
+      setState(() => _isHolding = false);
+      _logged.add(LoggedSet(
+        exerciseName: e.name,
+        targetReps: 0,
+        targetWeight: e.weight,
+        actualReps: 0,
+        actualWeight: e.weight,
+        skipped: false,
+        heldSeconds: _holdTotal,
+        targetSeconds: _holdTotal,
+      ));
+    } else {
+      final actualReps =
+          int.tryParse(_actualRepsCtrl.text) ?? e.reps;
+      final actualWeight =
+          double.tryParse(_actualWeightCtrl.text) ?? e.weight;
+      _logged.add(LoggedSet(
+        exerciseName: e.name,
+        targetReps: e.reps,
+        targetWeight: e.weight,
+        actualReps: actualReps,
+        actualWeight: actualWeight,
+        skipped: false,
+      ));
+    }
     _vibrate(250); // Item 2.2 — set complete feedback
     _advance();
   }
 
   void _skipSet() {
     final e = _sequence[_index];
+    if (e.timedDuration != null) {
+      _holdTimer?.cancel();
+      setState(() => _isHolding = false);
+    }
     _logged.add(LoggedSet(
       exerciseName: e.name,
       targetReps: e.reps,
@@ -243,10 +315,12 @@ class _WorkoutSessionScreenState
       _isPaused = false;
     });
     _prefillControllers();
+    _maybeStartHold();
   }
 
   Future<void> _finishWorkout({required bool completed}) async {
     _restTimer?.cancel();
+    _holdTimer?.cancel();
     _elapsedTimer?.cancel();
     _countdownTimer?.cancel();
     WakelockPlus.disable();
@@ -376,7 +450,11 @@ class _WorkoutSessionScreenState
           ? _buildEmptyState()
           : (_isCountingDown
               ? _buildCountdownView()
-              : (_isResting ? _buildRestView() : _buildExerciseView())),
+              : (_isResting
+                  ? _buildRestView()
+                  : (_isHolding
+                      ? _buildHoldView()
+                      : _buildExerciseView()))),
     );
   }
 
@@ -853,9 +931,13 @@ class _WorkoutSessionScreenState
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      nextEx.weight > 0
-                          ? '${nextEx.reps} × ${nextEx.weight}kg'
-                          : '${nextEx.reps} reps',
+                      nextEx.timedDuration != null
+                          ? (nextEx.weight > 0
+                              ? '${nextEx.timedDuration!.inSeconds}s · ${nextEx.weight}kg'
+                              : '${nextEx.timedDuration!.inSeconds}s hold')
+                          : (nextEx.weight > 0
+                              ? '${nextEx.reps} × ${nextEx.weight}kg'
+                              : '${nextEx.reps} reps'),
                       style: bodyStyle(
                         fontSize: 15,
                         color: c.inkDim,
@@ -955,6 +1037,146 @@ class _WorkoutSessionScreenState
                 icon: Icons.skip_next_rounded,
                 full: true,
                 onPressed: _skipRest,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ─── Hold-timer view ──────────────────────────────────────────────────
+  Widget _buildHoldView() {
+    final theme = AppThemeData.of(context);
+    final c = theme.c;
+    final e = _sequence[_index];
+    final progress = _holdTotal > 0
+        ? (1.0 - _holdSecondsRemaining / _holdTotal).clamp(0.0, 1.0)
+        : 1.0;
+
+    return Scaffold(
+      backgroundColor: c.bg,
+      body: SafeArea(
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(8, 14, 8, 6),
+              child: Row(
+                children: [
+                  AppIconButton(
+                    icon: Icons.close_rounded,
+                    onPressed: _handleBackPressed,
+                  ),
+                  const Spacer(),
+                  GestureDetector(
+                    onTap: _toggleHoldPause,
+                    child: Padding(
+                      padding: const EdgeInsets.only(right: 8),
+                      child: Text(
+                        _isPaused ? 'RESUME' : 'HOLDING',
+                        style: bodyStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                          color: c.inkDim,
+                          letterSpacing: 0.5,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Text(
+              _fmtElapsed(),
+              style: monoStyle(fontSize: 28, color: c.inkDim),
+            ),
+            const SizedBox(height: 4),
+            Expanded(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  SizedBox(
+                    width: 260,
+                    height: 260,
+                    child: Stack(
+                      alignment: Alignment.center,
+                      children: [
+                        CustomPaint(
+                          size: const Size(260, 260),
+                          painter: _RingPainter(
+                            progress: progress,
+                            trackColor: c.hairline,
+                            progressColor: c.accent,
+                          ),
+                        ),
+                        Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              '$_holdSecondsRemaining',
+                              style: displayStyle(
+                                fontSize: 72,
+                                fontWeight: FontWeight.w400,
+                                color: c.ink,
+                                letterSpacing: -3,
+                                height: 1.0,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'of ${_holdTotal}s',
+                              style: bodyStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w500,
+                                color: c.inkMute,
+                                letterSpacing: 0.8,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 28),
+                  Padding(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 32),
+                    child: Text(
+                      e.name,
+                      style: displayStyle(
+                        fontSize: 28,
+                        fontWeight: FontWeight.w500,
+                        color: c.ink,
+                        letterSpacing: -0.5,
+                        height: 1.1,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                  if (e.weight > 0) ...[
+                    const SizedBox(height: 8),
+                    Text(
+                      '${e.weight}kg',
+                      style: bodyStyle(
+                        fontSize: 15,
+                        color: c.inkDim,
+                        letterSpacing: 0.1,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            Padding(
+              padding: EdgeInsets.fromLTRB(
+                  18, 0, 18, 16 + MediaQuery.of(context).padding.bottom),
+              child: AppButton(
+                label: 'Skip',
+                kind: ButtonKind.ghost,
+                icon: Icons.skip_next_rounded,
+                full: true,
+                small: true,
+                onPressed: _skipSet,
               ),
             ),
           ],

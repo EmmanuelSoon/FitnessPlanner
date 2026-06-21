@@ -5,6 +5,8 @@ class LoggedSet {
   final int actualReps;
   final double actualWeight;
   final bool skipped;
+  final int? heldSeconds;
+  final int? targetSeconds;
 
   LoggedSet({
     required this.exerciseName,
@@ -13,6 +15,8 @@ class LoggedSet {
     required this.actualReps,
     required this.actualWeight,
     required this.skipped,
+    this.heldSeconds,
+    this.targetSeconds,
   });
 
   Map<String, dynamic> toJson() => {
@@ -22,6 +26,8 @@ class LoggedSet {
     'actualReps': actualReps,
     'actualWeight': actualWeight,
     'skipped': skipped,
+    if (heldSeconds != null) 'heldSeconds': heldSeconds,
+    if (targetSeconds != null) 'targetSeconds': targetSeconds,
   };
 
   factory LoggedSet.fromJson(Map<String, dynamic> json) => LoggedSet(
@@ -31,5 +37,7 @@ class LoggedSet {
     actualReps: json['actualReps'] as int,
     actualWeight: (json['actualWeight'] as num).toDouble(),
     skipped: json['skipped'] as bool,
+    heldSeconds: json['heldSeconds'] as int?,
+    targetSeconds: json['targetSeconds'] as int?,
   );
 }

@@ -168,9 +168,11 @@ class _SetTile extends StatelessWidget {
                 if (!logged.skipped) ...[
                   const SizedBox(height: 2),
                   Text(
-                    'Target: ${logged.targetReps} × ${logged.targetWeight}kg'
-                    '  →  '
-                    '${logged.actualReps} × ${logged.actualWeight}kg',
+                    logged.heldSeconds != null
+                        ? 'Held ${logged.heldSeconds}s  ·  target ${logged.targetSeconds}s'
+                        : 'Target: ${logged.targetReps} × ${logged.targetWeight}kg'
+                            '  →  '
+                            '${logged.actualReps} × ${logged.actualWeight}kg',
                     style: bodyStyle(
                       fontSize: 12,
                       color: c.inkDim,
