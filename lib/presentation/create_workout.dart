@@ -1241,6 +1241,7 @@ class _WorkoutPreviewScreenState
             isSupersetTransition: !isLastInSuperset,
             supersetBadge:
                 s == 1 && ei == 0 && ss.isSuperset ? 'SUPERSET' : null,
+            timedDuration: ex.timedDuration,
           ));
         }
       }
@@ -1448,6 +1449,7 @@ class _SetRow {
   /// Non-null on the very first set of the first exercise of a multi-exercise
   /// superset — used to render the "SUPERSET" badge in the preview.
   final String? supersetBadge;
+  final Duration? timedDuration;
 
   const _SetRow({
     required this.exName,
@@ -1459,6 +1461,7 @@ class _SetRow {
     required this.isFirstSet,
     this.isSupersetTransition = false,
     this.supersetBadge,
+    this.timedDuration,
   });
 }
 
@@ -1784,7 +1787,9 @@ class _SetRowTile extends StatelessWidget {
                 ),
               ),
               Text(
-                '${row.totalSets} × ${row.reps} · ${row.weight}kg',
+                row.timedDuration != null
+                    ? '${row.totalSets} × ${row.timedDuration!.inSeconds}s hold'
+                    : '${row.totalSets} × ${row.reps} · ${row.weight}kg',
                 style: bodyStyle(
                   fontSize: 11,
                   color: c.inkMute,
@@ -1811,33 +1816,52 @@ class _SetRowTile extends StatelessWidget {
                 ),
               ),
               Expanded(
-                child: Row(
-                  children: [
-                    Text(
-                      '${row.reps}',
-                      style: displayStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        color: c.ink,
-                        letterSpacing: -0.3,
+                child: row.timedDuration != null
+                    ? Row(
+                        children: [
+                          Text(
+                            '${row.timedDuration!.inSeconds}s',
+                            style: displayStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                              color: c.ink,
+                              letterSpacing: -0.3,
+                            ),
+                          ),
+                          Text(' hold',
+                              style:
+                                  bodyStyle(fontSize: 14, color: c.inkMute)),
+                        ],
+                      )
+                    : Row(
+                        children: [
+                          Text(
+                            '${row.reps}',
+                            style: displayStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                              color: c.ink,
+                              letterSpacing: -0.3,
+                            ),
+                          ),
+                          Text(' reps',
+                              style:
+                                  bodyStyle(fontSize: 14, color: c.inkMute)),
+                          const SizedBox(width: 8),
+                          Text(
+                            '${row.weight}',
+                            style: displayStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                              color: c.ink,
+                              letterSpacing: -0.3,
+                            ),
+                          ),
+                          Text(' kg',
+                              style:
+                                  bodyStyle(fontSize: 14, color: c.inkMute)),
+                        ],
                       ),
-                    ),
-                    Text(' reps',
-                        style: bodyStyle(fontSize: 14, color: c.inkMute)),
-                    const SizedBox(width: 8),
-                    Text(
-                      '${row.weight}',
-                      style: displayStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        color: c.ink,
-                        letterSpacing: -0.3,
-                      ),
-                    ),
-                    Text(' kg',
-                        style: bodyStyle(fontSize: 14, color: c.inkMute)),
-                  ],
-                ),
               ),
               // Rest / superset-transition indicator
               if (row.isSupersetTransition)
