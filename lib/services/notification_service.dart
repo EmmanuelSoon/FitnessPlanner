@@ -24,15 +24,15 @@ class NotificationService {
 
     tz.initializeTimeZones();
     try {
-      final localName = await FlutterTimezone.getLocalTimezone();
-      tz.setLocalLocation(tz.getLocation(localName));
+      final tzInfo = await FlutterTimezone.getLocalTimezone();
+      tz.setLocalLocation(tz.getLocation(tzInfo.identifier));
     } catch (_) {
       // Fall back to UTC if timezone detection fails.
     }
 
     const androidSettings = AndroidInitializationSettings('ic_launcher_foreground');
     await _plugin.initialize(
-      const InitializationSettings(android: androidSettings),
+      settings: const InitializationSettings(android: androidSettings),
     );
 
     // Create the notification channel (required on Android 8+).
@@ -88,11 +88,11 @@ class NotificationService {
       if (scheduledDate.isBefore(now)) continue;
 
       await _plugin.zonedSchedule(
-        i,
-        'Time to prep for your workout!',
-        workoutName,
-        scheduledDate,
-        const NotificationDetails(
+        id: i,
+        title: 'Time to prep for your workout!',
+        body: workoutName,
+        scheduledDate: scheduledDate,
+        notificationDetails: const NotificationDetails(
           android: AndroidNotificationDetails(
             _channelId,
             _channelName,
