@@ -7,6 +7,7 @@ import 'package:fitness_planner/domain/models/workout.dart';
 import 'package:fitness_planner/domain/models/default_warmup.dart';
 import 'package:fitness_planner/providers/workout_providers.dart';
 import 'package:fitness_planner/presentation/widgets/app_widgets.dart';
+import 'package:fitness_planner/presentation/widgets/exercise_library_picker.dart';
 import 'package:fitness_planner/theme/app_theme.dart';
 
 class CreateWorkoutScreen extends StatefulWidget {
@@ -70,16 +71,18 @@ class _CreateWorkoutScreenState extends State<CreateWorkoutScreen> {
 
   // ─── Exercise list mutations ─────────────────────────────────────────
 
-  void _addExercise() {
+  void _addExercise({String name = '', bool isTimed = false}) {
     setState(() {
       _exercises.add(Superset(
         exercises: [
           Exercise(
-            name: '',
-            reps: 10,
+            name: name,
+            reps: isTimed ? 0 : 10,
             sets: 1,
             restTime: Duration.zero,
             weight: 0,
+            timedDuration:
+                isTimed ? const Duration(seconds: 30) : null,
           )
         ],
         sets: 3,
@@ -93,6 +96,15 @@ class _CreateWorkoutScreenState extends State<CreateWorkoutScreen> {
         curve: Curves.easeOut,
       );
     });
+  }
+
+  void _openExercisePicker() {
+    showExerciseLibraryPicker(
+      context: context,
+      onSelected: (template) =>
+          _addExercise(name: template.name, isTimed: template.isTimed),
+      onBlank: () => _addExercise(),
+    );
   }
 
   void _removeExerciseFromSuperset(int supersetIdx, int exIdx) {
@@ -493,7 +505,7 @@ class _CreateWorkoutScreenState extends State<CreateWorkoutScreen> {
                           children: [
                             ..._buildExerciseCards(),
                             GestureDetector(
-                              onTap: _addExercise,
+                              onTap: _openExercisePicker,
                               child: Container(
                                 height: 50,
                                 decoration: BoxDecoration(
@@ -762,6 +774,8 @@ class _ExerciseSlotCardState extends State<_ExerciseSlotCard> {
   late final TextEditingController _weightCtrl;
   late int _repsValue;
   late Duration _restDuration;
+  late bool _isTimed;
+  late Duration _timedValue;
 
   @override
   void initState() {
@@ -773,6 +787,23 @@ class _ExerciseSlotCardState extends State<_ExerciseSlotCard> {
     _weightCtrl = TextEditingController(text: e.weight.toString());
     _repsValue = e.reps;
     _restDuration = s.restAfterSet;
+    _isTimed = e.timedDuration != null;
+    _timedValue = e.timedDuration ?? const Duration(seconds: 30);
+  }
+
+  void _toggleMode() {
+    final e = widget.exercise;
+    setState(() {
+      _isTimed = !_isTimed;
+      if (_isTimed) {
+        e.timedDuration = _timedValue;
+        e.reps = 0;
+      } else {
+        e.timedDuration = null;
+        _repsValue = 10;
+        e.reps = 10;
+      }
+    });
   }
 
   @override
@@ -840,6 +871,26 @@ class _ExerciseSlotCardState extends State<_ExerciseSlotCard> {
                   onChanged: (v) => e.name = v,
                 ),
               ),
+              GestureDetector(
+                onTap: _toggleMode,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: c.surfaceAlt,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    _isTimed ? '⏱ Timed' : '🔢 Reps',
+                    style: bodyStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w500,
+                      color: c.inkDim,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 4),
               SizedBox(
                 width: 32,
                 height: 32,
@@ -866,16 +917,30 @@ class _ExerciseSlotCardState extends State<_ExerciseSlotCard> {
                 ),
                 const SizedBox(width: 6),
               ],
-              _PickerField(
-                label: 'REPS',
-                value: '$_repsValue',
-                onTap: () => _openRepsPicker(context, _repsValue, (v) {
-                  setState(() {
-                    _repsValue = v;
-                    e.reps = v;
-                  });
-                }),
-              ),
+              if (_isTimed)
+                _PickerField(
+                  label: 'DURATION',
+                  value: _fmtDuration(_timedValue),
+                  onTap: () => _openTimePicker(
+                      context, _timedValue, 'DURATION', (v) {
+                    setState(() {
+                      _timedValue = v;
+                      e.timedDuration = v;
+                    });
+                  }),
+                )
+              else
+                _PickerField(
+                  label: 'REPS',
+                  value: '$_repsValue',
+                  onTap: () =>
+                      _openRepsPicker(context, _repsValue, (v) {
+                    setState(() {
+                      _repsValue = v;
+                      e.reps = v;
+                    });
+                  }),
+                ),
               const SizedBox(width: 6),
               _NumField(
                 label: 'WEIGHT',
