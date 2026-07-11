@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../domain/models/mesocycle.dart';
 import '../domain/models/day_override.dart';
+import '../domain/models/run_override.dart';
+import '../domain/models/planned_run.dart';
 import '../domain/models/workout.dart';
 import '../domain/models/run_session.dart';
 import '../domain/schedule/schedule_logic.dart';
@@ -42,6 +44,7 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
     final c = AppThemeData.of(context).c;
     final meso = ref.watch(activeMesocycleProvider);
     final overrides = ref.watch(overridesProvider).asData?.value ?? [];
+    final runOverrides = ref.watch(runOverridesProvider).asData?.value ?? [];
     final workouts = ref.watch(workoutsProvider).asData?.value ?? [];
     final runs = ref.watch(runsProvider).asData?.value ?? [];
 
@@ -49,8 +52,17 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
     for (final o in overrides) {
       overrideMap[_dateKey(o.date)] = o;
     }
+    final runOverrideMap = <String, RunOverride>{};
+    for (final o in runOverrides) {
+      runOverrideMap[_dateKey(o.date)] = o;
+    }
     final workoutNames = <String, String>{for (final w in workouts) w.id: w.name};
     final workoutMap = <String, Workout>{for (final w in workouts) w.id: w};
+
+    // Resolves the planned run for a date via template + override (rest-week aware).
+    PlannedRun? plannedRunFor(DateTime date) => meso == null
+        ? null
+        : plannedRunForDate(meso, runOverrideMap[_dateKey(date)], date);
 
     // Group runs by local calendar day for the calendar grid.
     final runsByDay = <String, List<RunSession>>{};
@@ -84,6 +96,7 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
                             meso: meso,
                             overrideForDate: (date) => overrideMap[_dateKey(date)],
                             workoutNames: workoutNames,
+                            plannedRunForDate: plannedRunFor,
                             runsByDay: runsByDay,
                             onDayTap: (date, workoutId, workoutName) => _showDaySheet(
                               context,
@@ -94,6 +107,9 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
                               overrideMap: overrideMap,
                               meso: meso,
                               runsForDate: runsByDay[_dateKey(date)] ?? [],
+                              plannedRun: plannedRunFor(date),
+                              hasRunOverride:
+                                  runOverrideMap.containsKey(_dateKey(date)),
                             ),
                           ),
                           const SizedBox(height: 32),
@@ -177,6 +193,8 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
     required Map<String, DayOverride> overrideMap,
     required Mesocycle? meso,
     required List<RunSession> runsForDate,
+    required PlannedRun? plannedRun,
+    required bool hasRunOverride,
   }) {
     final c = AppThemeData.of(context).c;
     final hasOverride = overrideMap.containsKey(_dateKey(date));
@@ -309,6 +327,121 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
                 onPressed: () async {
                   Navigator.pop(ctx);
                   await ref.read(overridesProvider.notifier).clearOverride(date);
+                },
+              ),
+            ],
+            // ── Planned run target for this day ────────────────────
+            if (plannedRun != null) ...[
+              const SizedBox(height: 20),
+              Text(
+                'PLANNED RUN',
+                style: bodyStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  color: c.inkMute,
+                  letterSpacing: 0.8,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                decoration: BoxDecoration(
+                  color: c.surfaceAlt,
+                  borderRadius: BorderRadius.circular(kRadius - 4),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.directions_run_rounded, size: 16, color: c.accent),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        plannedRun.summaryLabel,
+                        style: bodyStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w500,
+                            color: c.ink),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 10),
+              AppButton(
+                label: 'Log this run',
+                icon: Icons.directions_run_rounded,
+                full: true,
+                onPressed: () {
+                  Navigator.pop(ctx);
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => RecordRunScreen(
+                        initialDate: date,
+                        initialRunType: plannedRun.type,
+                        initialDistanceMeters: plannedRun.targetDistanceMeters,
+                        initialDuration: plannedRun.targetDuration,
+                      ),
+                    ),
+                  );
+                },
+              ),
+              const SizedBox(height: 10),
+              AppButton(
+                label: 'Move run to another date',
+                kind: ButtonKind.outline,
+                icon: Icons.swap_horiz_rounded,
+                full: true,
+                onPressed: () async {
+                  Navigator.pop(ctx);
+                  final picked = await showDatePicker(
+                    context: context,
+                    initialDate: date.add(const Duration(days: 1)),
+                    firstDate: DateTime(2020),
+                    lastDate: DateTime(2030),
+                  );
+                  if (picked != null && context.mounted) {
+                    await ref
+                        .read(runOverridesProvider.notifier)
+                        .moveRun(date, picked, plannedRun);
+                  }
+                },
+              ),
+              const SizedBox(height: 10),
+              AppButton(
+                label: 'Clear run',
+                kind: ButtonKind.ghost,
+                full: true,
+                onPressed: () async {
+                  Navigator.pop(ctx);
+                  await ref.read(runOverridesProvider.notifier).clearRun(date);
+                },
+              ),
+              if (hasRunOverride) ...[
+                const SizedBox(height: 10),
+                AppButton(
+                  label: 'Reset run to scheduled',
+                  kind: ButtonKind.ghost,
+                  full: true,
+                  onPressed: () async {
+                    Navigator.pop(ctx);
+                    await ref
+                        .read(runOverridesProvider.notifier)
+                        .clearOverride(date);
+                  },
+                ),
+              ],
+            ] else if (hasRunOverride) ...[
+              // Run was cleared on this date; allow restoring the template run.
+              const SizedBox(height: 10),
+              AppButton(
+                label: 'Restore scheduled run',
+                kind: ButtonKind.ghost,
+                full: true,
+                onPressed: () async {
+                  Navigator.pop(ctx);
+                  await ref
+                      .read(runOverridesProvider.notifier)
+                      .clearOverride(date);
                 },
               ),
             ],

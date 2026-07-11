@@ -5,6 +5,7 @@ import 'package:timezone/data/latest_all.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
 import '../domain/models/mesocycle.dart';
 import '../domain/models/day_override.dart';
+import '../domain/models/planned_run.dart';
 import '../domain/models/workout.dart';
 import '../domain/schedule/schedule_logic.dart';
 
@@ -59,6 +60,7 @@ class NotificationService {
   Future<void> rescheduleAll({
     required Mesocycle? meso,
     required DayOverride? Function(DateTime) overrideForDate,
+    required PlannedRun? Function(DateTime) plannedRunForDate,
     required List<Workout> workouts,
     required TimeOfDay time,
     required bool enabled,
@@ -74,9 +76,20 @@ class NotificationService {
     for (int i = 0; i < horizonDays; i++) {
       final day = today.add(Duration(days: i));
       final workoutId = workoutIdForDate(meso, overrideForDate(day), day);
-      if (workoutId == null) continue;
+      final plannedRun = plannedRunForDate(day);
+      if (workoutId == null && plannedRun == null) continue;
 
-      final workoutName = workoutMap[workoutId]?.name ?? 'Workout';
+      final workoutName =
+          workoutId != null ? (workoutMap[workoutId]?.name ?? 'Workout') : null;
+      // Combine the strength workout and planned run into one reminder body,
+      // e.g. "Push Day + Easy · 5 km", "Easy · 5 km", or just "Push Day".
+      final parts = <String>[];
+      if (workoutName != null) parts.add(workoutName);
+      if (plannedRun != null) parts.add(plannedRun.summaryLabel);
+      final body = parts.join(' + ');
+      final title = workoutName != null
+          ? 'Time to prep for your workout!'
+          : 'Time for your run!';
       final scheduledDate = tz.TZDateTime(
         tz.local,
         day.year,
@@ -89,8 +102,8 @@ class NotificationService {
 
       await _plugin.zonedSchedule(
         id: i,
-        title: 'Time to prep for your workout!',
-        body: workoutName,
+        title: title,
+        body: body,
         scheduledDate: scheduledDate,
         notificationDetails: const NotificationDetails(
           android: AndroidNotificationDetails(

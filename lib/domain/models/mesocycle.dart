@@ -1,3 +1,5 @@
+import 'planned_run.dart';
+
 enum AdjustmentType { earlyRest, setCurrentWeek }
 
 class CycleAdjustment {
@@ -38,6 +40,10 @@ class Mesocycle {
   // Same workoutId may appear on multiple days.
   final Map<int, String?> weekdayWorkouts;
 
+  // 1=Mon .. 7=Sun -> planned run (absent/null = no run that day).
+  // Independent of weekdayWorkouts — a day may have a workout, a run, or both.
+  final Map<int, PlannedRun?> weekdayRuns;
+
   // Append-only event log for early-rest / set-current-week.
   // Sorted by effectiveDate ascending.
   final List<CycleAdjustment> adjustments;
@@ -49,6 +55,7 @@ class Mesocycle {
     required this.restWeeks,
     required this.originalAnchor,
     required this.weekdayWorkouts,
+    this.weekdayRuns = const {},
     this.adjustments = const [],
   });
 
@@ -59,6 +66,7 @@ class Mesocycle {
     int? restWeeks,
     DateTime? originalAnchor,
     Map<int, String?>? weekdayWorkouts,
+    Map<int, PlannedRun?>? weekdayRuns,
     List<CycleAdjustment>? adjustments,
   }) =>
       Mesocycle(
@@ -68,6 +76,7 @@ class Mesocycle {
         restWeeks: restWeeks ?? this.restWeeks,
         originalAnchor: originalAnchor ?? this.originalAnchor,
         weekdayWorkouts: weekdayWorkouts ?? this.weekdayWorkouts,
+        weekdayRuns: weekdayRuns ?? this.weekdayRuns,
         adjustments: adjustments ?? this.adjustments,
       );
 
@@ -79,6 +88,9 @@ class Mesocycle {
     'originalAnchor': originalAnchor.toIso8601String(),
     'weekdayWorkouts': {
       for (final e in weekdayWorkouts.entries) e.key.toString(): e.value,
+    },
+    'weekdayRuns': {
+      for (final e in weekdayRuns.entries) e.key.toString(): e.value?.toJson(),
     },
     'adjustments': adjustments.map((a) => a.toJson()).toList(),
   };
@@ -92,6 +104,12 @@ class Mesocycle {
     weekdayWorkouts: {
       for (final e in (json['weekdayWorkouts'] as Map<String, dynamic>).entries)
         int.parse(e.key): e.value as String?,
+    },
+    weekdayRuns: {
+      for (final e in (json['weekdayRuns'] as Map<String, dynamic>? ?? {}).entries)
+        int.parse(e.key): e.value == null
+            ? null
+            : PlannedRun.fromJson(e.value as Map<String, dynamic>),
     },
     adjustments: (json['adjustments'] as List? ?? [])
         .map((a) => CycleAdjustment.fromJson(a as Map<String, dynamic>))

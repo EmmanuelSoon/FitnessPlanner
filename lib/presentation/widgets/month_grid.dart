@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../domain/models/mesocycle.dart';
 import '../../domain/models/day_override.dart';
+import '../../domain/models/planned_run.dart';
 import '../../domain/models/run_session.dart';
 import '../../domain/schedule/schedule_logic.dart';
 import '../../theme/app_theme.dart';
@@ -11,6 +12,8 @@ class MonthGrid extends StatelessWidget {
   final Mesocycle? meso;
   final DayOverride? Function(DateTime) overrideForDate;
   final Map<String, String> workoutNames; // workoutId -> display name
+  /// Resolves the planned run for a date (template + override, rest-week aware).
+  final PlannedRun? Function(DateTime) plannedRunForDate;
   /// Runs keyed by 'yyyy-M-d' (same format as CalendarScreen._dateKey).
   final Map<String, List<RunSession>> runsByDay;
   final void Function(DateTime date, String? workoutId, String? workoutName) onDayTap;
@@ -22,6 +25,7 @@ class MonthGrid extends StatelessWidget {
     required this.meso,
     required this.overrideForDate,
     required this.workoutNames,
+    required this.plannedRunForDate,
     this.runsByDay = const {},
     required this.onDayTap,
   });
@@ -89,6 +93,7 @@ class MonthGrid extends StatelessWidget {
                 meso: meso,
                 overrideForDate: overrideForDate,
                 workoutNames: workoutNames,
+                plannedRun: plannedRunForDate(date),
                 runsForDay: runsByDay[dayKey] ?? const [],
                 isDark: isDark,
                 c: c,
@@ -108,6 +113,7 @@ class _DayCell extends StatelessWidget {
   final Mesocycle? meso;
   final DayOverride? Function(DateTime) overrideForDate;
   final Map<String, String> workoutNames;
+  final PlannedRun? plannedRun;
   final List<RunSession> runsForDay;
   final bool isDark;
   final AppColors c;
@@ -119,6 +125,7 @@ class _DayCell extends StatelessWidget {
     required this.meso,
     required this.overrideForDate,
     required this.workoutNames,
+    required this.plannedRun,
     required this.runsForDay,
     required this.isDark,
     required this.c,
@@ -218,15 +225,25 @@ class _DayCell extends StatelessWidget {
                 ),
               ),
             ],
-            // Run indicator — small shoe icon when there are runs on this day.
+            // Run indicators — a logged run shows a solid shoe; a planned run
+            // that hasn't been logged yet shows a dimmer shoe (target).
             if (runsForDay.isNotEmpty) ...[
               const SizedBox(height: 2),
               Icon(
                 Icons.directions_run_rounded,
-                size: 7,
+                size: 8,
                 color: isToday
                     ? c.accentInk.withValues(alpha: 0.7)
                     : c.inkDim,
+              ),
+            ] else if (plannedRun != null) ...[
+              const SizedBox(height: 2),
+              Icon(
+                Icons.directions_run_rounded,
+                size: 8,
+                color: isToday
+                    ? c.accentInk.withValues(alpha: 0.5)
+                    : c.inkMute,
               ),
             ],
           ],

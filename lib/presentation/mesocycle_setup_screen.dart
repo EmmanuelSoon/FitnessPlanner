@@ -1,7 +1,10 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../domain/models/mesocycle.dart';
+import '../domain/models/planned_run.dart';
+import '../domain/models/run_session.dart';
 import '../domain/schedule/schedule_logic.dart';
 import '../providers/mesocycle_providers.dart';
 import '../providers/workout_providers.dart';
@@ -21,10 +24,16 @@ class MesocycleSetupScreen extends ConsumerStatefulWidget {
 
 class _MesocycleSetupScreenState extends ConsumerState<MesocycleSetupScreen> {
   final _nameController = TextEditingController();
+  // Owned by the State (disposed in dispose) and reused across run-target
+  // sheet opens — disposing modal-local controllers races with the sheet's
+  // TextField teardown and trips an InheritedElement assertion.
+  final _runDistanceController = TextEditingController();
+  final _runDurationController = TextEditingController();
   late DateTime _anchorDate;
   late int _trainingWeeks;
   late int _restWeeks;
   late Map<int, String?> _weekdayWorkouts; // 1=Mon..7=Sun
+  late Map<int, PlannedRun?> _weekdayRuns; // 1=Mon..7=Sun
 
   @override
   void initState() {
@@ -36,17 +45,21 @@ class _MesocycleSetupScreenState extends ConsumerState<MesocycleSetupScreen> {
       _trainingWeeks = m.trainingWeeks;
       _restWeeks = m.restWeeks;
       _weekdayWorkouts = Map.from(m.weekdayWorkouts);
+      _weekdayRuns = Map.from(m.weekdayRuns);
     } else {
       _anchorDate = mondayOf(DateTime.now());
       _trainingWeeks = 5;
       _restWeeks = 1;
       _weekdayWorkouts = {1: null, 2: null, 3: null, 4: null, 5: null, 6: null, 7: null};
+      _weekdayRuns = {};
     }
   }
 
   @override
   void dispose() {
     _nameController.dispose();
+    _runDistanceController.dispose();
+    _runDurationController.dispose();
     super.dispose();
   }
 
@@ -140,21 +153,35 @@ class _MesocycleSetupScreenState extends ConsumerState<MesocycleSetupScreen> {
                     final name = workoutId != null
                         ? (workoutNames[workoutId] ?? 'Unknown workout')
                         : 'Rest day';
+                    final run = _weekdayRuns[weekday];
                     return Padding(
-                      padding: const EdgeInsets.only(bottom: 8),
-                      child: _InfoRow(
-                        label: _weekdayName(weekday),
-                        value: name,
-                        valueColor: workoutId != null
-                            ? AppThemeData.of(context).c.accent
-                            : null,
-                        onTap: () => showWorkoutPicker(
-                          context: context,
-                          workouts: workouts,
-                          selectedWorkoutId: workoutId,
-                          onSelected: (id) =>
-                              setState(() => _weekdayWorkouts[weekday] = id),
-                        ),
+                      padding: const EdgeInsets.only(bottom: 14),
+                      child: Column(
+                        children: [
+                          _InfoRow(
+                            label: _weekdayName(weekday),
+                            value: name,
+                            valueColor: workoutId != null
+                                ? AppThemeData.of(context).c.accent
+                                : null,
+                            onTap: () => showWorkoutPicker(
+                              context: context,
+                              workouts: workouts,
+                              selectedWorkoutId: workoutId,
+                              onSelected: (id) =>
+                                  setState(() => _weekdayWorkouts[weekday] = id),
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          _InfoRow(
+                            label: '   ↳ Run',
+                            value: run?.summaryLabel ?? 'None',
+                            valueColor: run != null
+                                ? AppThemeData.of(context).c.accent
+                                : null,
+                            onTap: () => _showRunTargetSheet(context, weekday),
+                          ),
+                        ],
                       ),
                     );
                   }),
@@ -286,6 +313,191 @@ class _MesocycleSetupScreenState extends ConsumerState<MesocycleSetupScreen> {
     );
   }
 
+  Future<void> _showRunTargetSheet(BuildContext context, int weekday) async {
+    final c = AppThemeData.of(context).c;
+    final existing = _weekdayRuns[weekday];
+    RunType selectedType = existing?.type ?? RunType.easy;
+    final distanceCtrl = _runDistanceController;
+    final durationCtrl = _runDurationController;
+    distanceCtrl.text = existing?.targetDistanceKm != null
+        ? existing!.targetDistanceKm!.toStringAsFixed(
+            existing.targetDistanceKm! % 1 == 0 ? 0 : 2)
+        : '';
+    durationCtrl.text = existing?.targetDuration != null
+        ? existing!.targetDuration!.inMinutes.toString()
+        : '';
+
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setModalState) => Padding(
+          padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
+          child: Container(
+            decoration: BoxDecoration(
+              color: c.surface,
+              borderRadius:
+                  BorderRadius.vertical(top: Radius.circular(kRadius + 8)),
+            ),
+            padding: EdgeInsets.only(
+              left: 22,
+              right: 22,
+              top: 20,
+              bottom: 28 + MediaQuery.of(ctx).padding.bottom,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 36,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: c.hairline,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Text('${_weekdayName(weekday)} run',
+                    style: displayStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w500,
+                        color: c.ink,
+                        letterSpacing: -0.3)),
+                const SizedBox(height: 16),
+                _SectionLabel('RUN TYPE'),
+                const SizedBox(height: 10),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: RunType.values.map((t) {
+                    final selected = selectedType == t;
+                    return GestureDetector(
+                      onTap: () => setModalState(() => selectedType = t),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 14, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: selected ? c.accent : c.surface,
+                          borderRadius: BorderRadius.circular(100),
+                          border: selected ? null : Border.all(color: c.hairline),
+                        ),
+                        child: Text(
+                          _runTypeLabel(t),
+                          style: bodyStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w500,
+                            color: selected ? c.accentInk : c.inkDim,
+                          ),
+                        ),
+                      ),
+                    );
+                  }).toList(),
+                ),
+                const SizedBox(height: 20),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _SectionLabel('DISTANCE (KM)'),
+                          const SizedBox(height: 8),
+                          _RunTargetField(
+                            controller: distanceCtrl,
+                            hint: 'Optional',
+                            keyboardType: const TextInputType.numberWithOptions(
+                                decimal: true),
+                            inputFormatters: [
+                              FilteringTextInputFormatter.allow(
+                                  RegExp(r'^\d*\.?\d{0,2}')),
+                            ],
+                            c: c,
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _SectionLabel('DURATION (MIN)'),
+                          const SizedBox(height: 8),
+                          _RunTargetField(
+                            controller: durationCtrl,
+                            hint: 'Optional',
+                            keyboardType: TextInputType.number,
+                            inputFormatters: [
+                              FilteringTextInputFormatter.digitsOnly,
+                            ],
+                            c: c,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 20),
+                AppButton(
+                  label: 'Save run',
+                  full: true,
+                  onPressed: () {
+                    final km = double.tryParse(distanceCtrl.text);
+                    final mins = int.tryParse(durationCtrl.text);
+                    setState(() {
+                      _weekdayRuns[weekday] = PlannedRun(
+                        type: selectedType,
+                        targetDistanceMeters:
+                            (km != null && km > 0) ? km * 1000 : null,
+                        targetDuration:
+                            (mins != null && mins > 0) ? Duration(minutes: mins) : null,
+                      );
+                    });
+                    Navigator.pop(ctx);
+                  },
+                ),
+                if (existing != null) ...[
+                  const SizedBox(height: 8),
+                  TextButton(
+                    onPressed: () {
+                      setState(() => _weekdayRuns.remove(weekday));
+                      Navigator.pop(ctx);
+                    },
+                    child: Text(
+                      'Remove run',
+                      style: bodyStyle(fontSize: 14, color: c.danger),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  String _runTypeLabel(RunType t) {
+    switch (t) {
+      case RunType.easy:
+        return 'Easy';
+      case RunType.tempo:
+        return 'Tempo';
+      case RunType.interval:
+        return 'Interval';
+      case RunType.long:
+        return 'Long';
+      case RunType.race:
+        return 'Race';
+      case RunType.other:
+        return 'Other';
+    }
+  }
+
   Future<void> _save() async {
     final name = _nameController.text.trim();
     if (name.isEmpty) return;
@@ -297,6 +509,7 @@ class _MesocycleSetupScreenState extends ConsumerState<MesocycleSetupScreen> {
       restWeeks: _restWeeks,
       originalAnchor: _anchorDate,
       weekdayWorkouts: Map.from(_weekdayWorkouts),
+      weekdayRuns: Map.from(_weekdayRuns),
       adjustments: const [],
     )).copyWith(
       name: name,
@@ -304,6 +517,7 @@ class _MesocycleSetupScreenState extends ConsumerState<MesocycleSetupScreen> {
       restWeeks: _restWeeks,
       originalAnchor: widget.existingMeso != null ? null : _anchorDate,
       weekdayWorkouts: Map.from(_weekdayWorkouts),
+      weekdayRuns: Map.from(_weekdayRuns),
     );
 
     try {
@@ -458,6 +672,46 @@ class _InfoRow extends StatelessWidget {
             const SizedBox(width: 6),
             Icon(Icons.chevron_right_rounded, size: 16, color: c.inkMute),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _RunTargetField extends StatelessWidget {
+  final TextEditingController controller;
+  final String hint;
+  final TextInputType keyboardType;
+  final List<TextInputFormatter> inputFormatters;
+  final AppColors c;
+
+  const _RunTargetField({
+    required this.controller,
+    required this.hint,
+    required this.keyboardType,
+    required this.inputFormatters,
+    required this.c,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: c.surface,
+        borderRadius: BorderRadius.circular(kRadius - 4),
+        border: Border.all(color: c.hairline),
+      ),
+      child: TextField(
+        controller: controller,
+        keyboardType: keyboardType,
+        inputFormatters: inputFormatters,
+        style: bodyStyle(fontSize: 15, color: c.ink),
+        decoration: InputDecoration(
+          hintText: hint,
+          hintStyle: bodyStyle(fontSize: 14, color: c.inkMute),
+          border: InputBorder.none,
+          contentPadding:
+              const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         ),
       ),
     );

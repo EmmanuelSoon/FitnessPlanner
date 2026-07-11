@@ -13,7 +13,19 @@ class RecordRunScreen extends ConsumerStatefulWidget {
   /// If provided the date picker will start on this date (used from calendar day-sheet).
   final DateTime? initialDate;
 
-  const RecordRunScreen({super.key, this.existingRun, this.initialDate});
+  /// Optional prefill when logging against a planned run target.
+  final RunType? initialRunType;
+  final double? initialDistanceMeters;
+  final Duration? initialDuration;
+
+  const RecordRunScreen({
+    super.key,
+    this.existingRun,
+    this.initialDate,
+    this.initialRunType,
+    this.initialDistanceMeters,
+    this.initialDuration,
+  });
 
   @override
   ConsumerState<RecordRunScreen> createState() => _RecordRunScreenState();
@@ -67,6 +79,18 @@ class _RecordRunScreenState extends ConsumerState<RecordRunScreen> {
       _date = widget.initialDate ??
           DateTime(now.year, now.month, now.day);
       _time = TimeOfDay.fromDateTime(now);
+      // Prefill from a planned run target when provided.
+      if (widget.initialRunType != null) _runType = widget.initialRunType!;
+      if (widget.initialDistanceMeters != null) {
+        _distanceCtrl.text =
+            (widget.initialDistanceMeters! / 1000).toStringAsFixed(2);
+      }
+      final dur = widget.initialDuration;
+      if (dur != null) {
+        _durationHours = dur.inHours;
+        _durationMinutes = dur.inMinutes % 60;
+        _durationSeconds = dur.inSeconds % 60;
+      }
     }
   }
 

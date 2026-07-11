@@ -2,8 +2,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../data/mesocycle_repository.dart';
 import '../data/override_repository.dart';
+import '../data/run_override_repository.dart';
 import '../domain/models/mesocycle.dart';
 import '../domain/models/day_override.dart';
+import '../domain/models/run_override.dart';
+import '../domain/models/planned_run.dart';
 import '../domain/schedule/schedule_logic.dart';
 import 'workout_providers.dart';
 import 'reminder_provider.dart';
@@ -181,6 +184,85 @@ class OverridesNotifier extends AsyncNotifier<List<DayOverride>> {
 final overridesProvider =
     AsyncNotifierProvider<OverridesNotifier, List<DayOverride>>(OverridesNotifier.new);
 
+// ─── Per-day planned-run overrides for the active mesocycle ───────────
+
+class RunOverridesNotifier extends AsyncNotifier<List<RunOverride>> {
+  @override
+  Future<List<RunOverride>> build() async {
+    final meso = ref.watch(activeMesocycleProvider);
+    if (meso == null) return [];
+    return ref.read(runOverrideRepositoryProvider).forMeso(meso.id);
+  }
+
+  String? _activeMesoId() => ref.read(activeMesocycleProvider)?.id;
+
+  Future<void> setRun(DateTime date, PlannedRun run) async {
+    final mesoId = _activeMesoId();
+    if (mesoId == null) return;
+    await ref.read(runOverrideRepositoryProvider).save(RunOverride(
+      mesocycleId: mesoId,
+      date: normalizeDate(date),
+      kind: RunOverrideKind.setRun,
+      plannedRun: run,
+    ));
+    ref.invalidateSelf();
+    await future;
+    await _reschedule();
+  }
+
+  Future<void> clearRun(DateTime date) async {
+    final mesoId = _activeMesoId();
+    if (mesoId == null) return;
+    await ref.read(runOverrideRepositoryProvider).save(RunOverride(
+      mesocycleId: mesoId,
+      date: normalizeDate(date),
+      kind: RunOverrideKind.clearRun,
+    ));
+    ref.invalidateSelf();
+    await future;
+    await _reschedule();
+  }
+
+  Future<void> clearOverride(DateTime date) async {
+    final mesoId = _activeMesoId();
+    if (mesoId == null) return;
+    await ref
+        .read(runOverrideRepositoryProvider)
+        .clear(mesoId, normalizeDate(date));
+    ref.invalidateSelf();
+    await future;
+    await _reschedule();
+  }
+
+  // Moves [run] from [from] to [to] by clearing the run on [from] and setting
+  // it on [to]. Mirrors OverridesNotifier.move for workouts.
+  Future<void> moveRun(DateTime from, DateTime to, PlannedRun run) async {
+    final mesoId = _activeMesoId();
+    if (mesoId == null) return;
+    final repo = ref.read(runOverrideRepositoryProvider);
+    await repo.save(RunOverride(
+      mesocycleId: mesoId,
+      date: normalizeDate(from),
+      kind: RunOverrideKind.clearRun,
+    ));
+    await repo.save(RunOverride(
+      mesocycleId: mesoId,
+      date: normalizeDate(to),
+      kind: RunOverrideKind.setRun,
+      plannedRun: run,
+    ));
+    ref.invalidateSelf();
+    await future;
+    await _reschedule();
+  }
+
+  Future<void> _reschedule() =>
+      rescheduleNotifications(ref, ref.read(mesocyclesProvider).asData?.value ?? []);
+}
+
+final runOverridesProvider =
+    AsyncNotifierProvider<RunOverridesNotifier, List<RunOverride>>(RunOverridesNotifier.new);
+
 // ─── Reminder reschedule helper (called from AsyncNotifier.ref only) ──
 
 Future<void> rescheduleNotifications(Ref ref, List<Mesocycle> mesoList) async {
@@ -192,14 +274,20 @@ Future<void> rescheduleNotifications(Ref ref, List<Mesocycle> mesoList) async {
     } catch (_) {}
   }
   final overrideRepo = ref.read(overrideRepositoryProvider);
+  final runOverrideRepo = ref.read(runOverrideRepositoryProvider);
   final workouts = ref.read(workoutsProvider).asData?.value ?? [];
   final reminderState = ref.read(reminderProvider).asData?.value;
   if (reminderState == null) return;
 
+  final activeMeso = meso;
   await NotificationService.instance.rescheduleAll(
-    meso: meso,
+    meso: activeMeso,
     overrideForDate: (date) =>
-        meso != null ? overrideRepo.get(meso.id, date) : null,
+        activeMeso != null ? overrideRepo.get(activeMeso.id, date) : null,
+    plannedRunForDate: (date) => activeMeso != null
+        ? plannedRunForDate(
+            activeMeso, runOverrideRepo.get(activeMeso.id, date), date)
+        : null,
     workouts: workouts,
     time: reminderState.time,
     enabled: reminderState.enabled,
