@@ -1,5 +1,7 @@
 import '../models/mesocycle.dart';
 import '../models/day_override.dart';
+import '../models/run_override.dart';
+import '../models/planned_run.dart';
 
 // ─── Date helpers ─────────────────────────────────────────────────────
 
@@ -94,6 +96,16 @@ String? workoutIdForDate(Mesocycle m, DayOverride? ov, DateTime date) {
   }
   if (isRestWeek(m, date)) return null;
   return m.weekdayWorkouts[date.weekday];
+}
+
+// Returns the planned run for [date] or null (no run / rest / cleared).
+// Overrides win over the template; rest weeks suppress all planned runs.
+PlannedRun? plannedRunForDate(Mesocycle m, RunOverride? ov, DateTime date) {
+  if (ov != null) {
+    return ov.kind == RunOverrideKind.clearRun ? null : ov.plannedRun;
+  }
+  if (isRestWeek(m, date)) return null;
+  return m.weekdayRuns[date.weekday];
 }
 
 // ─── Adjustment helpers ───────────────────────────────────────────────

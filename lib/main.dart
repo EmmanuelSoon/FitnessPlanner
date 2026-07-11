@@ -9,11 +9,13 @@ import 'domain/models/workout_session_adapter.dart';
 import 'domain/models/logged_set_adapter.dart';
 import 'domain/models/mesocycle_adapter.dart';
 import 'domain/models/day_override_adapter.dart';
+import 'domain/models/run_override_adapter.dart';
 import 'domain/models/run_session_adapter.dart';
 import 'domain/models/workout.dart';
 import 'domain/models/workout_session.dart';
 import 'domain/models/mesocycle.dart';
 import 'domain/models/day_override.dart';
+import 'domain/models/run_override.dart';
 import 'domain/models/run_session.dart';
 import 'presentation/workout_list_screen.dart';
 import 'providers/theme_provider.dart';
@@ -31,11 +33,13 @@ void main() async {
   Hive.registerAdapter(LoggedSetAdapter());
   Hive.registerAdapter(MesocycleAdapter());
   Hive.registerAdapter(DayOverrideAdapter());
+  Hive.registerAdapter(RunOverrideAdapter());
   Hive.registerAdapter(RunSessionAdapter());
   await Hive.openBox<Workout>('workouts');
   await Hive.openBox<WorkoutSession>('sessions');
   await Hive.openBox<Mesocycle>('mesocycles');
   await Hive.openBox<DayOverride>('overrides');
+  await Hive.openBox<RunOverride>('run_overrides');
   await Hive.openBox<RunSession>('runs');
   try {
     await NotificationService.instance.init();
