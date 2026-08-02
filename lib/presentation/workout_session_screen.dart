@@ -12,6 +12,7 @@ import 'package:fitness_planner/domain/models/workout_session.dart';
 import 'package:fitness_planner/domain/models/logged_set.dart';
 import 'package:fitness_planner/providers/session_providers.dart';
 import 'package:fitness_planner/presentation/widgets/app_widgets.dart';
+import 'package:fitness_planner/presentation/widgets/number_picker_sheet.dart';
 import 'package:fitness_planner/presentation/workout_complete_screen.dart';
 import 'package:fitness_planner/theme/app_theme.dart';
 
@@ -56,8 +57,9 @@ class _WorkoutSessionScreenState
   // Audio (Item 2.2)
   AudioPlayer? _audioPlayer;
 
-  final _actualRepsCtrl = TextEditingController();
-  final _actualWeightCtrl = TextEditingController();
+  // Actual reps/weight for the current set, adjusted via scroll-wheel pickers.
+  int _actualReps = 0;
+  double _actualWeight = 0;
 
   @override
   void initState() {
@@ -82,16 +84,14 @@ class _WorkoutSessionScreenState
     _countdownTimer?.cancel();
     _audioPlayer?.dispose();
     WakelockPlus.disable(); // Item 2.1
-    _actualRepsCtrl.dispose();
-    _actualWeightCtrl.dispose();
     super.dispose();
   }
 
   void _prefillControllers() {
     if (_index < _sequence.length) {
       final e = _sequence[_index];
-      _actualRepsCtrl.text = e.reps.toString();
-      _actualWeightCtrl.text = e.weight.toString();
+      _actualReps = e.reps;
+      _actualWeight = e.weight;
     }
   }
 
@@ -206,16 +206,12 @@ class _WorkoutSessionScreenState
         targetSeconds: _holdTotal,
       ));
     } else {
-      final actualReps =
-          int.tryParse(_actualRepsCtrl.text) ?? e.reps;
-      final actualWeight =
-          double.tryParse(_actualWeightCtrl.text) ?? e.weight;
       _logged.add(LoggedSet(
         exerciseName: e.name,
         targetReps: e.reps,
         targetWeight: e.weight,
-        actualReps: actualReps,
-        actualWeight: actualWeight,
+        actualReps: _actualReps,
+        actualWeight: _actualWeight,
         skipped: false,
       ));
     }
@@ -696,12 +692,13 @@ class _WorkoutSessionScreenState
                       crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
                         _BigNumber(
-                          value: _actualRepsCtrl.text.isEmpty
-                              ? '${e.reps}'
-                              : _actualRepsCtrl.text,
+                          value: '$_actualReps',
                           label: 'reps',
-                          onChanged: (v) => setState(
-                              () => _actualRepsCtrl.text = v),
+                          onTap: () => openRepsPicker(
+                            context,
+                            _actualReps,
+                            (v) => setState(() => _actualReps = v),
+                          ),
                         ),
                         if (e.weight > 0) ...[
                           Container(
@@ -712,14 +709,14 @@ class _WorkoutSessionScreenState
                                 horizontal: 28),
                           ),
                           _BigNumber(
-                            value: _actualWeightCtrl.text.isEmpty
-                                ? '${e.weight}'
-                                : _actualWeightCtrl.text,
+                            value: fmtWeight(_actualWeight),
                             label: 'weight',
                             unit: 'kg',
-                            decimal: true,
-                            onChanged: (v) => setState(
-                                () => _actualWeightCtrl.text = v),
+                            onTap: () => openWeightPicker(
+                              context,
+                              _actualWeight,
+                              (v) => setState(() => _actualWeight = v),
+                            ),
                           ),
                         ],
                       ],
@@ -933,10 +930,10 @@ class _WorkoutSessionScreenState
                     Text(
                       nextEx.timedDuration != null
                           ? (nextEx.weight > 0
-                              ? '${nextEx.timedDuration!.inSeconds}s · ${nextEx.weight}kg'
+                              ? '${nextEx.timedDuration!.inSeconds}s · ${fmtWeight(nextEx.weight)}kg'
                               : '${nextEx.timedDuration!.inSeconds}s hold')
                           : (nextEx.weight > 0
-                              ? '${nextEx.reps} × ${nextEx.weight}kg'
+                              ? '${nextEx.reps} × ${fmtWeight(nextEx.weight)}kg'
                               : '${nextEx.reps} reps'),
                       style: bodyStyle(
                         fontSize: 15,
@@ -1156,7 +1153,7 @@ class _WorkoutSessionScreenState
                   if (e.weight > 0) ...[
                     const SizedBox(height: 8),
                     Text(
-                      '${e.weight}kg',
+                      '${fmtWeight(e.weight)}kg',
                       style: bodyStyle(
                         fontSize: 15,
                         color: c.inkDim,
@@ -1189,107 +1186,82 @@ class _WorkoutSessionScreenState
       _logged.where((l) => l.exerciseName == name).length;
 }
 
-// ─── Big editable number widget ───────────────────────────────────────
-class _BigNumber extends StatefulWidget {
+// ─── Big tappable number widget ───────────────────────────────────────
+// Tapping opens a scroll-wheel picker rather than the keyboard.
+class _BigNumber extends StatelessWidget {
   final String value;
   final String label;
   final String? unit;
-  final bool decimal;
-  final ValueChanged<String> onChanged;
+  final VoidCallback onTap;
 
   const _BigNumber({
     required this.value,
     required this.label,
     this.unit,
-    this.decimal = false,
-    required this.onChanged,
+    required this.onTap,
   });
-
-  @override
-  State<_BigNumber> createState() => _BigNumberState();
-}
-
-class _BigNumberState extends State<_BigNumber> {
-  late TextEditingController _ctrl;
-
-  @override
-  void initState() {
-    super.initState();
-    _ctrl = TextEditingController(text: widget.value);
-  }
-
-  @override
-  void didUpdateWidget(_BigNumber old) {
-    super.didUpdateWidget(old);
-    if (old.value != widget.value && _ctrl.text != widget.value) {
-      _ctrl.text = widget.value;
-    }
-  }
-
-  @override
-  void dispose() {
-    _ctrl.dispose();
-    super.dispose();
-  }
 
   @override
   Widget build(BuildContext context) {
     final theme = AppThemeData.of(context);
     final c = theme.c;
 
-    return Column(
-      children: [
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.baseline,
-          textBaseline: TextBaseline.alphabetic,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            SizedBox(
-              width: 90,
-              child: TextField(
-                controller: _ctrl,
-                keyboardType: widget.decimal
-                    ? const TextInputType.numberWithOptions(decimal: true)
-                    : TextInputType.number,
-                textAlign: TextAlign.center,
-                style: displayStyle(
-                  fontSize: 84,
-                  fontWeight: FontWeight.w400,
-                  color: c.ink,
-                  letterSpacing: -3,
-                  height: 0.9,
-                ),
-                decoration: const InputDecoration(
-                  border: InputBorder.none,
-                  isDense: true,
-                  contentPadding: EdgeInsets.zero,
-                ),
-                onChanged: widget.onChanged,
-              ),
-            ),
-            if (widget.unit != null)
-              Text(
-                widget.unit!,
-                style: bodyStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.w400,
-                  color: c.inkDim,
-                  letterSpacing: 0,
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: Column(
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.baseline,
+            textBaseline: TextBaseline.alphabetic,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              SizedBox(
+                width: 90,
+                child: Text(
+                  value,
+                  textAlign: TextAlign.center,
+                  maxLines: 1,
+                  style: displayStyle(
+                    fontSize: 84,
+                    fontWeight: FontWeight.w400,
+                    color: c.ink,
+                    letterSpacing: -3,
+                    height: 0.9,
+                  ),
                 ),
               ),
-          ],
-        ),
-        const SizedBox(height: 4),
-        Text(
-          widget.label.toUpperCase(),
-          style: bodyStyle(
-            fontSize: 11,
-            fontWeight: FontWeight.w500,
-            color: c.inkMute,
-            letterSpacing: 0.8,
+              if (unit != null)
+                Text(
+                  unit!,
+                  style: bodyStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.w400,
+                    color: c.inkDim,
+                    letterSpacing: 0,
+                  ),
+                ),
+            ],
           ),
-        ),
-      ],
+          const SizedBox(height: 4),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                label.toUpperCase(),
+                style: bodyStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w500,
+                  color: c.inkMute,
+                  letterSpacing: 0.8,
+                ),
+              ),
+              const SizedBox(width: 3),
+              Icon(Icons.unfold_more_rounded, size: 12, color: c.inkMute),
+            ],
+          ),
+        ],
+      ),
     );
   }
 }

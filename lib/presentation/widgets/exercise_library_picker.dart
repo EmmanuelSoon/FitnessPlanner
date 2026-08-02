@@ -2,10 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:fitness_planner/domain/models/exercise_library.dart';
 import 'package:fitness_planner/theme/app_theme.dart';
 
+/// [onBlank] receives whatever is currently typed in the search box, so
+/// "use my own" keeps the text instead of throwing it away.
 void showExerciseLibraryPicker({
   required BuildContext context,
   required void Function(LibraryExercise) onSelected,
-  required VoidCallback onBlank,
+  required void Function(String typedName) onBlank,
+  String initialQuery = '',
+  bool autofocus = false,
 }) {
   showModalBottomSheet(
     context: context,
@@ -14,17 +18,23 @@ void showExerciseLibraryPicker({
     builder: (_) => _ExerciseLibrarySheet(
       onSelected: onSelected,
       onBlank: onBlank,
+      initialQuery: initialQuery,
+      autofocus: autofocus,
     ),
   );
 }
 
 class _ExerciseLibrarySheet extends StatefulWidget {
   final void Function(LibraryExercise) onSelected;
-  final VoidCallback onBlank;
+  final void Function(String typedName) onBlank;
+  final String initialQuery;
+  final bool autofocus;
 
   const _ExerciseLibrarySheet({
     required this.onSelected,
     required this.onBlank,
+    required this.initialQuery,
+    required this.autofocus,
   });
 
   @override
@@ -32,8 +42,17 @@ class _ExerciseLibrarySheet extends StatefulWidget {
 }
 
 class _ExerciseLibrarySheetState extends State<_ExerciseLibrarySheet> {
-  final _searchCtrl = TextEditingController();
-  String _query = '';
+  late final TextEditingController _searchCtrl;
+  late String _query;
+
+  @override
+  void initState() {
+    super.initState();
+    _query = widget.initialQuery.trim();
+    _searchCtrl = TextEditingController(text: widget.initialQuery)
+      ..selection = TextSelection.collapsed(
+          offset: widget.initialQuery.length);
+  }
 
   @override
   void dispose() {
@@ -93,7 +112,7 @@ class _ExerciseLibrarySheetState extends State<_ExerciseLibrarySheet> {
             padding: const EdgeInsets.symmetric(horizontal: 16),
             child: TextField(
               controller: _searchCtrl,
-              autofocus: false,
+              autofocus: widget.autofocus,
               textCapitalization: TextCapitalization.words,
               style: bodyStyle(fontSize: 15, color: c.ink),
               decoration: InputDecoration(
@@ -119,13 +138,14 @@ class _ExerciseLibrarySheetState extends State<_ExerciseLibrarySheet> {
               shrinkWrap: true,
               padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
               children: [
-                // "Type my own" always at the top
+                // "Type my own" always at the top — once something is typed it
+                // offers that text as the exercise name.
                 Padding(
                   padding: const EdgeInsets.only(bottom: 4),
                   child: GestureDetector(
                     onTap: () {
                       Navigator.pop(context);
-                      widget.onBlank();
+                      widget.onBlank(_query);
                     },
                     child: Container(
                       padding: const EdgeInsets.symmetric(
@@ -141,12 +161,18 @@ class _ExerciseLibrarySheetState extends State<_ExerciseLibrarySheet> {
                           Icon(Icons.edit_rounded,
                               size: 16, color: c.inkDim),
                           const SizedBox(width: 10),
-                          Text(
-                            'Type my own',
-                            style: bodyStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w500,
-                              color: c.inkDim,
+                          Expanded(
+                            child: Text(
+                              _query.isEmpty
+                                  ? 'Type my own'
+                                  : 'Use "$_query"',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: bodyStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w500,
+                                color: _query.isEmpty ? c.inkDim : c.accent,
+                              ),
                             ),
                           ),
                         ],

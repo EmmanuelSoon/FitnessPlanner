@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:fitness_planner/domain/models/workout_session.dart';
 import 'package:fitness_planner/domain/models/logged_set.dart';
 import 'package:fitness_planner/presentation/widgets/app_widgets.dart';
+import 'package:fitness_planner/presentation/widgets/number_picker_sheet.dart';
 import 'package:fitness_planner/theme/app_theme.dart';
 
 class SessionDetailScreen extends StatelessWidget {
@@ -170,9 +171,9 @@ class _SetTile extends StatelessWidget {
                   Text(
                     logged.heldSeconds != null
                         ? 'Held ${logged.heldSeconds}s  ·  target ${logged.targetSeconds}s'
-                        : 'Target: ${logged.targetReps} × ${logged.targetWeight}kg'
+                        : 'Target: ${logged.targetReps} × ${fmtWeight(logged.targetWeight)}kg'
                             '  →  '
-                            '${logged.actualReps} × ${logged.actualWeight}kg',
+                            '${logged.actualReps} × ${fmtWeight(logged.actualWeight)}kg',
                     style: bodyStyle(
                       fontSize: 12,
                       color: c.inkDim,
