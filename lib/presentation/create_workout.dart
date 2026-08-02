@@ -5,9 +5,11 @@ import 'package:fitness_planner/domain/models/exercise.dart';
 import 'package:fitness_planner/domain/models/superset.dart';
 import 'package:fitness_planner/domain/models/workout.dart';
 import 'package:fitness_planner/domain/models/default_warmup.dart';
+import 'package:fitness_planner/domain/models/exercise_library.dart';
 import 'package:fitness_planner/providers/workout_providers.dart';
 import 'package:fitness_planner/presentation/widgets/app_widgets.dart';
 import 'package:fitness_planner/presentation/widgets/exercise_library_picker.dart';
+import 'package:fitness_planner/presentation/widgets/number_picker_sheet.dart';
 import 'package:fitness_planner/theme/app_theme.dart';
 
 class CreateWorkoutScreen extends StatefulWidget {
@@ -103,7 +105,7 @@ class _CreateWorkoutScreenState extends State<CreateWorkoutScreen> {
       context: context,
       onSelected: (template) =>
           _addExercise(name: template.name, isTimed: template.isTimed),
-      onBlank: () => _addExercise(),
+      onBlank: (typedName) => _addExercise(name: typedName),
     );
   }
 
@@ -592,7 +594,6 @@ class WarmupExerciseCard extends StatefulWidget {
 }
 
 class _WarmupExerciseCardState extends State<WarmupExerciseCard> {
-  late final TextEditingController _nameCtrl;
   late bool _isTimed;
   late int _repsValue;
   late Duration _timedValue;
@@ -601,23 +602,16 @@ class _WarmupExerciseCardState extends State<WarmupExerciseCard> {
   void initState() {
     super.initState();
     final e = widget.exercise;
-    _nameCtrl = TextEditingController(text: e.name);
     _isTimed = e.timedDuration != null;
     _repsValue = e.reps;
     _timedValue = e.timedDuration ?? const Duration(seconds: 30);
   }
 
-  @override
-  void dispose() {
-    _nameCtrl.dispose();
-    super.dispose();
-  }
-
-  void _toggleMode() {
+  void _setTimed(bool timed) {
     final e = widget.exercise;
     setState(() {
-      _isTimed = !_isTimed;
-      if (_isTimed) {
+      _isTimed = timed;
+      if (timed) {
         e.timedDuration = _timedValue;
       } else {
         e.timedDuration = null;
@@ -625,6 +619,17 @@ class _WarmupExerciseCardState extends State<WarmupExerciseCard> {
         e.reps = 10;
       }
     });
+  }
+
+  void _toggleMode() => _setTimed(!_isTimed);
+
+  void _rename(String name) {
+    setState(() => widget.exercise.name = name);
+  }
+
+  void _applyTemplate(LibraryExercise template) {
+    _rename(template.name);
+    if (template.isTimed != _isTimed) _setTimed(template.isTimed);
   }
 
   @override
@@ -661,21 +666,11 @@ class _WarmupExerciseCardState extends State<WarmupExerciseCard> {
               ),
               const SizedBox(width: 8),
               Expanded(
-                child: TextField(
-                  controller: _nameCtrl,
-                  textCapitalization: TextCapitalization.words,
-                  style: bodyStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      color: c.ink),
-                  decoration: InputDecoration(
-                    hintText: 'Exercise name',
-                    hintStyle:
-                        bodyStyle(fontSize: 14, color: c.inkMute),
-                    border: InputBorder.none,
-                    contentPadding: EdgeInsets.zero,
-                  ),
-                  onChanged: (v) => e.name = v,
+                child: _ExerciseNameField(
+                  name: e.name,
+                  fontSize: 14,
+                  onSelected: _applyTemplate,
+                  onTyped: _rename,
                 ),
               ),
               GestureDetector(
@@ -725,7 +720,7 @@ class _WarmupExerciseCardState extends State<WarmupExerciseCard> {
                           e.timedDuration = v;
                         });
                       })
-                    : _openRepsPicker(context, _repsValue, (v) {
+                    : openRepsPicker(context, _repsValue, (v) {
                         setState(() {
                           _repsValue = v;
                           e.reps = v;
@@ -769,10 +764,9 @@ class _ExerciseSlotCard extends StatefulWidget {
 }
 
 class _ExerciseSlotCardState extends State<_ExerciseSlotCard> {
-  late final TextEditingController _nameCtrl;
-  late final TextEditingController _setsCtrl;
-  late final TextEditingController _weightCtrl;
+  late int _setsValue;
   late int _repsValue;
+  late double _weightValue;
   late Duration _restDuration;
   late bool _isTimed;
   late Duration _timedValue;
@@ -782,20 +776,19 @@ class _ExerciseSlotCardState extends State<_ExerciseSlotCard> {
     super.initState();
     final e = widget.exercise;
     final s = widget.superset;
-    _nameCtrl = TextEditingController(text: e.name);
-    _setsCtrl = TextEditingController(text: s.sets.toString());
-    _weightCtrl = TextEditingController(text: e.weight.toString());
+    _setsValue = s.sets;
     _repsValue = e.reps;
+    _weightValue = e.weight;
     _restDuration = s.restAfterSet;
     _isTimed = e.timedDuration != null;
     _timedValue = e.timedDuration ?? const Duration(seconds: 30);
   }
 
-  void _toggleMode() {
+  void _setTimed(bool timed) {
     final e = widget.exercise;
     setState(() {
-      _isTimed = !_isTimed;
-      if (_isTimed) {
+      _isTimed = timed;
+      if (timed) {
         e.timedDuration = _timedValue;
         e.reps = 0;
       } else {
@@ -806,12 +799,15 @@ class _ExerciseSlotCardState extends State<_ExerciseSlotCard> {
     });
   }
 
-  @override
-  void dispose() {
-    _nameCtrl.dispose();
-    _setsCtrl.dispose();
-    _weightCtrl.dispose();
-    super.dispose();
+  void _toggleMode() => _setTimed(!_isTimed);
+
+  void _rename(String name) {
+    setState(() => widget.exercise.name = name);
+  }
+
+  void _applyTemplate(LibraryExercise template) {
+    _rename(template.name);
+    if (template.isTimed != _isTimed) _setTimed(template.isTimed);
   }
 
   @override
@@ -854,21 +850,11 @@ class _ExerciseSlotCardState extends State<_ExerciseSlotCard> {
               ),
               const SizedBox(width: 10),
               Expanded(
-                child: TextField(
-                  controller: _nameCtrl,
-                  textCapitalization: TextCapitalization.words,
-                  style: bodyStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w600,
-                    color: c.ink,
-                  ),
-                  decoration: InputDecoration(
-                    hintText: 'Exercise name',
-                    hintStyle: bodyStyle(fontSize: 15, color: c.inkMute),
-                    border: InputBorder.none,
-                    contentPadding: EdgeInsets.zero,
-                  ),
-                  onChanged: (v) => e.name = v,
+                child: _ExerciseNameField(
+                  name: e.name,
+                  fontSize: 15,
+                  onSelected: _applyTemplate,
+                  onTyped: _rename,
                 ),
               ),
               GestureDetector(
@@ -908,12 +894,15 @@ class _ExerciseSlotCardState extends State<_ExerciseSlotCard> {
           Row(
             children: [
               if (widget.showSets) ...[
-                _NumField(
+                _PickerField(
                   label: 'SETS',
-                  ctrl: _setsCtrl,
-                  unit: null,
-                  onChanged: (v) =>
-                      s.sets = int.tryParse(v) ?? s.sets,
+                  value: '$_setsValue',
+                  onTap: () => openSetsPicker(context, _setsValue, (v) {
+                    setState(() {
+                      _setsValue = v;
+                      s.sets = v;
+                    });
+                  }),
                 ),
                 const SizedBox(width: 6),
               ],
@@ -934,7 +923,7 @@ class _ExerciseSlotCardState extends State<_ExerciseSlotCard> {
                   label: 'REPS',
                   value: '$_repsValue',
                   onTap: () =>
-                      _openRepsPicker(context, _repsValue, (v) {
+                      openRepsPicker(context, _repsValue, (v) {
                     setState(() {
                       _repsValue = v;
                       e.reps = v;
@@ -942,13 +931,15 @@ class _ExerciseSlotCardState extends State<_ExerciseSlotCard> {
                   }),
                 ),
               const SizedBox(width: 6),
-              _NumField(
+              _PickerField(
                 label: 'WEIGHT',
-                ctrl: _weightCtrl,
-                unit: 'kg',
-                onChanged: (v) =>
-                    e.weight = double.tryParse(v) ?? e.weight,
-                decimal: true,
+                value: '${fmtWeight(_weightValue)} kg',
+                onTap: () => openWeightPicker(context, _weightValue, (v) {
+                  setState(() {
+                    _weightValue = v;
+                    e.weight = v;
+                  });
+                }),
               ),
               if (widget.showRest) ...[
                 const SizedBox(width: 6),
@@ -1081,84 +1072,55 @@ class _LinkRow extends StatelessWidget {
   }
 }
 
-// ─── Shared numeric field widget ──────────────────────────────────────────
-class _NumField extends StatelessWidget {
-  final String label;
-  final TextEditingController ctrl;
-  final String? unit;
-  final ValueChanged<String> onChanged;
-  final bool decimal;
+// ─── Exercise name field ──────────────────────────────────────────────────
+//
+// Reads like a text field, but tapping it reopens the exercise library sheet
+// pre-filled with the current name, so suggestions are always one tap away.
+//
+class _ExerciseNameField extends StatelessWidget {
+  final String name;
+  final double fontSize;
+  final void Function(LibraryExercise) onSelected;
+  final void Function(String) onTyped;
 
-  const _NumField({
-    required this.label,
-    required this.ctrl,
-    required this.unit,
-    required this.onChanged,
-    this.decimal = false,
+  const _ExerciseNameField({
+    required this.name,
+    required this.fontSize,
+    required this.onSelected,
+    required this.onTyped,
   });
 
   @override
   Widget build(BuildContext context) {
-    final theme = AppThemeData.of(context);
-    final c = theme.c;
+    final c = AppThemeData.of(context).c;
 
-    return Expanded(
-      child: Container(
-        padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
-        decoration: BoxDecoration(
-          color: c.bg,
-          borderRadius: BorderRadius.circular(kRadius - 6),
-          border: Border.all(color: c.hairlineSoft),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: () => showExerciseLibraryPicker(
+        context: context,
+        initialQuery: name,
+        autofocus: true,
+        onSelected: onSelected,
+        onBlank: onTyped,
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        child: Row(
           children: [
-            Text(
-              label,
-              style: bodyStyle(
-                fontSize: 10,
-                fontWeight: FontWeight.w500,
-                color: c.inkMute,
-                letterSpacing: 0.6,
+            Expanded(
+              child: Text(
+                name.isEmpty ? 'Exercise name' : name,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: bodyStyle(
+                  fontSize: fontSize,
+                  fontWeight: FontWeight.w600,
+                  color: name.isEmpty ? c.inkMute : c.ink,
+                ),
               ),
             ),
-            const SizedBox(height: 2),
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.baseline,
-              textBaseline: TextBaseline.alphabetic,
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: ctrl,
-                    keyboardType: decimal
-                        ? const TextInputType.numberWithOptions(
-                            decimal: true)
-                        : TextInputType.number,
-                    style: displayStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w600,
-                      color: c.ink,
-                      letterSpacing: -0.3,
-                    ),
-                    decoration: const InputDecoration(
-                      border: InputBorder.none,
-                      isDense: true,
-                      contentPadding: EdgeInsets.zero,
-                    ),
-                    onChanged: onChanged,
-                  ),
-                ),
-                if (unit != null)
-                  Text(
-                    unit!,
-                    style: bodyStyle(
-                      fontSize: 11,
-                      color: c.inkMute,
-                      letterSpacing: 0,
-                    ),
-                  ),
-              ],
-            ),
+            const SizedBox(width: 6),
+            Icon(Icons.search_rounded, size: 15, color: c.inkMute),
           ],
         ),
       ),
@@ -1473,76 +1435,7 @@ String _fmtDuration(Duration d) {
 }
 
 // ─── Picker bottom sheets ─────────────────────────────────────────────────
-void _openRepsPicker(
-    BuildContext context, int current, void Function(int) onSelect) {
-  int selected = current.clamp(1, 50);
-  showModalBottomSheet<void>(
-    context: context,
-    builder: (sheetCtx) {
-      final c = AppThemeData.of(context).c;
-      return SizedBox(
-        height: 280,
-        child: Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 12, 8, 0),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    'REPS',
-                    style: bodyStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: c.inkMute,
-                      letterSpacing: 0.8,
-                    ),
-                  ),
-                  TextButton(
-                    onPressed: () {
-                      onSelect(selected);
-                      Navigator.pop(sheetCtx);
-                    },
-                    child: Text(
-                      'Done',
-                      style: bodyStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        color: c.accent,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            Expanded(
-              child: CupertinoPicker(
-                scrollController:
-                    FixedExtentScrollController(initialItem: selected - 1),
-                itemExtent: 44,
-                onSelectedItemChanged: (i) => selected = i + 1,
-                children: List.generate(
-                  50,
-                  (i) => Center(
-                    child: Text(
-                      '${i + 1}',
-                      style: displayStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.w500,
-                        color: c.ink,
-                        letterSpacing: -0.3,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
-      );
-    },
-  );
-}
+// Sets / reps / weight wheels live in widgets/number_picker_sheet.dart.
 
 void _openTimePicker(BuildContext context, Duration current, String label,
     void Function(Duration) onSelect) {
@@ -1789,7 +1682,7 @@ class _SetRowTile extends StatelessWidget {
               Text(
                 row.timedDuration != null
                     ? '${row.totalSets} × ${row.timedDuration!.inSeconds}s hold'
-                    : '${row.totalSets} × ${row.reps} · ${row.weight}kg',
+                    : '${row.totalSets} × ${row.reps} · ${fmtWeight(row.weight)}kg',
                 style: bodyStyle(
                   fontSize: 11,
                   color: c.inkMute,
@@ -1849,7 +1742,7 @@ class _SetRowTile extends StatelessWidget {
                                   bodyStyle(fontSize: 14, color: c.inkMute)),
                           const SizedBox(width: 8),
                           Text(
-                            '${row.weight}',
+                            fmtWeight(row.weight),
                             style: displayStyle(
                               fontSize: 14,
                               fontWeight: FontWeight.w600,
