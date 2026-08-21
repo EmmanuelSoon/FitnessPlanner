@@ -18,9 +18,9 @@ class MonthGrid extends StatelessWidget {
   final Map<String, String?> workoutIcons;
   /// Resolves the planned run for a date (template + override, rest-week aware).
   final PlannedRun? Function(DateTime) plannedRunForDate;
-  /// Runs keyed by 'yyyy-M-d' (same format as CalendarScreen._dateKey).
+  /// Runs keyed by zero-padded 'yyyy-MM-dd' (same format as CalendarScreen._dateKey).
   final Map<String, List<RunSession>> runsByDay;
-  /// Completed workout sessions keyed by 'yyyy-M-d', same format.
+  /// Completed workout sessions keyed by 'yyyy-MM-dd', same format.
   final Map<String, List<WorkoutSession>> workoutSessionsByDay;
   final void Function(DateTime date, String? workoutId, String? workoutName) onDayTap;
 
@@ -94,7 +94,7 @@ class MonthGrid extends StatelessWidget {
               final date = paddedCells[i];
               if (date == null) return const SizedBox.shrink();
               final dayKey =
-                  '${date.year}-${date.month}-${date.day}';
+                  '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
               return _DayCell(
                 date: date,
                 today: today,
