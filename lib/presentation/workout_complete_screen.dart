@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:fitness_planner/domain/models/workout_session.dart';
 import 'package:fitness_planner/presentation/widgets/app_widgets.dart';
+import 'package:fitness_planner/presentation/widgets/session_breakdown.dart';
 import 'package:fitness_planner/theme/app_theme.dart';
 
 class WorkoutCompleteScreen extends StatelessWidget {
@@ -17,11 +18,6 @@ class WorkoutCompleteScreen extends StatelessWidget {
 
     final completedSets =
         session.sets.where((s) => !s.skipped).length;
-    final volumeKg = session.sets.fold<double>(
-        0, (acc, s) => acc + s.actualReps * s.actualWeight);
-    final volumeLabel = volumeKg >= 1000
-        ? '${(volumeKg / 1000).toStringAsFixed(1)}t'
-        : '${volumeKg.toStringAsFixed(0)}kg';
 
     return Scaffold(
       backgroundColor: c.bg,
@@ -88,62 +84,73 @@ class WorkoutCompleteScreen extends StatelessWidget {
                           leftBorder: true,
                         ),
                       ),
-                      Expanded(
-                        child: _StatCell(
-                          value: volumeLabel,
-                          label: 'volume',
-                          leftBorder: true,
-                        ),
-                      ),
                     ],
                   ),
                 ),
               ),
               const SizedBox(height: 24),
-              // Cool-down reminder
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(18),
-                decoration: BoxDecoration(
-                  color: c.surface,
-                  borderRadius: BorderRadius.circular(kRadius),
-                  border: Border.all(color: c.hairlineSoft),
-                ),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('🧘', style: const TextStyle(fontSize: 22)),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Remember to cool down',
-                            style: bodyStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w600,
-                              color: c.ink,
-                            ),
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            'Stretch for 5–10 min to help recovery.',
-                            style: bodyStyle(
-                                fontSize: 13,
-                                color: c.inkDim,
-                                height: 1.4),
-                          ),
-                        ],
+              Expanded(
+                child: SingleChildScrollView(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'WHAT YOU DID',
+                        style: bodyStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: c.inkMute,
+                          letterSpacing: 0.8,
+                        ),
                       ),
-                    ),
-                  ],
+                      const SizedBox(height: 8),
+                      SessionBreakdown(sets: session.sets),
+                      const SizedBox(height: 16),
+                      // Cool-down reminder
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(18),
+                        decoration: BoxDecoration(
+                          color: c.surface,
+                          borderRadius: BorderRadius.circular(kRadius),
+                          border: Border.all(color: c.hairlineSoft),
+                        ),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('🧘', style: const TextStyle(fontSize: 22)),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Remember to cool down',
+                                    style: bodyStyle(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w600,
+                                      color: c.ink,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    'Stretch for 5–10 min to help recovery.',
+                                    style: bodyStyle(
+                                        fontSize: 13,
+                                        color: c.inkDim,
+                                        height: 1.4),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                    ],
+                  ),
                 ),
               ),
-              // TODO: calendar phase — next workout section
-              // When scheduledWorkouts are available, surface the next
-              // upcoming entry after today's date here.
-              const Spacer(),
               AppButton(
                 label: 'Back to workouts',
                 full: true,

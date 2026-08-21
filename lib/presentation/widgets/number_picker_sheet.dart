@@ -60,6 +60,148 @@ void openWeightPicker(
   );
 }
 
+/// Minute:second wheel picker for rest/hold durations — shared between
+/// create_workout.dart and workout_start_preview_screen.dart.
+void openDurationPicker(
+  BuildContext context,
+  String label,
+  Duration current,
+  void Function(Duration) onSelect,
+) {
+  int selMin = current.inMinutes.clamp(0, 9);
+  int selSecIdx = ((current.inSeconds % 60) ~/ 5).clamp(0, 11);
+
+  showModalBottomSheet<void>(
+    context: context,
+    builder: (sheetCtx) {
+      final c = AppThemeData.of(context).c;
+      return SizedBox(
+        height: 280,
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 8, 0),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    label,
+                    style: bodyStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: c.inkMute,
+                      letterSpacing: 0.8,
+                    ),
+                  ),
+                  TextButton(
+                    onPressed: () {
+                      onSelect(
+                        Duration(minutes: selMin, seconds: selSecIdx * 5),
+                      );
+                      Navigator.pop(sheetCtx);
+                    },
+                    child: Text(
+                      'Done',
+                      style: bodyStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: c.accent,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Center(
+                      child: Text(
+                        'min',
+                        style: bodyStyle(
+                          fontSize: 11,
+                          color: c.inkMute,
+                          letterSpacing: 0.4,
+                        ),
+                      ),
+                    ),
+                  ),
+                  Expanded(
+                    child: Center(
+                      child: Text(
+                        'sec',
+                        style: bodyStyle(
+                          fontSize: 11,
+                          color: c.inkMute,
+                          letterSpacing: 0.4,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Expanded(
+              child: Row(
+                children: [
+                  Expanded(
+                    child: CupertinoPicker(
+                      scrollController: FixedExtentScrollController(
+                        initialItem: selMin,
+                      ),
+                      itemExtent: 44,
+                      onSelectedItemChanged: (i) => selMin = i,
+                      children: List.generate(
+                        10,
+                        (i) => Center(
+                          child: Text(
+                            '$i',
+                            style: displayStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.w500,
+                              color: c.ink,
+                              letterSpacing: -0.3,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  Expanded(
+                    child: CupertinoPicker(
+                      scrollController: FixedExtentScrollController(
+                        initialItem: selSecIdx,
+                      ),
+                      itemExtent: 44,
+                      onSelectedItemChanged: (i) => selSecIdx = i,
+                      children: List.generate(
+                        12,
+                        (i) => Center(
+                          child: Text(
+                            (i * 5).toString().padLeft(2, '0'),
+                            style: displayStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.w500,
+                              color: c.ink,
+                              letterSpacing: -0.3,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      );
+    },
+  );
+}
+
 void _openWholeNumberPicker({
   required BuildContext context,
   required String label,
@@ -111,8 +253,9 @@ void _openWholeNumberPicker({
             ),
             Expanded(
               child: CupertinoPicker(
-                scrollController:
-                    FixedExtentScrollController(initialItem: selected - min),
+                scrollController: FixedExtentScrollController(
+                  initialItem: selected - min,
+                ),
                 itemExtent: 44,
                 onSelectedItemChanged: (i) => selected = i + min,
                 children: List.generate(

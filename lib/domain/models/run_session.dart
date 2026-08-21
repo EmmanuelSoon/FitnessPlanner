@@ -1,4 +1,4 @@
-enum RunType { easy, tempo, interval, long, race, other }
+enum RunType { easy, tempo, interval, long, race, treadmill, other }
 
 enum RunSource { manual, healthConnect }
 

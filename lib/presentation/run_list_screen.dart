@@ -317,9 +317,11 @@ class _RunCard extends ConsumerWidget {
                     (kRadius - 8).clamp(8.0, double.infinity)),
               ),
               child: Icon(
-                run.source == RunSource.healthConnect
-                    ? Icons.watch_rounded
-                    : Icons.directions_run_rounded,
+                run.runType == RunType.treadmill
+                    ? Icons.directions_walk_rounded
+                    : run.source == RunSource.healthConnect
+                        ? Icons.watch_rounded
+                        : Icons.directions_run_rounded,
                 size: 22,
                 color: c.accent,
               ),
@@ -403,6 +405,8 @@ class _RunCard extends ConsumerWidget {
         return 'Long Run';
       case RunType.race:
         return 'Race';
+      case RunType.treadmill:
+        return 'Treadmill Run';
       case RunType.other:
         return 'Run';
     }

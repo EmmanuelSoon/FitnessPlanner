@@ -3,8 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:fitness_planner/domain/models/workout.dart';
 import 'package:fitness_planner/providers/workout_providers.dart';
 import 'package:fitness_planner/presentation/create_workout.dart';
-import 'package:fitness_planner/presentation/workout_session_screen.dart';
-import 'package:fitness_planner/presentation/warmup_screen.dart';
+import 'package:fitness_planner/presentation/workout_start_preview_screen.dart';
 import 'package:fitness_planner/presentation/history_screen.dart';
 import 'package:fitness_planner/presentation/calendar_screen.dart';
 import 'package:fitness_planner/presentation/run_list_screen.dart';
@@ -199,9 +198,7 @@ class _WorkoutList extends ConsumerWidget {
                     onTap: () => Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (_) => w.warmup.isNotEmpty
-                            ? WarmupScreen(workout: w)
-                            : WorkoutSessionScreen(workout: w),
+                        builder: (_) => WorkoutStartPreviewScreen(workout: w),
                       ),
                     ),
                     onEdit: () => Navigator.push(

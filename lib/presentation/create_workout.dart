@@ -1,9 +1,9 @@
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:fitness_planner/domain/models/exercise.dart';
 import 'package:fitness_planner/domain/models/superset.dart';
 import 'package:fitness_planner/domain/models/workout.dart';
+import 'package:fitness_planner/domain/models/workout_icons.dart';
 import 'package:fitness_planner/domain/models/default_warmup.dart';
 import 'package:fitness_planner/domain/models/exercise_library.dart';
 import 'package:fitness_planner/providers/workout_providers.dart';
@@ -26,6 +26,7 @@ class _CreateWorkoutScreenState extends State<CreateWorkoutScreen> {
   final List<Superset> _exercises = [];
   final List<Exercise> _warmup = [];
   bool _warmupExpanded = false;
+  String? _selectedIcon;
 
   @override
   void initState() {
@@ -33,32 +34,41 @@ class _CreateWorkoutScreenState extends State<CreateWorkoutScreen> {
     final existing = widget.existingWorkout;
     if (existing != null) {
       _nameCtrl.text = existing.name;
+      _selectedIcon = existing.icon;
       // Deep-copy each superset so edits don't mutate the cached Workout.
-      _exercises.addAll(existing.exercises.map((s) => Superset(
+      _exercises.addAll(
+        existing.exercises.map(
+          (s) => Superset(
             id: s.id,
             exercises: s.exercises
-                .map((e) => Exercise(
-                      name: e.name,
-                      reps: e.reps,
-                      sets: e.sets,
-                      restTime: e.restTime,
-                      weight: e.weight,
-                      timedDuration: e.timedDuration,
-                    ))
+                .map(
+                  (e) => Exercise(
+                    name: e.name,
+                    reps: e.reps,
+                    sets: e.sets,
+                    restTime: e.restTime,
+                    weight: e.weight,
+                    timedDuration: e.timedDuration,
+                  ),
+                )
                 .toList(),
             sets: s.sets,
             restAfterSet: s.restAfterSet,
-          )));
-      _warmup.addAll(existing.warmup.map(
-        (e) => Exercise(
-          name: e.name,
-          reps: e.reps,
-          sets: e.sets,
-          restTime: e.restTime,
-          weight: e.weight,
-          timedDuration: e.timedDuration,
+          ),
         ),
-      ));
+      );
+      _warmup.addAll(
+        existing.warmup.map(
+          (e) => Exercise(
+            name: e.name,
+            reps: e.reps,
+            sets: e.sets,
+            restTime: e.restTime,
+            weight: e.weight,
+            timedDuration: e.timedDuration,
+          ),
+        ),
+      );
     } else {
       _warmup.addAll(createDefaultWarmup());
     }
@@ -75,21 +85,22 @@ class _CreateWorkoutScreenState extends State<CreateWorkoutScreen> {
 
   void _addExercise({String name = '', bool isTimed = false}) {
     setState(() {
-      _exercises.add(Superset(
-        exercises: [
-          Exercise(
-            name: name,
-            reps: isTimed ? 0 : 10,
-            sets: 1,
-            restTime: Duration.zero,
-            weight: 0,
-            timedDuration:
-                isTimed ? const Duration(seconds: 30) : null,
-          )
-        ],
-        sets: 3,
-        restAfterSet: const Duration(seconds: 60),
-      ));
+      _exercises.add(
+        Superset(
+          exercises: [
+            Exercise(
+              name: name,
+              reps: isTimed ? 0 : 10,
+              sets: 1,
+              restTime: Duration.zero,
+              weight: 0,
+              timedDuration: isTimed ? const Duration(seconds: 30) : null,
+            ),
+          ],
+          sets: 3,
+          restAfterSet: const Duration(seconds: 60),
+        ),
+      );
     });
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _scrollCtrl.animateTo(
@@ -139,24 +150,22 @@ class _CreateWorkoutScreenState extends State<CreateWorkoutScreen> {
       s.exercises.removeRange(afterExIdx + 1, s.exercises.length);
       _exercises.insert(
         supersetIdx + 1,
-        Superset(
-          exercises: after,
-          sets: s.sets,
-          restAfterSet: s.restAfterSet,
-        ),
+        Superset(exercises: after, sets: s.sets, restAfterSet: s.restAfterSet),
       );
     });
   }
 
   void _addWarmupExercise() {
     setState(() {
-      _warmup.add(Exercise(
-        name: '',
-        reps: 0,
-        sets: 1,
-        restTime: Duration.zero,
-        timedDuration: const Duration(seconds: 30),
-      ));
+      _warmup.add(
+        Exercise(
+          name: '',
+          reps: 0,
+          sets: 1,
+          restTime: Duration.zero,
+          timedDuration: const Duration(seconds: 30),
+        ),
+      );
     });
   }
 
@@ -174,35 +183,31 @@ class _CreateWorkoutScreenState extends State<CreateWorkoutScreen> {
       );
       return;
     }
-    if (_exercises.any(
-        (s) => s.exercises.any((e) => e.name.trim().isEmpty))) {
+    if (_exercises.any((s) => s.exercises.any((e) => e.name.trim().isEmpty))) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-            content: Text('All exercises must have a name')),
+        const SnackBar(content: Text('All exercises must have a name')),
       );
       return;
     }
     if (_warmup.any((e) => e.name.trim().isEmpty)) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-            content:
-                Text('All warm-up exercises must have a name')),
+        const SnackBar(content: Text('All warm-up exercises must have a name')),
       );
       return;
     }
 
     final workout = Workout(
-      id: widget.existingWorkout?.id ??
+      id:
+          widget.existingWorkout?.id ??
           DateTime.now().millisecondsSinceEpoch.toString(),
       name: name,
       exercises: List.of(_exercises),
       warmup: List.of(_warmup),
+      icon: _selectedIcon,
     );
     Navigator.push<bool>(
       context,
-      MaterialPageRoute(
-        builder: (_) => WorkoutPreviewScreen(workout: workout),
-      ),
+      MaterialPageRoute(builder: (_) => WorkoutPreviewScreen(workout: workout)),
     ).then((saved) {
       if (!mounted) return;
       if (saved == true) {
@@ -218,12 +223,10 @@ class _CreateWorkoutScreenState extends State<CreateWorkoutScreen> {
   // ─── Exercise list rendering ─────────────────────────────────────────
 
   List<Widget> _buildExerciseCards() {
-    final items = <({
-      int supersetIdx,
-      Superset superset,
-      int exIdx,
-      Exercise exercise
-    })>[];
+    final items =
+        <
+          ({int supersetIdx, Superset superset, int exIdx, Exercise exercise})
+        >[];
 
     for (int si = 0; si < _exercises.length; si++) {
       for (int ei = 0; ei < _exercises[si].exercises.length; ei++) {
@@ -242,35 +245,35 @@ class _CreateWorkoutScreenState extends State<CreateWorkoutScreen> {
       final item = items[i];
       final isSingle = item.superset.exercises.length == 1;
       final isFirstInGroup = item.exIdx == 0;
-      final isLastInGroup =
-          item.exIdx == item.superset.exercises.length - 1;
+      final isLastInGroup = item.exIdx == item.superset.exercises.length - 1;
 
-      result.add(_ExerciseSlotCard(
-        key: ValueKey('${item.supersetIdx}-${item.exIdx}'),
-        superset: item.superset,
-        exercise: item.exercise,
-        displayIndex: i + 1,
-        showSets: isSingle || isFirstInGroup,
-        showRest: isSingle || isLastInGroup,
-        onRemove: () =>
-            _removeExerciseFromSuperset(item.supersetIdx, item.exIdx),
-      ));
+      result.add(
+        _ExerciseSlotCard(
+          key: ValueKey('${item.supersetIdx}-${item.exIdx}'),
+          superset: item.superset,
+          exercise: item.exercise,
+          displayIndex: i + 1,
+          showSets: isSingle || isFirstInGroup,
+          showRest: isSingle || isLastInGroup,
+          onRemove: () =>
+              _removeExerciseFromSuperset(item.supersetIdx, item.exIdx),
+        ),
+      );
 
       final isLastExerciseOverall = i == items.length - 1;
       if (!isLastExerciseOverall) {
         final nextItem = items[i + 1];
-        final isLinked =
-            item.supersetIdx == nextItem.supersetIdx;
+        final isLinked = item.supersetIdx == nextItem.supersetIdx;
 
-        result.add(_LinkRow(
-          isLinked: isLinked,
-          onLink: isLinked
-              ? null
-              : () => _groupWithNext(item.supersetIdx),
-          onUnlink: isLinked
-              ? () => _ungroupAt(item.supersetIdx, item.exIdx)
-              : null,
-        ));
+        result.add(
+          _LinkRow(
+            isLinked: isLinked,
+            onLink: isLinked ? null : () => _groupWithNext(item.supersetIdx),
+            onUnlink: isLinked
+                ? () => _ungroupAt(item.supersetIdx, item.exIdx)
+                : null,
+          ),
+        );
       } else {
         result.add(const SizedBox(height: 12));
       }
@@ -286,8 +289,10 @@ class _CreateWorkoutScreenState extends State<CreateWorkoutScreen> {
     final theme = AppThemeData.of(context);
     final c = theme.c;
     final isEdit = widget.existingWorkout != null;
-    final totalExercises =
-        _exercises.fold(0, (sum, s) => sum + s.exercises.length);
+    final totalExercises = _exercises.fold(
+      0,
+      (sum, s) => sum + s.exercises.length,
+    );
 
     return Scaffold(
       backgroundColor: c.bg,
@@ -314,11 +319,9 @@ class _CreateWorkoutScreenState extends State<CreateWorkoutScreen> {
                     children: [
                       // Workout name field
                       Padding(
-                        padding:
-                            const EdgeInsets.fromLTRB(18, 8, 18, 18),
+                        padding: const EdgeInsets.fromLTRB(18, 8, 18, 18),
                         child: Column(
-                          crossAxisAlignment:
-                              CrossAxisAlignment.start,
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
                               'WORKOUT NAME',
@@ -347,22 +350,48 @@ class _CreateWorkoutScreenState extends State<CreateWorkoutScreen> {
                                   letterSpacing: -0.5,
                                 ),
                                 border: UnderlineInputBorder(
-                                  borderSide:
-                                      BorderSide(color: c.hairline),
+                                  borderSide: BorderSide(color: c.hairline),
                                 ),
                                 enabledBorder: UnderlineInputBorder(
-                                  borderSide:
-                                      BorderSide(color: c.hairline),
+                                  borderSide: BorderSide(color: c.hairline),
                                 ),
                                 focusedBorder: UnderlineInputBorder(
                                   borderSide: BorderSide(
-                                      color: c.accent, width: 1.5),
+                                    color: c.accent,
+                                    width: 1.5,
+                                  ),
                                 ),
-                                contentPadding:
-                                    const EdgeInsets.only(bottom: 8),
+                                contentPadding: const EdgeInsets.only(
+                                  bottom: 8,
+                                ),
                               ),
                               onSubmitted: (_) =>
                                   FocusScope.of(context).unfocus(),
+                            ),
+                            const SizedBox(height: 18),
+                            Text(
+                              'ICON',
+                              style: bodyStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w500,
+                                color: c.inkMute,
+                                letterSpacing: 0.8,
+                              ),
+                            ),
+                            const SizedBox(height: 10),
+                            Row(
+                              children: [
+                                for (final entry in kWorkoutIcons.entries) ...[
+                                  _IconSwatch(
+                                    icon: entry.value,
+                                    selected: _selectedIcon == entry.key,
+                                    onTap: () => setState(
+                                      () => _selectedIcon = entry.key,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 10),
+                                ],
+                              ],
                             ),
                           ],
                         ),
@@ -370,14 +399,12 @@ class _CreateWorkoutScreenState extends State<CreateWorkoutScreen> {
 
                       // ── Warm-up section ──────────────────────────
                       GestureDetector(
-                        onTap: () => setState(
-                            () => _warmupExpanded = !_warmupExpanded),
+                        onTap: () =>
+                            setState(() => _warmupExpanded = !_warmupExpanded),
                         child: Padding(
-                          padding:
-                              const EdgeInsets.fromLTRB(22, 4, 22, 4),
+                          padding: const EdgeInsets.fromLTRB(22, 4, 22, 4),
                           child: Row(
-                            mainAxisAlignment:
-                                MainAxisAlignment.spaceBetween,
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
                               Text(
                                 'WARM-UP',
@@ -415,21 +442,18 @@ class _CreateWorkoutScreenState extends State<CreateWorkoutScreen> {
                       ),
                       if (_warmupExpanded) ...[
                         Padding(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 16),
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
                           child: Column(
                             children: [
                               ..._warmup.asMap().entries.map((entry) {
                                 final i = entry.key;
                                 final ex = entry.value;
                                 return Padding(
-                                  padding:
-                                      const EdgeInsets.only(bottom: 10),
+                                  padding: const EdgeInsets.only(bottom: 10),
                                   child: WarmupExerciseCard(
                                     exercise: ex,
                                     index: i + 1,
-                                    onRemove: () =>
-                                        _removeWarmupExercise(i),
+                                    onRemove: () => _removeWarmupExercise(i),
                                   ),
                                 );
                               }),
@@ -439,19 +463,22 @@ class _CreateWorkoutScreenState extends State<CreateWorkoutScreen> {
                                   height: 44,
                                   decoration: BoxDecoration(
                                     color: Colors.transparent,
-                                    borderRadius:
-                                        BorderRadius.circular(kRadius),
+                                    borderRadius: BorderRadius.circular(
+                                      kRadius,
+                                    ),
                                     border: Border.all(
                                       color: c.hairline,
                                       width: 1.5,
                                     ),
                                   ),
                                   child: Row(
-                                    mainAxisAlignment:
-                                        MainAxisAlignment.center,
+                                    mainAxisAlignment: MainAxisAlignment.center,
                                     children: [
-                                      Icon(Icons.add_rounded,
-                                          size: 16, color: c.inkDim),
+                                      Icon(
+                                        Icons.add_rounded,
+                                        size: 16,
+                                        color: c.inkDim,
+                                      ),
                                       const SizedBox(width: 6),
                                       Text(
                                         'Add warm-up exercise',
@@ -473,11 +500,9 @@ class _CreateWorkoutScreenState extends State<CreateWorkoutScreen> {
 
                       // ── Main exercises section ────────────────────
                       Padding(
-                        padding:
-                            const EdgeInsets.fromLTRB(22, 4, 22, 10),
+                        padding: const EdgeInsets.fromLTRB(22, 4, 22, 10),
                         child: Row(
-                          mainAxisAlignment:
-                              MainAxisAlignment.spaceBetween,
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
                             Text(
                               'EXERCISES',
@@ -501,8 +526,7 @@ class _CreateWorkoutScreenState extends State<CreateWorkoutScreen> {
                         ),
                       ),
                       Padding(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 16),
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
                         child: Column(
                           children: [
                             ..._buildExerciseCards(),
@@ -512,19 +536,20 @@ class _CreateWorkoutScreenState extends State<CreateWorkoutScreen> {
                                 height: 50,
                                 decoration: BoxDecoration(
                                   color: Colors.transparent,
-                                  borderRadius:
-                                      BorderRadius.circular(kRadius),
+                                  borderRadius: BorderRadius.circular(kRadius),
                                   border: Border.all(
                                     color: c.hairline,
                                     width: 1.5,
                                   ),
                                 ),
                                 child: Row(
-                                  mainAxisAlignment:
-                                      MainAxisAlignment.center,
+                                  mainAxisAlignment: MainAxisAlignment.center,
                                   children: [
-                                    Icon(Icons.add_rounded,
-                                        size: 18, color: c.ink),
+                                    Icon(
+                                      Icons.add_rounded,
+                                      size: 18,
+                                      color: c.ink,
+                                    ),
                                     const SizedBox(width: 8),
                                     Text(
                                       'Add exercise',
@@ -560,8 +585,7 @@ class _CreateWorkoutScreenState extends State<CreateWorkoutScreen> {
                     colors: [c.bg, c.bg.withValues(alpha: 0)],
                   ),
                 ),
-                padding:
-                    const EdgeInsets.fromLTRB(16, 12, 16, 16),
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
                 child: AppButton(
                   label: 'Preview workout →',
                   full: true,
@@ -571,6 +595,37 @@ class _CreateWorkoutScreenState extends State<CreateWorkoutScreen> {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+// ─── Workout icon swatch ──────────────────────────────────────────────
+class _IconSwatch extends StatelessWidget {
+  final IconData icon;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _IconSwatch({
+    required this.icon,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final c = AppThemeData.of(context).c;
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 44,
+        height: 44,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: selected ? c.accent : c.surfaceAlt,
+          border: selected ? null : Border.all(color: c.hairline),
+        ),
+        child: Icon(icon, size: 20, color: selected ? c.accentInk : c.inkDim),
       ),
     );
   }
@@ -654,14 +709,17 @@ class _WarmupExerciseCardState extends State<WarmupExerciseCard> {
                 width: 22,
                 height: 22,
                 decoration: BoxDecoration(
-                    color: c.surfaceAlt, shape: BoxShape.circle),
+                  color: c.surfaceAlt,
+                  shape: BoxShape.circle,
+                ),
                 alignment: Alignment.center,
                 child: Text(
                   '${widget.index}',
                   style: monoStyle(
-                      fontSize: 10,
-                      fontWeight: FontWeight.w600,
-                      color: c.inkDim),
+                    fontSize: 10,
+                    fontWeight: FontWeight.w600,
+                    color: c.inkDim,
+                  ),
                 ),
               ),
               const SizedBox(width: 8),
@@ -677,7 +735,9 @@ class _WarmupExerciseCardState extends State<WarmupExerciseCard> {
                 onTap: _toggleMode,
                 child: Container(
                   padding: const EdgeInsets.symmetric(
-                      horizontal: 8, vertical: 4),
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
                   decoration: BoxDecoration(
                     color: c.surfaceAlt,
                     borderRadius: BorderRadius.circular(8),
@@ -685,9 +745,10 @@ class _WarmupExerciseCardState extends State<WarmupExerciseCard> {
                   child: Text(
                     _isTimed ? '⏱ Timed' : '🔢 Reps',
                     style: bodyStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w500,
-                        color: c.inkDim),
+                      fontSize: 11,
+                      fontWeight: FontWeight.w500,
+                      color: c.inkDim,
+                    ),
                   ),
                 ),
               ),
@@ -697,8 +758,7 @@ class _WarmupExerciseCardState extends State<WarmupExerciseCard> {
                 height: 30,
                 child: IconButton(
                   padding: EdgeInsets.zero,
-                  icon:
-                      Icon(Icons.close_rounded, size: 16, color: c.inkMute),
+                  icon: Icon(Icons.close_rounded, size: 16, color: c.inkMute),
                   onPressed: widget.onRemove,
                 ),
               ),
@@ -709,12 +769,9 @@ class _WarmupExerciseCardState extends State<WarmupExerciseCard> {
             children: [
               _PickerField(
                 label: _isTimed ? 'DURATION' : 'REPS',
-                value: _isTimed
-                    ? _fmtDuration(_timedValue)
-                    : '$_repsValue',
+                value: _isTimed ? _fmtDuration(_timedValue) : '$_repsValue',
                 onTap: () => _isTimed
-                    ? _openTimePicker(
-                        context, _timedValue, 'DURATION', (v) {
+                    ? openDurationPicker(context, 'DURATION', _timedValue, (v) {
                         setState(() {
                           _timedValue = v;
                           e.timedDuration = v;
@@ -835,7 +892,9 @@ class _ExerciseSlotCardState extends State<_ExerciseSlotCard> {
                 width: 24,
                 height: 24,
                 decoration: BoxDecoration(
-                  color: isInGroup ? c.accent.withValues(alpha: 0.15) : c.surfaceAlt,
+                  color: isInGroup
+                      ? c.accent.withValues(alpha: 0.15)
+                      : c.surfaceAlt,
                   shape: BoxShape.circle,
                 ),
                 alignment: Alignment.center,
@@ -861,7 +920,9 @@ class _ExerciseSlotCardState extends State<_ExerciseSlotCard> {
                 onTap: _toggleMode,
                 child: Container(
                   padding: const EdgeInsets.symmetric(
-                      horizontal: 8, vertical: 4),
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
                   decoration: BoxDecoration(
                     color: c.surfaceAlt,
                     borderRadius: BorderRadius.circular(8),
@@ -882,8 +943,7 @@ class _ExerciseSlotCardState extends State<_ExerciseSlotCard> {
                 height: 32,
                 child: IconButton(
                   padding: EdgeInsets.zero,
-                  icon: Icon(Icons.close_rounded,
-                      size: 18, color: c.inkMute),
+                  icon: Icon(Icons.close_rounded, size: 18, color: c.inkMute),
                   onPressed: widget.onRemove,
                 ),
               ),
@@ -910,20 +970,19 @@ class _ExerciseSlotCardState extends State<_ExerciseSlotCard> {
                 _PickerField(
                   label: 'DURATION',
                   value: _fmtDuration(_timedValue),
-                  onTap: () => _openTimePicker(
-                      context, _timedValue, 'DURATION', (v) {
-                    setState(() {
-                      _timedValue = v;
-                      e.timedDuration = v;
-                    });
-                  }),
+                  onTap: () =>
+                      openDurationPicker(context, 'DURATION', _timedValue, (v) {
+                        setState(() {
+                          _timedValue = v;
+                          e.timedDuration = v;
+                        });
+                      }),
                 )
               else
                 _PickerField(
                   label: 'REPS',
                   value: '$_repsValue',
-                  onTap: () =>
-                      openRepsPicker(context, _repsValue, (v) {
+                  onTap: () => openRepsPicker(context, _repsValue, (v) {
                     setState(() {
                       _repsValue = v;
                       e.reps = v;
@@ -946,13 +1005,13 @@ class _ExerciseSlotCardState extends State<_ExerciseSlotCard> {
                 _PickerField(
                   label: 'REST',
                   value: _fmtDuration(_restDuration),
-                  onTap: () => _openTimePicker(
-                      context, _restDuration, 'REST', (v) {
-                    setState(() {
-                      _restDuration = v;
-                      s.restAfterSet = v;
-                    });
-                  }),
+                  onTap: () =>
+                      openDurationPicker(context, 'REST', _restDuration, (v) {
+                        setState(() {
+                          _restDuration = v;
+                          s.restAfterSet = v;
+                        });
+                      }),
                 ),
               ],
             ],
@@ -973,11 +1032,7 @@ class _LinkRow extends StatelessWidget {
   final VoidCallback? onLink;
   final VoidCallback? onUnlink;
 
-  const _LinkRow({
-    required this.isLinked,
-    this.onLink,
-    this.onUnlink,
-  });
+  const _LinkRow({required this.isLinked, this.onLink, this.onUnlink});
 
   @override
   Widget build(BuildContext context) {
@@ -1002,8 +1057,7 @@ class _LinkRow extends StatelessWidget {
             ),
             const SizedBox(width: 12),
             Container(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
               decoration: BoxDecoration(
                 color: c.accent.withValues(alpha: 0.12),
                 borderRadius: BorderRadius.circular(6),
@@ -1025,15 +1079,15 @@ class _LinkRow extends StatelessWidget {
                 padding: const EdgeInsets.fromLTRB(8, 4, 4, 4),
                 child: Row(
                   children: [
-                    Icon(Icons.link_off_rounded,
-                        size: 13, color: c.inkMute),
+                    Icon(Icons.link_off_rounded, size: 13, color: c.inkMute),
                     const SizedBox(width: 4),
                     Text(
                       'Ungroup',
                       style: bodyStyle(
-                          fontSize: 11,
-                          color: c.inkMute,
-                          letterSpacing: 0.2),
+                        fontSize: 11,
+                        color: c.inkMute,
+                        letterSpacing: 0.2,
+                      ),
                     ),
                   ],
                 ),
@@ -1058,9 +1112,10 @@ class _LinkRow extends StatelessWidget {
                   Text(
                     'Group with next',
                     style: bodyStyle(
-                        fontSize: 11,
-                        color: c.inkMute,
-                        letterSpacing: 0.2),
+                      fontSize: 11,
+                      color: c.inkMute,
+                      letterSpacing: 0.2,
+                    ),
                   ),
                 ],
               ),
@@ -1132,26 +1187,20 @@ class _ExerciseNameField extends StatelessWidget {
 class WorkoutPreviewScreen extends ConsumerStatefulWidget {
   final Workout workout;
 
-  const WorkoutPreviewScreen({
-    super.key,
-    required this.workout,
-  });
+  const WorkoutPreviewScreen({super.key, required this.workout});
 
   @override
   ConsumerState<WorkoutPreviewScreen> createState() =>
       _WorkoutPreviewScreenState();
 }
 
-class _WorkoutPreviewScreenState
-    extends ConsumerState<WorkoutPreviewScreen> {
+class _WorkoutPreviewScreenState extends ConsumerState<WorkoutPreviewScreen> {
   Future<void> _saveWorkout() async {
-    await ref
-        .read(workoutsProvider.notifier)
-        .saveWorkout(widget.workout);
+    await ref.read(workoutsProvider.notifier).saveWorkout(widget.workout);
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Workout saved!')),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Workout saved!')));
     Navigator.pop(context, true);
   }
 
@@ -1164,14 +1213,15 @@ class _WorkoutPreviewScreenState
 
     // Stats: total individual set count and total volume
     final totalSets = exercises.fold<int>(
-        0, (a, s) => a + s.sets * s.exercises.length);
+      0,
+      (a, s) => a + s.sets * s.exercises.length,
+    );
     final totalVol = exercises.fold<double>(
-        0,
-        (a, s) =>
-            a +
-            s.sets *
-                s.exercises.fold(
-                    0.0, (sum, e) => sum + e.reps * e.weight));
+      0,
+      (a, s) =>
+          a +
+          s.sets * s.exercises.fold(0.0, (sum, e) => sum + e.reps * e.weight),
+    );
     final durMin = w.totalDuration.inMinutes;
 
     String fmtDur(int min) {
@@ -1188,23 +1238,25 @@ class _WorkoutPreviewScreenState
       for (int ei = 0; ei < ss.exercises.length; ei++) {
         final ex = ss.exercises[ei];
         final isLastInSuperset = ei == ss.exercises.length - 1;
-        final restSec =
-            isLastInSuperset ? ss.restAfterSet.inSeconds : 0;
+        final restSec = isLastInSuperset ? ss.restAfterSet.inSeconds : 0;
 
         for (int s = 1; s <= ss.sets; s++) {
-          rows.add(_SetRow(
-            exName: ex.name,
-            setNum: s,
-            totalSets: ss.sets,
-            reps: ex.reps,
-            weight: ex.weight,
-            restSec: restSec,
-            isFirstSet: s == 1,
-            isSupersetTransition: !isLastInSuperset,
-            supersetBadge:
-                s == 1 && ei == 0 && ss.isSuperset ? 'SUPERSET' : null,
-            timedDuration: ex.timedDuration,
-          ));
+          rows.add(
+            _SetRow(
+              exName: ex.name,
+              setNum: s,
+              totalSets: ss.sets,
+              reps: ex.reps,
+              weight: ex.weight,
+              restSec: restSec,
+              isFirstSet: s == 1,
+              isSupersetTransition: !isLastInSuperset,
+              supersetBadge: s == 1 && ei == 0 && ss.isSuperset
+                  ? 'SUPERSET'
+                  : null,
+              timedDuration: ex.timedDuration,
+            ),
+          );
         }
       }
     }
@@ -1246,8 +1298,7 @@ class _WorkoutPreviewScreenState
                             Container(
                               decoration: BoxDecoration(
                                 color: c.surface,
-                                borderRadius:
-                                    BorderRadius.circular(kRadius),
+                                borderRadius: BorderRadius.circular(kRadius),
                                 border: Border.all(color: c.hairlineSoft),
                               ),
                               child: IntrinsicHeight(
@@ -1286,8 +1337,7 @@ class _WorkoutPreviewScreenState
                       ),
                       // Set sequence
                       Padding(
-                        padding:
-                            const EdgeInsets.symmetric(horizontal: 18),
+                        padding: const EdgeInsets.symmetric(horizontal: 18),
                         child: Column(
                           children: [
                             for (int i = 0; i < rows.length; i++)
@@ -1317,8 +1367,7 @@ class _WorkoutPreviewScreenState
                     colors: [c.bg, c.bg.withValues(alpha: 0)],
                   ),
                 ),
-                padding:
-                    const EdgeInsets.fromLTRB(16, 12, 16, 16),
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
                 child: Row(
                   children: [
                     AppButton(
@@ -1406,8 +1455,10 @@ class _SetRow {
   final double weight;
   final int restSec;
   final bool isFirstSet;
+
   /// True when this exercise transitions directly into the next (no rest).
   final bool isSupersetTransition;
+
   /// Non-null on the very first set of the first exercise of a multi-exercise
   /// superset — used to render the "SUPERSET" badge in the preview.
   final String? supersetBadge;
@@ -1435,140 +1486,7 @@ String _fmtDuration(Duration d) {
 }
 
 // ─── Picker bottom sheets ─────────────────────────────────────────────────
-// Sets / reps / weight wheels live in widgets/number_picker_sheet.dart.
-
-void _openTimePicker(BuildContext context, Duration current, String label,
-    void Function(Duration) onSelect) {
-  int selMin = current.inMinutes.clamp(0, 9);
-  int selSecIdx = ((current.inSeconds % 60) ~/ 5).clamp(0, 11);
-
-  showModalBottomSheet<void>(
-    context: context,
-    builder: (sheetCtx) {
-      final c = AppThemeData.of(context).c;
-      return SizedBox(
-        height: 280,
-        child: Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 12, 8, 0),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    label,
-                    style: bodyStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: c.inkMute,
-                      letterSpacing: 0.8,
-                    ),
-                  ),
-                  TextButton(
-                    onPressed: () {
-                      onSelect(Duration(
-                          minutes: selMin, seconds: selSecIdx * 5));
-                      Navigator.pop(sheetCtx);
-                    },
-                    child: Text(
-                      'Done',
-                      style: bodyStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        color: c.accent,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.only(top: 4),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Center(
-                      child: Text(
-                        'min',
-                        style: bodyStyle(
-                          fontSize: 11,
-                          color: c.inkMute,
-                          letterSpacing: 0.4,
-                        ),
-                      ),
-                    ),
-                  ),
-                  Expanded(
-                    child: Center(
-                      child: Text(
-                        'sec',
-                        style: bodyStyle(
-                          fontSize: 11,
-                          color: c.inkMute,
-                          letterSpacing: 0.4,
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            Expanded(
-              child: Row(
-                children: [
-                  Expanded(
-                    child: CupertinoPicker(
-                      scrollController:
-                          FixedExtentScrollController(initialItem: selMin),
-                      itemExtent: 44,
-                      onSelectedItemChanged: (i) => selMin = i,
-                      children: List.generate(
-                        10,
-                        (i) => Center(
-                          child: Text(
-                            '$i',
-                            style: displayStyle(
-                              fontSize: 20,
-                              fontWeight: FontWeight.w500,
-                              color: c.ink,
-                              letterSpacing: -0.3,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                  Expanded(
-                    child: CupertinoPicker(
-                      scrollController: FixedExtentScrollController(
-                          initialItem: selSecIdx),
-                      itemExtent: 44,
-                      onSelectedItemChanged: (i) => selSecIdx = i,
-                      children: List.generate(
-                        12,
-                        (i) => Center(
-                          child: Text(
-                            (i * 5).toString().padLeft(2, '0'),
-                            style: displayStyle(
-                              fontSize: 20,
-                              fontWeight: FontWeight.w500,
-                              color: c.ink,
-                              letterSpacing: -0.3,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      );
-    },
-  );
-}
+// Sets / reps / weight / duration wheels live in widgets/number_picker_sheet.dart.
 
 // ─── Picker field (tap-to-open, same visual style as _NumField) ───────────
 class _PickerField extends StatelessWidget {
@@ -1648,8 +1566,7 @@ class _SetRowTile extends StatelessWidget {
             Padding(
               padding: const EdgeInsets.only(bottom: 5),
               child: Container(
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 8, vertical: 3),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                 decoration: BoxDecoration(
                   color: c.accent.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(6),
@@ -1694,8 +1611,7 @@ class _SetRowTile extends StatelessWidget {
           const SizedBox(height: 8),
         ],
         Container(
-          padding:
-              const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
+          padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
           decoration: BoxDecoration(
             border: Border(top: BorderSide(color: c.hairlineSoft)),
           ),
@@ -1721,9 +1637,10 @@ class _SetRowTile extends StatelessWidget {
                               letterSpacing: -0.3,
                             ),
                           ),
-                          Text(' hold',
-                              style:
-                                  bodyStyle(fontSize: 14, color: c.inkMute)),
+                          Text(
+                            ' hold',
+                            style: bodyStyle(fontSize: 14, color: c.inkMute),
+                          ),
                         ],
                       )
                     : Row(
@@ -1737,9 +1654,10 @@ class _SetRowTile extends StatelessWidget {
                               letterSpacing: -0.3,
                             ),
                           ),
-                          Text(' reps',
-                              style:
-                                  bodyStyle(fontSize: 14, color: c.inkMute)),
+                          Text(
+                            ' reps',
+                            style: bodyStyle(fontSize: 14, color: c.inkMute),
+                          ),
                           const SizedBox(width: 8),
                           Text(
                             fmtWeight(row.weight),
@@ -1750,9 +1668,10 @@ class _SetRowTile extends StatelessWidget {
                               letterSpacing: -0.3,
                             ),
                           ),
-                          Text(' kg',
-                              style:
-                                  bodyStyle(fontSize: 14, color: c.inkMute)),
+                          Text(
+                            ' kg',
+                            style: bodyStyle(fontSize: 14, color: c.inkMute),
+                          ),
                         ],
                       ),
               ),
@@ -1760,23 +1679,26 @@ class _SetRowTile extends StatelessWidget {
               if (row.isSupersetTransition)
                 Row(
                   children: [
-                    Icon(Icons.arrow_forward_rounded,
-                        size: 12, color: c.accent),
+                    Icon(
+                      Icons.arrow_forward_rounded,
+                      size: 12,
+                      color: c.accent,
+                    ),
                     const SizedBox(width: 3),
                     Text(
                       'superset',
                       style: bodyStyle(
-                          fontSize: 11,
-                          color: c.accent,
-                          letterSpacing: 0.2),
+                        fontSize: 11,
+                        color: c.accent,
+                        letterSpacing: 0.2,
+                      ),
                     ),
                   ],
                 )
               else
                 Row(
                   children: [
-                    Icon(Icons.timer_outlined,
-                        size: 12, color: c.inkMute),
+                    Icon(Icons.timer_outlined, size: 12, color: c.inkMute),
                     const SizedBox(width: 4),
                     Text(
                       '${row.restSec}s',

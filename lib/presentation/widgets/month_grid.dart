@@ -3,6 +3,8 @@ import '../../domain/models/mesocycle.dart';
 import '../../domain/models/day_override.dart';
 import '../../domain/models/planned_run.dart';
 import '../../domain/models/run_session.dart';
+import '../../domain/models/workout_session.dart';
+import '../../domain/models/workout_icons.dart';
 import '../../domain/schedule/schedule_logic.dart';
 import '../../theme/app_theme.dart';
 
@@ -12,11 +14,19 @@ class MonthGrid extends StatelessWidget {
   final Mesocycle? meso;
   final DayOverride? Function(DateTime) overrideForDate;
   final Map<String, String> workoutNames; // workoutId -> display name
+  /// workoutId -> chosen icon key (see workout_icons.dart).
+  final Map<String, String?> workoutIcons;
+
   /// Resolves the planned run for a date (template + override, rest-week aware).
   final PlannedRun? Function(DateTime) plannedRunForDate;
-  /// Runs keyed by 'yyyy-M-d' (same format as CalendarScreen._dateKey).
+
+  /// Runs keyed by zero-padded 'yyyy-MM-dd' (same format as CalendarScreen._dateKey).
   final Map<String, List<RunSession>> runsByDay;
-  final void Function(DateTime date, String? workoutId, String? workoutName) onDayTap;
+
+  /// Completed workout sessions keyed by 'yyyy-MM-dd', same format.
+  final Map<String, List<WorkoutSession>> workoutSessionsByDay;
+  final void Function(DateTime date, String? workoutId, String? workoutName)
+  onDayTap;
 
   const MonthGrid({
     super.key,
@@ -25,8 +35,10 @@ class MonthGrid extends StatelessWidget {
     required this.meso,
     required this.overrideForDate,
     required this.workoutNames,
+    this.workoutIcons = const {},
     required this.plannedRunForDate,
     this.runsByDay = const {},
+    this.workoutSessionsByDay = const {},
     required this.onDayTap,
   });
 
@@ -53,19 +65,21 @@ class MonthGrid extends StatelessWidget {
           padding: const EdgeInsets.fromLTRB(12, 0, 12, 6),
           child: Row(
             children: const ['M', 'T', 'W', 'T', 'F', 'S', 'S']
-                .map((d) => Expanded(
-                      child: Center(
-                        child: Text(
-                          d,
-                          style: bodyStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w600,
-                            color: const Color(0xFF9AA49B), // inkMute-ish
-                            letterSpacing: 0.8,
-                          ),
+                .map(
+                  (d) => Expanded(
+                    child: Center(
+                      child: Text(
+                        d,
+                        style: bodyStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: const Color(0xFF9AA49B), // inkMute-ish
+                          letterSpacing: 0.8,
                         ),
                       ),
-                    ))
+                    ),
+                  ),
+                )
                 .toList(),
           ),
         ),
@@ -86,15 +100,17 @@ class MonthGrid extends StatelessWidget {
               final date = paddedCells[i];
               if (date == null) return const SizedBox.shrink();
               final dayKey =
-                  '${date.year}-${date.month}-${date.day}';
+                  '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
               return _DayCell(
                 date: date,
                 today: today,
                 meso: meso,
                 overrideForDate: overrideForDate,
                 workoutNames: workoutNames,
+                workoutIcons: workoutIcons,
                 plannedRun: plannedRunForDate(date),
                 runsForDay: runsByDay[dayKey] ?? const [],
+                sessionsForDay: workoutSessionsByDay[dayKey] ?? const [],
                 isDark: isDark,
                 c: c,
                 onTap: onDayTap,
@@ -113,8 +129,10 @@ class _DayCell extends StatelessWidget {
   final Mesocycle? meso;
   final DayOverride? Function(DateTime) overrideForDate;
   final Map<String, String> workoutNames;
+  final Map<String, String?> workoutIcons;
   final PlannedRun? plannedRun;
   final List<RunSession> runsForDay;
+  final List<WorkoutSession> sessionsForDay;
   final bool isDark;
   final AppColors c;
   final void Function(DateTime, String?, String?) onTap;
@@ -125,8 +143,10 @@ class _DayCell extends StatelessWidget {
     required this.meso,
     required this.overrideForDate,
     required this.workoutNames,
+    required this.workoutIcons,
     required this.plannedRun,
     required this.runsForDay,
+    required this.sessionsForDay,
     required this.isDark,
     required this.c,
     required this.onTap,
@@ -134,7 +154,8 @@ class _DayCell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isToday = date.year == today.year &&
+    final isToday =
+        date.year == today.year &&
         date.month == today.month &&
         date.day == today.day;
 
@@ -145,12 +166,24 @@ class _DayCell extends StatelessWidget {
     if (meso != null) {
       final ov = overrideForDate(date);
       workoutId = workoutIdForDate(meso!, ov, date);
-      workoutName = workoutId != null ? (workoutNames[workoutId] ?? workoutId) : null;
+      workoutName = workoutId != null
+          ? (workoutNames[workoutId] ?? workoutId)
+          : null;
       isRest = isRestWeek(meso!, date);
     }
 
     final isPast = date.isBefore(DateTime(today.year, today.month, today.day));
-    final hasWorkout = workoutId != null;
+    final hasScheduledWorkout = workoutId != null;
+    final hasCompletedWorkout = sessionsForDay.isNotEmpty;
+    final hasWorkout = hasScheduledWorkout || hasCompletedWorkout;
+    final hasRunActivity = runsForDay.isNotEmpty || plannedRun != null;
+    final hasAnyActivity = hasWorkout || hasRunActivity;
+    workoutName ??= hasCompletedWorkout
+        ? sessionsForDay.first.workoutName
+        : null;
+    final markerIconKey = hasCompletedWorkout
+        ? workoutIcons[sessionsForDay.first.workoutId]
+        : (hasScheduledWorkout ? workoutIcons[workoutId] : null);
 
     Color cellBg;
     Color dayNumColor;
@@ -162,7 +195,7 @@ class _DayCell extends StatelessWidget {
       cellBg = Colors.transparent;
       dayNumColor = c.inkMute;
     } else {
-      cellBg = hasWorkout ? c.surface : Colors.transparent;
+      cellBg = hasAnyActivity ? c.surface : Colors.transparent;
       dayNumColor = isPast ? c.inkMute : c.ink;
     }
 
@@ -172,13 +205,13 @@ class _DayCell extends StatelessWidget {
         decoration: BoxDecoration(
           color: cellBg,
           borderRadius: BorderRadius.circular(10),
-          border: (!isToday && hasWorkout)
+          border: (!isToday && hasAnyActivity)
               ? Border.all(
                   color: isDark ? c.hairlineSoft : c.hairline,
                   width: 0.5,
                 )
               : null,
-          boxShadow: (!isToday && hasWorkout && !isDark)
+          boxShadow: (!isToday && hasAnyActivity && !isDark)
               ? [
                   BoxShadow(
                     color: Colors.black.withValues(alpha: 0.06),
@@ -201,13 +234,14 @@ class _DayCell extends StatelessWidget {
             ),
             if (hasWorkout) ...[
               const SizedBox(height: 3),
-              Container(
-                width: 4,
-                height: 4,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: isToday ? c.accentInk.withValues(alpha: 0.7) : c.accent,
-                ),
+              Icon(
+                workoutIconFor(markerIconKey),
+                size: 10,
+                color: hasCompletedWorkout
+                    ? (isToday ? c.accentInk.withValues(alpha: 0.85) : c.accent)
+                    : (isToday
+                          ? c.accentInk.withValues(alpha: 0.5)
+                          : c.inkMute),
               ),
               const SizedBox(height: 1),
               Padding(
@@ -216,7 +250,9 @@ class _DayCell extends StatelessWidget {
                   workoutName ?? '',
                   style: bodyStyle(
                     fontSize: 8,
-                    color: isToday ? c.accentInk.withValues(alpha: 0.85) : c.inkDim,
+                    color: isToday
+                        ? c.accentInk.withValues(alpha: 0.85)
+                        : c.inkDim,
                     letterSpacing: 0,
                   ),
                   maxLines: 1,
@@ -230,20 +266,18 @@ class _DayCell extends StatelessWidget {
             if (runsForDay.isNotEmpty) ...[
               const SizedBox(height: 2),
               Icon(
-                Icons.directions_run_rounded,
+                runsForDay.any((r) => r.runType == RunType.treadmill)
+                    ? Icons.directions_walk_rounded
+                    : Icons.directions_run_rounded,
                 size: 8,
-                color: isToday
-                    ? c.accentInk.withValues(alpha: 0.7)
-                    : c.inkDim,
+                color: isToday ? c.accentInk.withValues(alpha: 0.7) : c.inkDim,
               ),
             ] else if (plannedRun != null) ...[
               const SizedBox(height: 2),
               Icon(
                 Icons.directions_run_rounded,
                 size: 8,
-                color: isToday
-                    ? c.accentInk.withValues(alpha: 0.5)
-                    : c.inkMute,
+                color: isToday ? c.accentInk.withValues(alpha: 0.5) : c.inkMute,
               ),
             ],
           ],

@@ -493,6 +493,8 @@ class _MesocycleSetupScreenState extends ConsumerState<MesocycleSetupScreen> {
         return 'Long';
       case RunType.race:
         return 'Race';
+      case RunType.treadmill:
+        return 'Treadmill';
       case RunType.other:
         return 'Other';
     }

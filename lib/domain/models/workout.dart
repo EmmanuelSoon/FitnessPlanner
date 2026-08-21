@@ -6,12 +6,14 @@ class Workout {
   final String name;
   final List<Superset> exercises; // list of exercise groups (each ≥1 exercise)
   final List<Exercise> warmup;
+  final String? icon; // key into kWorkoutIcons, chosen at creation
 
   Workout({
     required this.id,
     required this.name,
     required this.exercises,
     List<Exercise>? warmup,
+    this.icon,
   }) : warmup = warmup ?? [];
 
   /// Flat ordered slot list used by the session screen and warm-up screen.
@@ -34,6 +36,7 @@ class Workout {
         'name': name,
         'exercises': exercises.map((s) => s.toJson()).toList(),
         'warmup': warmup.map((e) => e.toJson()).toList(),
+        if (icon != null) 'icon': icon,
       };
 
   factory Workout.fromJson(Map<String, dynamic> json) {
@@ -68,6 +71,7 @@ class Workout {
               .map((e) => Exercise.fromJson(e as Map<String, dynamic>))
               .toList()
           : [],
+      icon: json['icon'] as String?,
     );
   }
 }

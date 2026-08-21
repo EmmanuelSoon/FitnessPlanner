@@ -101,11 +101,12 @@ class HealthService {
       throw HealthServiceException('Failed to read workouts from Health Connect: $e');
     }
 
-    // Filter to RUNNING activity type only.
+    // Filter to RUNNING (outdoor and treadmill) activity types only.
     final runningPoints = workoutPoints.where((p) {
       if (p.value is! WorkoutHealthValue) return false;
-      return (p.value as WorkoutHealthValue).workoutActivityType ==
-          HealthWorkoutActivityType.RUNNING;
+      final type = (p.value as WorkoutHealthValue).workoutActivityType;
+      return type == HealthWorkoutActivityType.RUNNING ||
+          type == HealthWorkoutActivityType.RUNNING_TREADMILL;
     }).toList();
 
     if (runningPoints.isEmpty) return [];
@@ -217,7 +218,10 @@ class HealthService {
         avgHeartRate: avgHr,
         calories: cal,
         cadenceSpm: cadence,
-        runType: RunType.other,
+        runType: workoutValue.workoutActivityType ==
+                HealthWorkoutActivityType.RUNNING_TREADMILL
+            ? RunType.treadmill
+            : RunType.other,
         source: RunSource.healthConnect,
         externalId: externalId,
       ));

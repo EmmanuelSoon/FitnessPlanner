@@ -47,6 +47,7 @@ class RunDetailScreen extends ConsumerWidget {
       case RunType.interval: return 'Interval';
       case RunType.long: return 'Long';
       case RunType.race: return 'Race';
+      case RunType.treadmill: return 'Treadmill';
       case RunType.other: return 'Run';
     }
   }
