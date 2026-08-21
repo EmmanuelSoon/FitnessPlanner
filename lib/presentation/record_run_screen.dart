@@ -513,6 +513,7 @@ class _RecordRunScreenState extends ConsumerState<RecordRunScreen> {
       case RunType.interval: return 'Interval';
       case RunType.long: return 'Long';
       case RunType.race: return 'Race';
+      case RunType.treadmill: return 'Treadmill';
       case RunType.other: return 'Other';
     }
   }

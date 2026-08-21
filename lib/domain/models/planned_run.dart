@@ -39,6 +39,8 @@ class PlannedRun {
         return 'Long';
       case RunType.race:
         return 'Race';
+      case RunType.treadmill:
+        return 'Treadmill';
       case RunType.other:
         return 'Run';
     }
