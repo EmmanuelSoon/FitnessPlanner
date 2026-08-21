@@ -102,6 +102,8 @@ class _WorkoutStartPreviewScreenState
           isInGroup: !isSingle,
           onRepsChanged: (v) => setState(() => item.exercise.reps = v),
           onWeightChanged: (v) => setState(() => item.exercise.weight = v),
+          onSetsChanged: (v) => setState(() => item.superset.sets = v),
+          onRestChanged: (v) => setState(() => item.superset.restAfterSet = v),
         ),
       );
 
@@ -187,8 +189,9 @@ class _WorkoutStartPreviewScreenState
 }
 
 // Mirrors the visual language of create_workout.dart's _ExerciseSlotCard
-// (index pill, superset badge, field grid) but read-only apart from
-// reps/weight — this screen previews today's numbers, not a redesign.
+// (index pill, superset badge, field grid) — lets you tweak sets, reps,
+// weight, and rest for today's session without renaming/removing exercises
+// or changing timed-hold duration.
 class _PreviewExerciseCard extends StatelessWidget {
   final Superset superset;
   final Exercise exercise;
@@ -197,6 +200,8 @@ class _PreviewExerciseCard extends StatelessWidget {
   final bool isInGroup;
   final ValueChanged<int> onRepsChanged;
   final ValueChanged<double> onWeightChanged;
+  final ValueChanged<int> onSetsChanged;
+  final ValueChanged<Duration> onRestChanged;
 
   const _PreviewExerciseCard({
     required this.superset,
@@ -206,6 +211,8 @@ class _PreviewExerciseCard extends StatelessWidget {
     required this.isInGroup,
     required this.onRepsChanged,
     required this.onWeightChanged,
+    required this.onSetsChanged,
+    required this.onRestChanged,
   });
 
   @override
@@ -277,7 +284,12 @@ class _PreviewExerciseCard extends StatelessWidget {
           Row(
             children: [
               if (showSets) ...[
-                _ReadOnlyField(label: 'SETS', value: '${superset.sets}'),
+                _TappableField(
+                  label: 'SETS',
+                  value: '${superset.sets}',
+                  onTap: () =>
+                      openSetsPicker(context, superset.sets, onSetsChanged),
+                ),
                 const SizedBox(width: 6),
               ],
               if (isTimed)
@@ -301,9 +313,15 @@ class _PreviewExerciseCard extends StatelessWidget {
               ),
               if (showRest) ...[
                 const SizedBox(width: 6),
-                _ReadOnlyField(
+                _TappableField(
                   label: 'REST',
                   value: _fmtDuration(superset.restAfterSet),
+                  onTap: () => openDurationPicker(
+                    context,
+                    'REST',
+                    superset.restAfterSet,
+                    onRestChanged,
+                  ),
                 ),
               ],
             ],
