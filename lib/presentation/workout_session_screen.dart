@@ -1216,12 +1216,13 @@ class _BigNumber extends StatelessWidget {
             textBaseline: TextBaseline.alphabetic,
             mainAxisSize: MainAxisSize.min,
             children: [
-              SizedBox(
-                width: 90,
+              ConstrainedBox(
+                constraints: const BoxConstraints(minWidth: 90),
                 child: Text(
                   value,
                   textAlign: TextAlign.center,
                   maxLines: 1,
+                  softWrap: false,
                   style: displayStyle(
                     fontSize: 84,
                     fontWeight: FontWeight.w400,
