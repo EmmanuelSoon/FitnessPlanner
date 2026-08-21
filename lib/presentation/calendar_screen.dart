@@ -59,8 +59,12 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
     for (final o in runOverrides) {
       runOverrideMap[_dateKey(o.date)] = o;
     }
-    final workoutNames = <String, String>{for (final w in workouts) w.id: w.name};
-    final workoutIcons = <String, String?>{for (final w in workouts) w.id: w.icon};
+    final workoutNames = <String, String>{
+      for (final w in workouts) w.id: w.name,
+    };
+    final workoutIcons = <String, String?>{
+      for (final w in workouts) w.id: w.icon,
+    };
     final workoutMap = <String, Workout>{for (final w in workouts) w.id: w};
 
     // Resolves the planned run for a date via template + override (rest-week aware).
@@ -88,12 +92,13 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
         child: Column(
           children: [
             _buildHeader(context, c, meso),
-            if (meso != null) _WeekBanner(
-              meso: meso,
-              today: _today,
-              onEarlyRest: () => _confirmEarlyRest(context, meso),
-              onAdjustWeek: () => _showSetCurrentWeekSheet(context, meso),
-            ),
+            if (meso != null)
+              _WeekBanner(
+                meso: meso,
+                today: _today,
+                onEarlyRest: () => _confirmEarlyRest(context, meso),
+                onAdjustWeek: () => _showSetCurrentWeekSheet(context, meso),
+              ),
             Expanded(
               child: (meso == null && runs.isEmpty)
                   ? _NoMesoState(onSetUp: () => _pushSetup(context, null))
@@ -105,29 +110,37 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
                             month: _visibleMonth,
                             today: _today,
                             meso: meso,
-                            overrideForDate: (date) => overrideMap[_dateKey(date)],
+                            overrideForDate: (date) =>
+                                overrideMap[_dateKey(date)],
                             workoutNames: workoutNames,
                             workoutIcons: workoutIcons,
                             plannedRunForDate: plannedRunFor,
                             runsByDay: runsByDay,
                             workoutSessionsByDay: workoutSessionsByDay,
-                            onDayTap: (date, workoutId, workoutName) => _showDaySheet(
-                              context,
-                              date: date,
-                              workoutId: workoutId,
-                              workout: workoutId != null ? workoutMap[workoutId] : null,
-                              workouts: workouts,
-                              overrideMap: overrideMap,
-                              meso: meso,
-                              runsForDate: runsByDay[_dateKey(date)] ?? [],
-                              plannedRun: plannedRunFor(date),
-                              hasRunOverride:
-                                  runOverrideMap.containsKey(_dateKey(date)),
-                              sessionForDate: () {
-                                final s = workoutSessionsByDay[_dateKey(date)];
-                                return (s == null || s.isEmpty) ? null : s.first;
-                              }(),
-                            ),
+                            onDayTap: (date, workoutId, workoutName) =>
+                                _showDaySheet(
+                                  context,
+                                  date: date,
+                                  workoutId: workoutId,
+                                  workout: workoutId != null
+                                      ? workoutMap[workoutId]
+                                      : null,
+                                  workouts: workouts,
+                                  overrideMap: overrideMap,
+                                  meso: meso,
+                                  runsForDate: runsByDay[_dateKey(date)] ?? [],
+                                  plannedRun: plannedRunFor(date),
+                                  hasRunOverride: runOverrideMap.containsKey(
+                                    _dateKey(date),
+                                  ),
+                                  sessionForDate: () {
+                                    final s =
+                                        workoutSessionsByDay[_dateKey(date)];
+                                    return (s == null || s.isEmpty)
+                                        ? null
+                                        : s.first;
+                                  }(),
+                                ),
                           ),
                           const SizedBox(height: 32),
                         ],
@@ -143,21 +156,26 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
   // ─── Header ─────────────────────────────────────────────────────────
 
   Widget _buildHeader(BuildContext context, AppColors c, Mesocycle? meso) {
-    final label =
-        '${_monthName(_visibleMonth.month)} ${_visibleMonth.year}'.toUpperCase();
+    final label = '${_monthName(_visibleMonth.month)} ${_visibleMonth.year}'
+        .toUpperCase();
     return Padding(
       padding: const EdgeInsets.fromLTRB(8, 14, 8, 8),
       child: Row(
         children: [
           AppIconButton(
             icon: Icons.chevron_left_rounded,
-            onPressed: () => setState(() => _visibleMonth =
-                DateTime(_visibleMonth.year, _visibleMonth.month - 1)),
+            onPressed: () => setState(
+              () => _visibleMonth = DateTime(
+                _visibleMonth.year,
+                _visibleMonth.month - 1,
+              ),
+            ),
           ),
           Expanded(
             child: GestureDetector(
-              onTap: () => setState(() =>
-                  _visibleMonth = DateTime(_today.year, _today.month)),
+              onTap: () => setState(
+                () => _visibleMonth = DateTime(_today.year, _today.month),
+              ),
               child: Center(
                 child: Text(
                   label,
@@ -173,8 +191,12 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
           ),
           AppIconButton(
             icon: Icons.chevron_right_rounded,
-            onPressed: () => setState(() => _visibleMonth =
-                DateTime(_visibleMonth.year, _visibleMonth.month + 1)),
+            onPressed: () => setState(
+              () => _visibleMonth = DateTime(
+                _visibleMonth.year,
+                _visibleMonth.month + 1,
+              ),
+            ),
           ),
           AppIconButton(
             icon: Icons.notifications_outlined,
@@ -195,7 +217,8 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
     Navigator.push(
       context,
       MaterialPageRoute(
-          builder: (_) => MesocycleSetupScreen(existingMeso: meso)),
+        builder: (_) => MesocycleSetupScreen(existingMeso: meso),
+      ),
     );
   }
 
@@ -223,9 +246,403 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (ctx) => Container(
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.of(ctx).size.height * 0.9,
+        ),
         decoration: BoxDecoration(
           color: c.surface,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(kRadius + 8)),
+          borderRadius: BorderRadius.vertical(
+            top: Radius.circular(kRadius + 8),
+          ),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 20),
+            Center(
+              child: Container(
+                width: 36,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: c.hairline,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            Flexible(
+              child: SingleChildScrollView(
+                padding: EdgeInsets.fromLTRB(
+                  22,
+                  16,
+                  22,
+                  28 + MediaQuery.of(ctx).padding.bottom,
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      dateLabel,
+                      style: bodyStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: c.inkMute,
+                        letterSpacing: 1.0,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      sessionForDate?.workoutName ??
+                          (workoutId != null
+                              ? (workout?.name ?? 'Workout')
+                              : 'Rest day'),
+                      style: displayStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.w500,
+                        color: c.ink,
+                        letterSpacing: -0.4,
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    if (sessionForDate != null) ...[
+                      Text(
+                        'COMPLETED',
+                        style: bodyStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: c.inkMute,
+                          letterSpacing: 0.8,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      SessionBreakdown(sets: sessionForDate.sets),
+                      const SizedBox(height: 10),
+                    ] else if (workout != null) ...[
+                      AppButton(
+                        label: 'Start workout',
+                        icon: Icons.play_arrow_rounded,
+                        full: true,
+                        onPressed: () {
+                          Navigator.pop(ctx);
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) =>
+                                  WorkoutStartPreviewScreen(workout: workout),
+                            ),
+                          );
+                        },
+                      ),
+                      const SizedBox(height: 10),
+                    ],
+                    if (workout != null) ...[
+                      if (sessionForDate == null) ...[
+                        AppButton(
+                          label: 'Move to another date',
+                          kind: ButtonKind.outline,
+                          icon: Icons.swap_horiz_rounded,
+                          full: true,
+                          onPressed: () async {
+                            Navigator.pop(ctx);
+                            final picked = await showDatePicker(
+                              context: context,
+                              initialDate: date.add(const Duration(days: 1)),
+                              firstDate: DateTime(2020),
+                              lastDate: DateTime(2030),
+                            );
+                            if (picked != null && context.mounted) {
+                              await ref
+                                  .read(overridesProvider.notifier)
+                                  .move(date, picked, workoutId!);
+                            }
+                          },
+                        ),
+                        const SizedBox(height: 10),
+                        AppButton(
+                          label: 'Clear — make it a rest day',
+                          kind: ButtonKind.ghost,
+                          full: true,
+                          onPressed: () async {
+                            Navigator.pop(ctx);
+                            await ref
+                                .read(overridesProvider.notifier)
+                                .setRest(date);
+                          },
+                        ),
+                      ],
+                    ] else ...[
+                      AppButton(
+                        label: 'Add a workout',
+                        icon: Icons.add_rounded,
+                        full: true,
+                        onPressed: () {
+                          Navigator.pop(ctx);
+                          showWorkoutPicker(
+                            context: context,
+                            workouts: workouts,
+                            selectedWorkoutId: null,
+                            onSelected: (id) async {
+                              if (id != null) {
+                                await ref
+                                    .read(overridesProvider.notifier)
+                                    .setWorkout(date, id);
+                              }
+                            },
+                          );
+                        },
+                      ),
+                    ],
+                    if (hasOverride) ...[
+                      const SizedBox(height: 10),
+                      AppButton(
+                        label: 'Reset to scheduled',
+                        kind: ButtonKind.ghost,
+                        full: true,
+                        onPressed: () async {
+                          Navigator.pop(ctx);
+                          await ref
+                              .read(overridesProvider.notifier)
+                              .clearOverride(date);
+                        },
+                      ),
+                    ],
+                    // ── Planned run target for this day ────────────────────
+                    if (plannedRun != null) ...[
+                      const SizedBox(height: 20),
+                      Text(
+                        'PLANNED RUN',
+                        style: bodyStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: c.inkMute,
+                          letterSpacing: 0.8,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 12,
+                        ),
+                        decoration: BoxDecoration(
+                          color: c.surfaceAlt,
+                          borderRadius: BorderRadius.circular(kRadius - 4),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.directions_run_rounded,
+                              size: 16,
+                              color: c.accent,
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Text(
+                                plannedRun.summaryLabel,
+                                style: bodyStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w500,
+                                  color: c.ink,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      AppButton(
+                        label: 'Log this run',
+                        icon: Icons.directions_run_rounded,
+                        full: true,
+                        onPressed: () {
+                          Navigator.pop(ctx);
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => RecordRunScreen(
+                                initialDate: date,
+                                initialRunType: plannedRun.type,
+                                initialDistanceMeters:
+                                    plannedRun.targetDistanceMeters,
+                                initialDuration: plannedRun.targetDuration,
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                      const SizedBox(height: 10),
+                      AppButton(
+                        label: 'Move run to another date',
+                        kind: ButtonKind.outline,
+                        icon: Icons.swap_horiz_rounded,
+                        full: true,
+                        onPressed: () async {
+                          Navigator.pop(ctx);
+                          final picked = await showDatePicker(
+                            context: context,
+                            initialDate: date.add(const Duration(days: 1)),
+                            firstDate: DateTime(2020),
+                            lastDate: DateTime(2030),
+                          );
+                          if (picked != null && context.mounted) {
+                            await ref
+                                .read(runOverridesProvider.notifier)
+                                .moveRun(date, picked, plannedRun);
+                          }
+                        },
+                      ),
+                      const SizedBox(height: 10),
+                      AppButton(
+                        label: 'Clear run',
+                        kind: ButtonKind.ghost,
+                        full: true,
+                        onPressed: () async {
+                          Navigator.pop(ctx);
+                          await ref
+                              .read(runOverridesProvider.notifier)
+                              .clearRun(date);
+                        },
+                      ),
+                      if (hasRunOverride) ...[
+                        const SizedBox(height: 10),
+                        AppButton(
+                          label: 'Reset run to scheduled',
+                          kind: ButtonKind.ghost,
+                          full: true,
+                          onPressed: () async {
+                            Navigator.pop(ctx);
+                            await ref
+                                .read(runOverridesProvider.notifier)
+                                .clearOverride(date);
+                          },
+                        ),
+                      ],
+                    ] else if (hasRunOverride) ...[
+                      // Run was cleared on this date; allow restoring the template run.
+                      const SizedBox(height: 10),
+                      AppButton(
+                        label: 'Restore scheduled run',
+                        kind: ButtonKind.ghost,
+                        full: true,
+                        onPressed: () async {
+                          Navigator.pop(ctx);
+                          await ref
+                              .read(runOverridesProvider.notifier)
+                              .clearOverride(date);
+                        },
+                      ),
+                    ],
+                    // ── Runs for this day ──────────────────────────────────
+                    if (runsForDate.isNotEmpty) ...[
+                      const SizedBox(height: 20),
+                      Text(
+                        'RUNS',
+                        style: bodyStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: c.inkMute,
+                          letterSpacing: 0.8,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      ...runsForDate.map((run) {
+                        final distStr =
+                            '${run.distanceKm.toStringAsFixed(2)} km';
+                        final durStr = '${run.duration.inMinutes}min';
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: 8),
+                          child: GestureDetector(
+                            onTap: () {
+                              Navigator.pop(ctx);
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => RunDetailScreen(run: run),
+                                ),
+                              );
+                            },
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 14,
+                                vertical: 12,
+                              ),
+                              decoration: BoxDecoration(
+                                color: c.surfaceAlt,
+                                borderRadius: BorderRadius.circular(
+                                  kRadius - 4,
+                                ),
+                              ),
+                              child: Row(
+                                children: [
+                                  Icon(
+                                    Icons.directions_run_rounded,
+                                    size: 16,
+                                    color: c.accent,
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: Text(
+                                      '$distStr · $durStr · ${run.formattedPace}/km',
+                                      style: bodyStyle(
+                                        fontSize: 13,
+                                        color: c.inkDim,
+                                      ),
+                                    ),
+                                  ),
+                                  Icon(
+                                    Icons.chevron_right_rounded,
+                                    size: 16,
+                                    color: c.inkMute,
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        );
+                      }),
+                    ],
+                    if (sessionForDate == null) ...[
+                      const SizedBox(height: 10),
+                      AppButton(
+                        label: 'Log a run',
+                        icon: Icons.directions_run_rounded,
+                        kind: ButtonKind.outline,
+                        full: true,
+                        onPressed: () {
+                          Navigator.pop(ctx);
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) =>
+                                  RecordRunScreen(initialDate: date),
+                            ),
+                          );
+                        },
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ─── Early rest confirm ───────────────────────────────────────────────
+
+  void _confirmEarlyRest(BuildContext context, Mesocycle meso) {
+    final c = AppThemeData.of(context).c;
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => Container(
+        decoration: BoxDecoration(
+          color: c.surface,
+          borderRadius: BorderRadius.vertical(
+            top: Radius.circular(kRadius + 8),
+          ),
         ),
         padding: EdgeInsets.only(
           left: 22,
@@ -249,344 +666,14 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
             ),
             const SizedBox(height: 16),
             Text(
-              dateLabel,
-              style: bodyStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  color: c.inkMute,
-                  letterSpacing: 1.0),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              sessionForDate?.workoutName ??
-                  (workoutId != null ? (workout?.name ?? 'Workout') : 'Rest day'),
+              'Start rest week early?',
               style: displayStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.w500,
-                  color: c.ink,
-                  letterSpacing: -0.4),
-            ),
-            const SizedBox(height: 20),
-            if (sessionForDate != null) ...[
-              Text(
-                'COMPLETED',
-                style: bodyStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
-                  color: c.inkMute,
-                  letterSpacing: 0.8,
-                ),
-              ),
-              const SizedBox(height: 8),
-              SessionBreakdown(sets: sessionForDate.sets),
-              const SizedBox(height: 10),
-            ] else if (workout != null) ...[
-              AppButton(
-                label: 'Start workout',
-                icon: Icons.play_arrow_rounded,
-                full: true,
-                onPressed: () {
-                  Navigator.pop(ctx);
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => WorkoutStartPreviewScreen(workout: workout),
-                    ),
-                  );
-                },
-              ),
-              const SizedBox(height: 10),
-            ],
-            if (workout != null) ...[
-              AppButton(
-                label: 'Move to another date',
-                kind: ButtonKind.outline,
-                icon: Icons.swap_horiz_rounded,
-                full: true,
-                onPressed: () async {
-                  Navigator.pop(ctx);
-                  final picked = await showDatePicker(
-                    context: context,
-                    initialDate: date.add(const Duration(days: 1)),
-                    firstDate: DateTime(2020),
-                    lastDate: DateTime(2030),
-                  );
-                  if (picked != null && context.mounted) {
-                    await ref
-                        .read(overridesProvider.notifier)
-                        .move(date, picked, workoutId!);
-                  }
-                },
-              ),
-              const SizedBox(height: 10),
-              AppButton(
-                label: 'Clear — make it a rest day',
-                kind: ButtonKind.ghost,
-                full: true,
-                onPressed: () async {
-                  Navigator.pop(ctx);
-                  await ref.read(overridesProvider.notifier).setRest(date);
-                },
-              ),
-            ] else ...[
-              AppButton(
-                label: 'Add a workout',
-                icon: Icons.add_rounded,
-                full: true,
-                onPressed: () {
-                  Navigator.pop(ctx);
-                  showWorkoutPicker(
-                    context: context,
-                    workouts: workouts,
-                    selectedWorkoutId: null,
-                    onSelected: (id) async {
-                      if (id != null) {
-                        await ref
-                            .read(overridesProvider.notifier)
-                            .setWorkout(date, id);
-                      }
-                    },
-                  );
-                },
-              ),
-            ],
-            if (hasOverride) ...[
-              const SizedBox(height: 10),
-              AppButton(
-                label: 'Reset to scheduled',
-                kind: ButtonKind.ghost,
-                full: true,
-                onPressed: () async {
-                  Navigator.pop(ctx);
-                  await ref.read(overridesProvider.notifier).clearOverride(date);
-                },
-              ),
-            ],
-            // ── Planned run target for this day ────────────────────
-            if (plannedRun != null) ...[
-              const SizedBox(height: 20),
-              Text(
-                'PLANNED RUN',
-                style: bodyStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
-                  color: c.inkMute,
-                  letterSpacing: 0.8,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                decoration: BoxDecoration(
-                  color: c.surfaceAlt,
-                  borderRadius: BorderRadius.circular(kRadius - 4),
-                ),
-                child: Row(
-                  children: [
-                    Icon(Icons.directions_run_rounded, size: 16, color: c.accent),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Text(
-                        plannedRun.summaryLabel,
-                        style: bodyStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w500,
-                            color: c.ink),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 10),
-              AppButton(
-                label: 'Log this run',
-                icon: Icons.directions_run_rounded,
-                full: true,
-                onPressed: () {
-                  Navigator.pop(ctx);
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => RecordRunScreen(
-                        initialDate: date,
-                        initialRunType: plannedRun.type,
-                        initialDistanceMeters: plannedRun.targetDistanceMeters,
-                        initialDuration: plannedRun.targetDuration,
-                      ),
-                    ),
-                  );
-                },
-              ),
-              const SizedBox(height: 10),
-              AppButton(
-                label: 'Move run to another date',
-                kind: ButtonKind.outline,
-                icon: Icons.swap_horiz_rounded,
-                full: true,
-                onPressed: () async {
-                  Navigator.pop(ctx);
-                  final picked = await showDatePicker(
-                    context: context,
-                    initialDate: date.add(const Duration(days: 1)),
-                    firstDate: DateTime(2020),
-                    lastDate: DateTime(2030),
-                  );
-                  if (picked != null && context.mounted) {
-                    await ref
-                        .read(runOverridesProvider.notifier)
-                        .moveRun(date, picked, plannedRun);
-                  }
-                },
-              ),
-              const SizedBox(height: 10),
-              AppButton(
-                label: 'Clear run',
-                kind: ButtonKind.ghost,
-                full: true,
-                onPressed: () async {
-                  Navigator.pop(ctx);
-                  await ref.read(runOverridesProvider.notifier).clearRun(date);
-                },
-              ),
-              if (hasRunOverride) ...[
-                const SizedBox(height: 10),
-                AppButton(
-                  label: 'Reset run to scheduled',
-                  kind: ButtonKind.ghost,
-                  full: true,
-                  onPressed: () async {
-                    Navigator.pop(ctx);
-                    await ref
-                        .read(runOverridesProvider.notifier)
-                        .clearOverride(date);
-                  },
-                ),
-              ],
-            ] else if (hasRunOverride) ...[
-              // Run was cleared on this date; allow restoring the template run.
-              const SizedBox(height: 10),
-              AppButton(
-                label: 'Restore scheduled run',
-                kind: ButtonKind.ghost,
-                full: true,
-                onPressed: () async {
-                  Navigator.pop(ctx);
-                  await ref
-                      .read(runOverridesProvider.notifier)
-                      .clearOverride(date);
-                },
-              ),
-            ],
-            // ── Runs for this day ──────────────────────────────────
-            if (runsForDate.isNotEmpty) ...[
-              const SizedBox(height: 20),
-              Text(
-                'RUNS',
-                style: bodyStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
-                  color: c.inkMute,
-                  letterSpacing: 0.8,
-                ),
-              ),
-              const SizedBox(height: 8),
-              ...runsForDate.map((run) {
-                final distStr =
-                    '${run.distanceKm.toStringAsFixed(2)} km';
-                final durStr =
-                    '${run.duration.inMinutes}min';
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
-                  child: GestureDetector(
-                    onTap: () {
-                      Navigator.pop(ctx);
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => RunDetailScreen(run: run),
-                        ),
-                      );
-                    },
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 14, vertical: 12),
-                      decoration: BoxDecoration(
-                        color: c.surfaceAlt,
-                        borderRadius: BorderRadius.circular(kRadius - 4),
-                      ),
-                      child: Row(
-                        children: [
-                          Icon(Icons.directions_run_rounded,
-                              size: 16, color: c.accent),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: Text(
-                              '$distStr · $durStr · ${run.formattedPace}/km',
-                              style: bodyStyle(
-                                  fontSize: 13, color: c.inkDim),
-                            ),
-                          ),
-                          Icon(Icons.chevron_right_rounded,
-                              size: 16, color: c.inkMute),
-                        ],
-                      ),
-                    ),
-                  ),
-                );
-              }),
-            ],
-            const SizedBox(height: 10),
-            AppButton(
-              label: 'Log a run',
-              icon: Icons.directions_run_rounded,
-              kind: ButtonKind.outline,
-              full: true,
-              onPressed: () {
-                Navigator.pop(ctx);
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => RecordRunScreen(initialDate: date),
-                  ),
-                );
-              },
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  // ─── Early rest confirm ───────────────────────────────────────────────
-
-  void _confirmEarlyRest(BuildContext context, Mesocycle meso) {
-    final c = AppThemeData.of(context).c;
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (ctx) => Container(
-        decoration: BoxDecoration(
-          color: c.surface,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(kRadius + 8)),
-        ),
-        padding: EdgeInsets.only(
-          left: 22, right: 22, top: 20,
-          bottom: 28 + MediaQuery.of(ctx).padding.bottom,
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Center(
-              child: Container(
-                width: 36, height: 4,
-                decoration: BoxDecoration(color: c.hairline, borderRadius: BorderRadius.circular(2)),
+                fontSize: 22,
+                fontWeight: FontWeight.w500,
+                color: c.ink,
+                letterSpacing: -0.3,
               ),
             ),
-            const SizedBox(height: 16),
-            Text('Start rest week early?',
-                style: displayStyle(fontSize: 22, fontWeight: FontWeight.w500, color: c.ink, letterSpacing: -0.3)),
             const SizedBox(height: 10),
             Text(
               'This week becomes your rest week. After ${meso.restWeeks == 1 ? "it" : "${meso.restWeeks} rest weeks"} pass${meso.restWeeks == 1 ? "es" : ""}, a fresh training block will begin automatically.',
@@ -608,10 +695,12 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
                     label: 'Start rest week',
                     onPressed: () async {
                       Navigator.pop(ctx);
-                      await ref.read(mesocyclesProvider.notifier).appendAdjustment(
-                        meso.id,
-                        earlyRestAdjustment(meso, _today),
-                      );
+                      await ref
+                          .read(mesocyclesProvider.notifier)
+                          .appendAdjustment(
+                            meso.id,
+                            earlyRestAdjustment(meso, _today),
+                          );
                     },
                   ),
                 ),
@@ -629,12 +718,16 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
     final c = AppThemeData.of(context).c;
     final totalLen = meso.trainingWeeks + meso.restWeeks;
     final options = <String>[
+      ...List.generate(meso.trainingWeeks, (i) => 'Week ${i + 1} · Training'),
       ...List.generate(
-          meso.trainingWeeks, (i) => 'Week ${i + 1} · Training'),
-      ...List.generate(
-          meso.restWeeks, (i) => meso.restWeeks == 1 ? 'Rest week' : 'Rest week ${i + 1}'),
+        meso.restWeeks,
+        (i) => meso.restWeeks == 1 ? 'Rest week' : 'Rest week ${i + 1}',
+      ),
     ];
-    final currentIdx = cycleWeekIndexForDate(meso, _today).clamp(0, totalLen - 1);
+    final currentIdx = cycleWeekIndexForDate(
+      meso,
+      _today,
+    ).clamp(0, totalLen - 1);
     int selectedIdx = currentIdx;
 
     showModalBottomSheet(
@@ -645,10 +738,14 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
         builder: (ctx, setModalState) => Container(
           decoration: BoxDecoration(
             color: c.surface,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(kRadius + 8)),
+            borderRadius: BorderRadius.vertical(
+              top: Radius.circular(kRadius + 8),
+            ),
           ),
           padding: EdgeInsets.only(
-            left: 22, right: 22, top: 20,
+            left: 22,
+            right: 22,
+            top: 20,
             bottom: 28 + MediaQuery.of(ctx).padding.bottom,
           ),
           child: Column(
@@ -656,14 +753,23 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
             children: [
               Center(
                 child: Container(
-                  width: 36, height: 4,
-                  decoration: BoxDecoration(color: c.hairline, borderRadius: BorderRadius.circular(2)),
+                  width: 36,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: c.hairline,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
                 ),
               ),
               const SizedBox(height: 16),
               Text(
                 "I'm currently on…",
-                style: displayStyle(fontSize: 20, fontWeight: FontWeight.w500, color: c.ink, letterSpacing: -0.3),
+                style: displayStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w500,
+                  color: c.ink,
+                  letterSpacing: -0.3,
+                ),
               ),
               const SizedBox(height: 4),
               Text(
@@ -674,13 +780,20 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
               SizedBox(
                 height: 160,
                 child: CupertinoPicker(
-                  scrollController: FixedExtentScrollController(initialItem: currentIdx),
+                  scrollController: FixedExtentScrollController(
+                    initialItem: currentIdx,
+                  ),
                   itemExtent: 44,
                   onSelectedItemChanged: (i) => selectedIdx = i,
                   children: options
-                      .map((o) => Center(
-                            child: Text(o, style: bodyStyle(fontSize: 16, color: c.ink)),
-                          ))
+                      .map(
+                        (o) => Center(
+                          child: Text(
+                            o,
+                            style: bodyStyle(fontSize: 16, color: c.ink),
+                          ),
+                        ),
+                      )
                       .toList(),
                 ),
               ),
@@ -690,10 +803,12 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
                 full: true,
                 onPressed: () async {
                   Navigator.pop(ctx);
-                  await ref.read(mesocyclesProvider.notifier).appendAdjustment(
-                    meso.id,
-                    setCurrentWeekAdjustment(_today, selectedIdx),
-                  );
+                  await ref
+                      .read(mesocyclesProvider.notifier)
+                      .appendAdjustment(
+                        meso.id,
+                        setCurrentWeekAdjustment(_today, selectedIdx),
+                      );
                 },
               ),
             ],
@@ -710,17 +825,46 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
 
   String _formatDate(DateTime d) {
     final months = [
-      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
     ];
-    final days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
-    return '${days[d.weekday - 1].toUpperCase()}, ${months[d.month - 1]} ${d.day}'.toUpperCase();
+    final days = [
+      'Monday',
+      'Tuesday',
+      'Wednesday',
+      'Thursday',
+      'Friday',
+      'Saturday',
+      'Sunday',
+    ];
+    return '${days[d.weekday - 1].toUpperCase()}, ${months[d.month - 1]} ${d.day}'
+        .toUpperCase();
   }
 
   String _monthName(int m) => const [
-        'January', 'February', 'March', 'April', 'May', 'June',
-        'July', 'August', 'September', 'October', 'November', 'December'
-      ][m - 1];
+    'January',
+    'February',
+    'March',
+    'April',
+    'May',
+    'June',
+    'July',
+    'August',
+    'September',
+    'October',
+    'November',
+    'December',
+  ][m - 1];
 }
 
 // ─── Week status banner ────────────────────────────────────────────────
@@ -820,7 +964,11 @@ class _NoMesoState extends StatelessWidget {
               shape: BoxShape.circle,
               border: Border.all(color: c.hairline, width: 1.5),
             ),
-            child: Icon(Icons.calendar_today_rounded, size: 28, color: c.inkMute),
+            child: Icon(
+              Icons.calendar_today_rounded,
+              size: 28,
+              color: c.inkMute,
+            ),
           ),
           const SizedBox(height: 18),
           Text(
