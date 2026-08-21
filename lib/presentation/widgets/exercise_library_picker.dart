@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:fitness_planner/domain/models/exercise_library.dart';
 import 'package:fitness_planner/theme/app_theme.dart';
+import 'package:fitness_planner/presentation/widgets/app_widgets.dart';
 
 /// [onBlank] receives whatever is currently typed in the search box, so
 /// "use my own" keeps the text instead of throwing it away.
@@ -11,26 +12,26 @@ void showExerciseLibraryPicker({
   String initialQuery = '',
   bool autofocus = false,
 }) {
-  showModalBottomSheet(
-    context: context,
-    isScrollControlled: true,
-    backgroundColor: Colors.transparent,
-    builder: (_) => _ExerciseLibrarySheet(
-      onSelected: onSelected,
-      onBlank: onBlank,
-      initialQuery: initialQuery,
-      autofocus: autofocus,
+  Navigator.push(
+    context,
+    MaterialPageRoute(
+      builder: (_) => _ExerciseLibraryPage(
+        onSelected: onSelected,
+        onBlank: onBlank,
+        initialQuery: initialQuery,
+        autofocus: autofocus,
+      ),
     ),
   );
 }
 
-class _ExerciseLibrarySheet extends StatefulWidget {
+class _ExerciseLibraryPage extends StatefulWidget {
   final void Function(LibraryExercise) onSelected;
   final void Function(String typedName) onBlank;
   final String initialQuery;
   final bool autofocus;
 
-  const _ExerciseLibrarySheet({
+  const _ExerciseLibraryPage({
     required this.onSelected,
     required this.onBlank,
     required this.initialQuery,
@@ -38,10 +39,10 @@ class _ExerciseLibrarySheet extends StatefulWidget {
   });
 
   @override
-  State<_ExerciseLibrarySheet> createState() => _ExerciseLibrarySheetState();
+  State<_ExerciseLibraryPage> createState() => _ExerciseLibraryPageState();
 }
 
-class _ExerciseLibrarySheetState extends State<_ExerciseLibrarySheet> {
+class _ExerciseLibraryPageState extends State<_ExerciseLibraryPage> {
   late final TextEditingController _searchCtrl;
   late String _query;
 
@@ -73,7 +74,6 @@ class _ExerciseLibrarySheetState extends State<_ExerciseLibrarySheet> {
   @override
   Widget build(BuildContext context) {
     final c = AppThemeData.of(context).c;
-    final maxHeight = MediaQuery.of(context).size.height * 0.85;
     final filtered = _filtered;
 
     final grouped = <String, List<LibraryExercise>>{};
@@ -83,61 +83,47 @@ class _ExerciseLibrarySheetState extends State<_ExerciseLibrarySheet> {
       }
     }
 
-    return Container(
-      constraints: BoxConstraints(maxHeight: maxHeight),
-      decoration: BoxDecoration(
-        color: c.surface,
-        borderRadius:
-            BorderRadius.vertical(top: Radius.circular(kRadius + 8)),
-      ),
-      padding: EdgeInsets.only(
-        top: 20,
-        bottom: 24 + MediaQuery.of(context).padding.bottom,
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Center(
-            child: Container(
-              width: 36,
-              height: 4,
-              decoration: BoxDecoration(
-                color: c.hairline,
-                borderRadius: BorderRadius.circular(2),
+    return Scaffold(
+      backgroundColor: c.bg,
+      body: SafeArea(
+        child: Column(
+          children: [
+            AppHeaderBar(
+              leading: AppIconButton(
+                icon: Icons.arrow_back_rounded,
+                onPressed: () => Navigator.pop(context),
               ),
             ),
-          ),
-          const SizedBox(height: 16),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: TextField(
-              controller: _searchCtrl,
-              autofocus: widget.autofocus,
-              textCapitalization: TextCapitalization.words,
-              style: bodyStyle(fontSize: 15, color: c.ink),
-              decoration: InputDecoration(
-                hintText: 'Search exercises...',
-                hintStyle: bodyStyle(fontSize: 15, color: c.inkMute),
-                prefixIcon:
-                    Icon(Icons.search_rounded, size: 20, color: c.inkMute),
-                filled: true,
-                fillColor: c.surfaceAlt,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(kRadius - 4),
-                  borderSide: BorderSide.none,
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: TextField(
+                controller: _searchCtrl,
+                autofocus: widget.autofocus,
+                textCapitalization: TextCapitalization.words,
+                style: bodyStyle(fontSize: 15, color: c.ink),
+                decoration: InputDecoration(
+                  hintText: 'Search exercises...',
+                  hintStyle: bodyStyle(fontSize: 15, color: c.inkMute),
+                  prefixIcon:
+                      Icon(Icons.search_rounded, size: 20, color: c.inkMute),
+                  filled: true,
+                  fillColor: c.surfaceAlt,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(kRadius - 4),
+                    borderSide: BorderSide.none,
+                  ),
+                  contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 16, vertical: 12),
                 ),
-                contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 16, vertical: 12),
+                onChanged: (v) => setState(() => _query = v.trim()),
               ),
-              onChanged: (v) => setState(() => _query = v.trim()),
             ),
-          ),
-          const SizedBox(height: 8),
-          Flexible(
-            child: ListView(
-              shrinkWrap: true,
-              padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
-              children: [
+            const SizedBox(height: 8),
+            Expanded(
+              child: ListView(
+                padding: EdgeInsets.fromLTRB(
+                    16, 4, 16, 24 + MediaQuery.of(context).padding.bottom),
+                children: [
                 // "Type my own" always at the top — once something is typed it
                 // offers that text as the exercise name.
                 Padding(
@@ -234,6 +220,7 @@ class _ExerciseLibrarySheetState extends State<_ExerciseLibrarySheet> {
             ),
           ),
         ],
+      ),
       ),
     );
   }
