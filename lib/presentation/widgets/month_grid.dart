@@ -16,13 +16,17 @@ class MonthGrid extends StatelessWidget {
   final Map<String, String> workoutNames; // workoutId -> display name
   /// workoutId -> chosen icon key (see workout_icons.dart).
   final Map<String, String?> workoutIcons;
+
   /// Resolves the planned run for a date (template + override, rest-week aware).
   final PlannedRun? Function(DateTime) plannedRunForDate;
+
   /// Runs keyed by zero-padded 'yyyy-MM-dd' (same format as CalendarScreen._dateKey).
   final Map<String, List<RunSession>> runsByDay;
+
   /// Completed workout sessions keyed by 'yyyy-MM-dd', same format.
   final Map<String, List<WorkoutSession>> workoutSessionsByDay;
-  final void Function(DateTime date, String? workoutId, String? workoutName) onDayTap;
+  final void Function(DateTime date, String? workoutId, String? workoutName)
+  onDayTap;
 
   const MonthGrid({
     super.key,
@@ -61,19 +65,21 @@ class MonthGrid extends StatelessWidget {
           padding: const EdgeInsets.fromLTRB(12, 0, 12, 6),
           child: Row(
             children: const ['M', 'T', 'W', 'T', 'F', 'S', 'S']
-                .map((d) => Expanded(
-                      child: Center(
-                        child: Text(
-                          d,
-                          style: bodyStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w600,
-                            color: const Color(0xFF9AA49B), // inkMute-ish
-                            letterSpacing: 0.8,
-                          ),
+                .map(
+                  (d) => Expanded(
+                    child: Center(
+                      child: Text(
+                        d,
+                        style: bodyStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: const Color(0xFF9AA49B), // inkMute-ish
+                          letterSpacing: 0.8,
                         ),
                       ),
-                    ))
+                    ),
+                  ),
+                )
                 .toList(),
           ),
         ),
@@ -148,7 +154,8 @@ class _DayCell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isToday = date.year == today.year &&
+    final isToday =
+        date.year == today.year &&
         date.month == today.month &&
         date.day == today.day;
 
@@ -159,7 +166,9 @@ class _DayCell extends StatelessWidget {
     if (meso != null) {
       final ov = overrideForDate(date);
       workoutId = workoutIdForDate(meso!, ov, date);
-      workoutName = workoutId != null ? (workoutNames[workoutId] ?? workoutId) : null;
+      workoutName = workoutId != null
+          ? (workoutNames[workoutId] ?? workoutId)
+          : null;
       isRest = isRestWeek(meso!, date);
     }
 
@@ -167,7 +176,11 @@ class _DayCell extends StatelessWidget {
     final hasScheduledWorkout = workoutId != null;
     final hasCompletedWorkout = sessionsForDay.isNotEmpty;
     final hasWorkout = hasScheduledWorkout || hasCompletedWorkout;
-    workoutName ??= hasCompletedWorkout ? sessionsForDay.first.workoutName : null;
+    final hasRunActivity = runsForDay.isNotEmpty || plannedRun != null;
+    final hasAnyActivity = hasWorkout || hasRunActivity;
+    workoutName ??= hasCompletedWorkout
+        ? sessionsForDay.first.workoutName
+        : null;
     final markerIconKey = hasCompletedWorkout
         ? workoutIcons[sessionsForDay.first.workoutId]
         : (hasScheduledWorkout ? workoutIcons[workoutId] : null);
@@ -182,7 +195,7 @@ class _DayCell extends StatelessWidget {
       cellBg = Colors.transparent;
       dayNumColor = c.inkMute;
     } else {
-      cellBg = hasWorkout ? c.surface : Colors.transparent;
+      cellBg = hasAnyActivity ? c.surface : Colors.transparent;
       dayNumColor = isPast ? c.inkMute : c.ink;
     }
 
@@ -192,13 +205,13 @@ class _DayCell extends StatelessWidget {
         decoration: BoxDecoration(
           color: cellBg,
           borderRadius: BorderRadius.circular(10),
-          border: (!isToday && hasWorkout)
+          border: (!isToday && hasAnyActivity)
               ? Border.all(
                   color: isDark ? c.hairlineSoft : c.hairline,
                   width: 0.5,
                 )
               : null,
-          boxShadow: (!isToday && hasWorkout && !isDark)
+          boxShadow: (!isToday && hasAnyActivity && !isDark)
               ? [
                   BoxShadow(
                     color: Colors.black.withValues(alpha: 0.06),
@@ -226,7 +239,9 @@ class _DayCell extends StatelessWidget {
                 size: 10,
                 color: hasCompletedWorkout
                     ? (isToday ? c.accentInk.withValues(alpha: 0.85) : c.accent)
-                    : (isToday ? c.accentInk.withValues(alpha: 0.5) : c.inkMute),
+                    : (isToday
+                          ? c.accentInk.withValues(alpha: 0.5)
+                          : c.inkMute),
               ),
               const SizedBox(height: 1),
               Padding(
@@ -235,7 +250,9 @@ class _DayCell extends StatelessWidget {
                   workoutName ?? '',
                   style: bodyStyle(
                     fontSize: 8,
-                    color: isToday ? c.accentInk.withValues(alpha: 0.85) : c.inkDim,
+                    color: isToday
+                        ? c.accentInk.withValues(alpha: 0.85)
+                        : c.inkDim,
                     letterSpacing: 0,
                   ),
                   maxLines: 1,
@@ -253,18 +270,14 @@ class _DayCell extends StatelessWidget {
                     ? Icons.directions_walk_rounded
                     : Icons.directions_run_rounded,
                 size: 8,
-                color: isToday
-                    ? c.accentInk.withValues(alpha: 0.7)
-                    : c.inkDim,
+                color: isToday ? c.accentInk.withValues(alpha: 0.7) : c.inkDim,
               ),
             ] else if (plannedRun != null) ...[
               const SizedBox(height: 2),
               Icon(
                 Icons.directions_run_rounded,
                 size: 8,
-                color: isToday
-                    ? c.accentInk.withValues(alpha: 0.5)
-                    : c.inkMute,
+                color: isToday ? c.accentInk.withValues(alpha: 0.5) : c.inkMute,
               ),
             ],
           ],
