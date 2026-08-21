@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:fitness_planner/domain/models/exercise.dart';
 import 'package:fitness_planner/domain/models/superset.dart';
 import 'package:fitness_planner/domain/models/workout.dart';
+import 'package:fitness_planner/domain/models/workout_icons.dart';
 import 'package:fitness_planner/domain/models/default_warmup.dart';
 import 'package:fitness_planner/domain/models/exercise_library.dart';
 import 'package:fitness_planner/providers/workout_providers.dart';
@@ -26,6 +27,7 @@ class _CreateWorkoutScreenState extends State<CreateWorkoutScreen> {
   final List<Superset> _exercises = [];
   final List<Exercise> _warmup = [];
   bool _warmupExpanded = false;
+  String? _selectedIcon;
 
   @override
   void initState() {
@@ -33,6 +35,7 @@ class _CreateWorkoutScreenState extends State<CreateWorkoutScreen> {
     final existing = widget.existingWorkout;
     if (existing != null) {
       _nameCtrl.text = existing.name;
+      _selectedIcon = existing.icon;
       // Deep-copy each superset so edits don't mutate the cached Workout.
       _exercises.addAll(existing.exercises.map((s) => Superset(
             id: s.id,
@@ -197,6 +200,7 @@ class _CreateWorkoutScreenState extends State<CreateWorkoutScreen> {
       name: name,
       exercises: List.of(_exercises),
       warmup: List.of(_warmup),
+      icon: _selectedIcon,
     );
     Navigator.push<bool>(
       context,
@@ -363,6 +367,32 @@ class _CreateWorkoutScreenState extends State<CreateWorkoutScreen> {
                               ),
                               onSubmitted: (_) =>
                                   FocusScope.of(context).unfocus(),
+                            ),
+                            const SizedBox(height: 18),
+                            Text(
+                              'ICON',
+                              style: bodyStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w500,
+                                color: c.inkMute,
+                                letterSpacing: 0.8,
+                              ),
+                            ),
+                            const SizedBox(height: 10),
+                            Row(
+                              children: [
+                                for (final entry
+                                    in kWorkoutIcons.entries) ...[
+                                  _IconSwatch(
+                                    icon: entry.value,
+                                    selected:
+                                        _selectedIcon == entry.key,
+                                    onTap: () => setState(
+                                        () => _selectedIcon = entry.key),
+                                  ),
+                                  const SizedBox(width: 10),
+                                ],
+                              ],
                             ),
                           ],
                         ),
@@ -570,6 +600,41 @@ class _CreateWorkoutScreenState extends State<CreateWorkoutScreen> {
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+// ─── Workout icon swatch ──────────────────────────────────────────────
+class _IconSwatch extends StatelessWidget {
+  final IconData icon;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _IconSwatch({
+    required this.icon,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final c = AppThemeData.of(context).c;
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 44,
+        height: 44,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: selected ? c.accent : c.surfaceAlt,
+          border: selected ? null : Border.all(color: c.hairline),
+        ),
+        child: Icon(
+          icon,
+          size: 20,
+          color: selected ? c.accentInk : c.inkDim,
         ),
       ),
     );

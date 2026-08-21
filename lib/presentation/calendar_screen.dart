@@ -7,19 +7,21 @@ import '../domain/models/run_override.dart';
 import '../domain/models/planned_run.dart';
 import '../domain/models/workout.dart';
 import '../domain/models/run_session.dart';
+import '../domain/models/workout_session.dart';
 import '../domain/schedule/schedule_logic.dart';
 import '../providers/mesocycle_providers.dart';
 import '../providers/workout_providers.dart';
 import '../providers/run_providers.dart';
+import '../providers/session_providers.dart';
 import 'run_detail_screen.dart';
 import 'record_run_screen.dart';
 import '../theme/app_theme.dart';
 import 'mesocycle_setup_screen.dart';
-import 'warmup_screen.dart';
-import 'workout_session_screen.dart';
+import 'workout_start_preview_screen.dart';
 import 'widgets/app_widgets.dart';
 import 'widgets/month_grid.dart';
 import 'widgets/reminder_picker.dart';
+import 'widgets/session_breakdown.dart';
 import 'widgets/workout_picker.dart';
 
 class CalendarScreen extends ConsumerStatefulWidget {
@@ -47,6 +49,7 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
     final runOverrides = ref.watch(runOverridesProvider).asData?.value ?? [];
     final workouts = ref.watch(workoutsProvider).asData?.value ?? [];
     final runs = ref.watch(runsProvider).asData?.value ?? [];
+    final sessions = ref.watch(sessionsProvider).asData?.value ?? [];
 
     final overrideMap = <String, DayOverride>{};
     for (final o in overrides) {
@@ -57,6 +60,7 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
       runOverrideMap[_dateKey(o.date)] = o;
     }
     final workoutNames = <String, String>{for (final w in workouts) w.id: w.name};
+    final workoutIcons = <String, String?>{for (final w in workouts) w.id: w.icon};
     final workoutMap = <String, Workout>{for (final w in workouts) w.id: w};
 
     // Resolves the planned run for a date via template + override (rest-week aware).
@@ -69,6 +73,13 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
     for (final r in runs) {
       final key = _dateKey(r.startedAt);
       runsByDay.putIfAbsent(key, () => []).add(r);
+    }
+
+    // Group completed workout sessions by local calendar day.
+    final workoutSessionsByDay = <String, List<WorkoutSession>>{};
+    for (final s in sessions) {
+      final key = _dateKey(s.startedAt);
+      workoutSessionsByDay.putIfAbsent(key, () => []).add(s);
     }
 
     return Scaffold(
@@ -96,8 +107,10 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
                             meso: meso,
                             overrideForDate: (date) => overrideMap[_dateKey(date)],
                             workoutNames: workoutNames,
+                            workoutIcons: workoutIcons,
                             plannedRunForDate: plannedRunFor,
                             runsByDay: runsByDay,
+                            workoutSessionsByDay: workoutSessionsByDay,
                             onDayTap: (date, workoutId, workoutName) => _showDaySheet(
                               context,
                               date: date,
@@ -110,6 +123,10 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
                               plannedRun: plannedRunFor(date),
                               hasRunOverride:
                                   runOverrideMap.containsKey(_dateKey(date)),
+                              sessionForDate: () {
+                                final s = workoutSessionsByDay[_dateKey(date)];
+                                return (s == null || s.isEmpty) ? null : s.first;
+                              }(),
                             ),
                           ),
                           const SizedBox(height: 32),
@@ -195,6 +212,7 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
     required List<RunSession> runsForDate,
     required PlannedRun? plannedRun,
     required bool hasRunOverride,
+    required WorkoutSession? sessionForDate,
   }) {
     final c = AppThemeData.of(context).c;
     final hasOverride = overrideMap.containsKey(_dateKey(date));
@@ -240,7 +258,8 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
             ),
             const SizedBox(height: 4),
             Text(
-              workoutId != null ? (workout?.name ?? 'Workout') : 'Rest day',
+              sessionForDate?.workoutName ??
+                  (workoutId != null ? (workout?.name ?? 'Workout') : 'Rest day'),
               style: displayStyle(
                   fontSize: 24,
                   fontWeight: FontWeight.w500,
@@ -248,7 +267,20 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
                   letterSpacing: -0.4),
             ),
             const SizedBox(height: 20),
-            if (workout != null) ...[
+            if (sessionForDate != null) ...[
+              Text(
+                'COMPLETED',
+                style: bodyStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  color: c.inkMute,
+                  letterSpacing: 0.8,
+                ),
+              ),
+              const SizedBox(height: 8),
+              SessionBreakdown(sets: sessionForDate.sets),
+              const SizedBox(height: 10),
+            ] else if (workout != null) ...[
               AppButton(
                 label: 'Start workout',
                 icon: Icons.play_arrow_rounded,
@@ -258,14 +290,14 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (_) => workout.warmup.isNotEmpty
-                          ? WarmupScreen(workout: workout)
-                          : WorkoutSessionScreen(workout: workout),
+                      builder: (_) => WorkoutStartPreviewScreen(workout: workout),
                     ),
                   );
                 },
               ),
               const SizedBox(height: 10),
+            ],
+            if (workout != null) ...[
               AppButton(
                 label: 'Move to another date',
                 kind: ButtonKind.outline,
