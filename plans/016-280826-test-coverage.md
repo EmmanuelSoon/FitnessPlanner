@@ -1,5 +1,13 @@
 # 016 — Test Coverage
 
+## Progress
+
+- [x] **PR 1 — Test infra + domain layer** — [#37](https://github.com/EmmanuelSoon/FitnessPlanner/pull/37) (branch `test/domain-layer-coverage`)
+- [ ] PR 2 — Repository / data layer
+- [ ] PR 3 — Providers / state notifiers
+- [ ] PR 4 — Widget tests: core workout flow
+- [ ] PR 5 — Widget tests: calendar, mesocycle, runs, shared widgets
+
 ## Context
 
 The app has zero real tests today — `test/widget_test.dart` is an empty stub
@@ -46,7 +54,15 @@ PRs that can land independently. Each PR should leave `flutter analyze` and
 - Add a `flutter test` step to `.github/workflows/flutter_ci.yml` (before the
   `Build APK` step) so coverage from PR 1 onward is enforced in CI.
 
-## PR 1 — Test infra + domain layer
+## PR 1 — Test infra + domain layer — DONE ([#37](https://github.com/EmmanuelSoon/FitnessPlanner/pull/37))
+
+Landed scoped down from the shared-infra section above: `mocktail` and the
+Hive temp-dir helper aren't used by any PR-1 test, so they were deferred to
+PR 2/PR 3 (added exactly when first consumed) rather than carried as unused
+infrastructure. Only the CI `flutter test` step landed in PR 1.
+`exercise_library_test.dart` only checks the preset list is well-formed —
+the keyword search itself lives in `exercise_library_picker.dart` (a
+widget), not in the domain layer, so that test moved to PR 5.
 
 - Wire up the shared infra above.
 - `test/domain/schedule/schedule_logic_test.dart`:
@@ -73,7 +89,8 @@ PRs that can land independently. Each PR should leave `flutter analyze` and
 
 ## PR 2 — Repository / data layer
 
-Using the temp-dir Hive helper from PR 1, for each of `WorkoutRepository`,
+Adds `test/support/hive_test_setup.dart` (deferred from PR 1, see above).
+Using that temp-dir Hive helper, for each of `WorkoutRepository`,
 `SessionRepository`, `MesocycleRepository`, `OverrideRepository`,
 `RunOverrideRepository`, `RunRepository`:
 - `getAll()` returns `[]` on an empty box.
@@ -85,6 +102,8 @@ Using the temp-dir Hive helper from PR 1, for each of `WorkoutRepository`,
   `.get`, `.clear`; `SessionRepository.getAll()` sort order by `startedAt`).
 
 ## PR 3 — Providers / state notifiers
+
+Adds `mocktail` as a dev dependency (deferred from PR 1, see above).
 
 - Hand-write in-memory fakes for each repository (implement the same public
   methods backed by a `Map`/`List`) rather than hitting real Hive — keeps
@@ -136,8 +155,9 @@ Using `ProviderScope` overrides with the PR 3 fakes:
 
 ## Notes / open questions to confirm before/while implementing
 
-- `mocktail` will be added as a new dev dependency (PR 1) — flag this in the
-  PR description since it's a new package, not just tests.
+- `mocktail` will be added as a new dev dependency (PR 3, deferred from the
+  original PR 1 plan) — flag this in the PR description since it's a new
+  package, not just tests.
 - Widget tests (PR 4/5) skip real Hive and real `NotificationService`/`health`
   plugin calls by construction (fakes/mocks), so they won't catch adapter or
   plugin-channel issues — that's intentionally covered by PR 2 instead.
