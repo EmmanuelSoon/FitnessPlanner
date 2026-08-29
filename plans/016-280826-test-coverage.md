@@ -4,7 +4,7 @@
 
 - [x] **PR 1 — Test infra + domain layer** — [#37](https://github.com/EmmanuelSoon/FitnessPlanner/pull/37) (branch `test/domain-layer-coverage`)
 - [x] **PR 2 — Repository / data layer** — [#39](https://github.com/EmmanuelSoon/FitnessPlanner/pull/39) (branch `test/repository-layer-coverage`)
-- [ ] PR 3 — Providers / state notifiers
+- [x] **PR 3 — Providers / state notifiers** — branch `test/provider-coverage`
 - [ ] PR 4 — Widget tests: core workout flow
 - [ ] PR 5 — Widget tests: calendar, mesocycle, runs, shared widgets
 
@@ -101,9 +101,22 @@ Using that temp-dir Hive helper, for each of `WorkoutRepository`,
 - Any repository-specific query methods (e.g. `OverrideRepository.forMeso`,
   `.get`, `.clear`; `SessionRepository.getAll()` sort order by `startedAt`).
 
-## PR 3 — Providers / state notifiers
+## PR 3 — Providers / state notifiers — DONE
 
 Adds `mocktail` as a dev dependency (deferred from PR 1, see above).
+
+Deviation from the plan: `NotificationService.instance` was a hard `static
+final` singleton called directly from `mesocycle_providers.dart`, with no
+seam for `ProviderScope` to substitute a mocktail fake. Added a small
+`notificationServiceProvider` in `notification_service.dart` and changed
+`rescheduleNotifications` to read it via `ref.read(...)` instead of the
+static singleton — the only production-code change in this PR. `main.dart`'s
+`init()` call and `reminder_picker.dart`'s `requestPermissions()` call were
+left untouched (out of scope, not exercised by these tests).
+
+`HealthService` is only called from `run_list_screen.dart` (a widget), not
+from `run_providers.dart` itself, so it wasn't mocked here — that's PR 4/5's
+concern instead.
 
 - Hand-write in-memory fakes for each repository (implement the same public
   methods backed by a `Map`/`List`) rather than hitting real Hive — keeps
