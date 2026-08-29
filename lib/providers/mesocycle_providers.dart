@@ -280,7 +280,7 @@ Future<void> rescheduleNotifications(Ref ref, List<Mesocycle> mesoList) async {
   if (reminderState == null) return;
 
   final activeMeso = meso;
-  await NotificationService.instance.rescheduleAll(
+  await ref.read(notificationServiceProvider).rescheduleAll(
     meso: activeMeso,
     overrideForDate: (date) =>
         activeMeso != null ? overrideRepo.get(activeMeso.id, date) : null,
