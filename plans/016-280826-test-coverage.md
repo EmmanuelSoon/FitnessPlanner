@@ -3,7 +3,7 @@
 ## Progress
 
 - [x] **PR 1 — Test infra + domain layer** — [#37](https://github.com/EmmanuelSoon/FitnessPlanner/pull/37) (branch `test/domain-layer-coverage`)
-- [ ] PR 2 — Repository / data layer
+- [x] **PR 2 — Repository / data layer** — [#39](https://github.com/EmmanuelSoon/FitnessPlanner/pull/39) (branch `test/repository-layer-coverage`)
 - [ ] PR 3 — Providers / state notifiers
 - [ ] PR 4 — Widget tests: core workout flow
 - [ ] PR 5 — Widget tests: calendar, mesocycle, runs, shared widgets
