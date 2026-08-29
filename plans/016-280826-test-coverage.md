@@ -5,7 +5,7 @@
 - [x] **PR 1 — Test infra + domain layer** — [#37](https://github.com/EmmanuelSoon/FitnessPlanner/pull/37) (branch `test/domain-layer-coverage`)
 - [x] **PR 2 — Repository / data layer** — [#39](https://github.com/EmmanuelSoon/FitnessPlanner/pull/39) (branch `test/repository-layer-coverage`)
 - [x] **PR 3 — Providers / state notifiers** — [#40](https://github.com/EmmanuelSoon/FitnessPlanner/pull/40) (branch `test/provider-coverage`)
-- [ ] PR 4 — Widget tests: core workout flow
+- [x] **PR 4 — Widget tests: core workout flow** — [#41](https://github.com/EmmanuelSoon/FitnessPlanner/pull/41) (branch `test/widget-workout-flow`)
 - [ ] PR 5 — Widget tests: calendar, mesocycle, runs, shared widgets
 
 ## Context
@@ -136,9 +136,9 @@ concern instead.
   - `run_providers.dart`, `session_providers.dart` — CRUD + derived state.
   - `reminder_provider.dart`, `theme_provider.dart` — state persistence.
 
-## PR 4 — Widget tests: core workout flow
+## PR 4 — Widget tests: core workout flow — DONE
 
-Using `ProviderScope` overrides with the PR 3 fakes:
+Using `ProviderScope`/`ProviderContainer` overrides with the PR 3 fakes:
 - `create_workout.dart` — form validation (required fields, optional weight),
   saving a workout with a superset.
 - `workout_list_screen.dart` — renders saved workouts, edit and delete
@@ -150,6 +150,27 @@ Using `ProviderScope` overrides with the PR 3 fakes:
   session logged.
 - `history_screen.dart` / `session_detail_screen.dart` — list of past
   sessions, logged sets shown per exercise.
+
+Findings while implementing (no production code changed in this PR):
+- `workout_session_screen.dart` calls `WakelockPlus`/`AudioPlayer`/
+  `Vibration` directly with no platform channel mocked under `flutter_test`.
+  Verified empirically (a throwaway probe test) that this never throws or
+  fails a test — no mock channel setup was needed, contrary to the original
+  plan assumption.
+- `flutter_test`'s default 800×600 surface, and even a real device width
+  (~412), overflow several screens (`workout_session_screen.dart`'s hero
+  numbers, `workout_complete_screen.dart`'s headline) because the app's
+  custom fonts (SpaceGrotesk/Manrope) aren't loaded under test, so text
+  falls back to a substitute font with wider glyph metrics than production.
+  `test/support/pump_app.dart`'s shared `pumpApp` helper sets a wider-than-
+  device 600×915 surface by default to route around this test-only
+  artifact — it is not a real layout bug.
+- `WorkoutStartPreviewScreen` reads `sessionsProvider` synchronously in
+  `initState` to prefill reps/weight from the last session. A fresh
+  `ProviderScope` hasn't resolved that provider by the first frame, so
+  `pumpApp` also accepts a pre-built `container` (warmed with
+  `await container.read(sessionsProvider.future)` first) for screens with
+  this pattern.
 
 ## PR 5 — Widget tests: calendar, mesocycle, runs, shared widgets
 
