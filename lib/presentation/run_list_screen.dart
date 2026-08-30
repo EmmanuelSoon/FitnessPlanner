@@ -145,7 +145,8 @@ class _RunListScreenState extends ConsumerState<RunListScreen> {
     try {
       // Fetch the last 90 days by default.
       final since = DateTime.now().subtract(const Duration(days: 90));
-      final imported = await HealthService.instance.fetchRuns(since: since);
+      final imported =
+          await ref.read(healthServiceProvider).fetchRuns(since: since);
 
       if (!mounted) return;
 

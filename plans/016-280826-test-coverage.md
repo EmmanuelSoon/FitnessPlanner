@@ -6,7 +6,7 @@
 - [x] **PR 2 — Repository / data layer** — [#39](https://github.com/EmmanuelSoon/FitnessPlanner/pull/39) (branch `test/repository-layer-coverage`)
 - [x] **PR 3 — Providers / state notifiers** — [#40](https://github.com/EmmanuelSoon/FitnessPlanner/pull/40) (branch `test/provider-coverage`)
 - [x] **PR 4 — Widget tests: core workout flow** — [#41](https://github.com/EmmanuelSoon/FitnessPlanner/pull/41) (branch `test/widget-workout-flow`)
-- [ ] PR 5 — Widget tests: calendar, mesocycle, runs, shared widgets
+- [x] **PR 5 — Widget tests: calendar, mesocycle, runs, shared widgets** (branch `test/widget-coverage-pt2`)
 
 ## Context
 
@@ -173,6 +173,14 @@ Findings while implementing (no production code changed in this PR):
   this pattern.
 
 ## PR 5 — Widget tests: calendar, mesocycle, runs, shared widgets
+
+Deviation from the plan: `run_list_screen.dart` called `HealthService.instance`
+directly (a hard singleton, same situation `NotificationService` was in
+before PR 3). Added a `healthServiceProvider` in `health_service.dart`
+mirroring PR 3's `notificationServiceProvider`, and changed
+`run_list_screen.dart` to read it via `ref.read(...)` so the sync/import flow
+could be mocktail-tested instead of hitting the real Health Connect plugin
+under `flutter_test`.
 
 - `calendar_screen.dart` + `widgets/month_grid.dart` — month navigation, day
   indicators for workouts/runs, override actions (set/rest/move) drive the
