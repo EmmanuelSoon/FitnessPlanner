@@ -1,5 +1,10 @@
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:health/health.dart';
 import '../domain/models/run_session.dart';
+
+final healthServiceProvider = Provider<HealthService>((ref) {
+  return HealthService.instance;
+});
 
 /// Wraps the Health Connect (Android) integration via the `health` package.
 ///
