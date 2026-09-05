@@ -155,6 +155,15 @@ class _CreateWorkoutScreenState extends State<CreateWorkoutScreen> {
     });
   }
 
+  /// Moves the whole superset group at [oldIndex] to [newIndex] (groups
+  /// reorder as a unit; exercises inside a group stay together).
+  void _reorderSupersets(int oldIndex, int newIndex) {
+    setState(() {
+      final item = _exercises.removeAt(oldIndex);
+      _exercises.insert(newIndex, item);
+    });
+  }
+
   void _addWarmupExercise() {
     setState(() {
       _warmup.add(
@@ -222,64 +231,64 @@ class _CreateWorkoutScreenState extends State<CreateWorkoutScreen> {
 
   // ─── Exercise list rendering ─────────────────────────────────────────
 
-  List<Widget> _buildExerciseCards() {
-    final items =
-        <
-          ({int supersetIdx, Superset superset, int exIdx, Exercise exercise})
-        >[];
+  /// Builds a reorderable list of superset groups. Each item is a whole
+  /// [Superset] (one or more exercise cards linked together); dragging moves
+  /// the whole group, exercises inside a group never get reordered by drag.
+  Widget _buildExerciseList() {
+    return ReorderableListView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      buildDefaultDragHandles: false,
+      onReorderItem: _reorderSupersets,
+      itemCount: _exercises.length,
+      itemBuilder: (context, si) {
+        final superset = _exercises[si];
+        final isSingle = superset.exercises.length == 1;
+        final startIndex = _exercises
+            .sublist(0, si)
+            .fold<int>(0, (sum, s) => sum + s.exercises.length);
+        final isLastSuperset = si == _exercises.length - 1;
 
-    for (int si = 0; si < _exercises.length; si++) {
-      for (int ei = 0; ei < _exercises[si].exercises.length; ei++) {
-        items.add((
-          supersetIdx: si,
-          superset: _exercises[si],
-          exIdx: ei,
-          exercise: _exercises[si].exercises[ei],
-        ));
-      }
-    }
+        final children = <Widget>[];
+        for (int ei = 0; ei < superset.exercises.length; ei++) {
+          final isFirstInGroup = ei == 0;
+          final isLastInGroup = ei == superset.exercises.length - 1;
 
-    final result = <Widget>[];
+          children.add(
+            _ExerciseSlotCard(
+              key: ValueKey('${superset.id}-$ei'),
+              superset: superset,
+              exercise: superset.exercises[ei],
+              displayIndex: startIndex + ei + 1,
+              showSets: isSingle || isFirstInGroup,
+              showRest: isSingle || isLastInGroup,
+              onRemove: () => _removeExerciseFromSuperset(si, ei),
+            ),
+          );
 
-    for (int i = 0; i < items.length; i++) {
-      final item = items[i];
-      final isSingle = item.superset.exercises.length == 1;
-      final isFirstInGroup = item.exIdx == 0;
-      final isLastInGroup = item.exIdx == item.superset.exercises.length - 1;
+          if (!isLastInGroup) {
+            children.add(
+              _LinkRow(isLinked: true, onUnlink: () => _ungroupAt(si, ei)),
+            );
+          }
+        }
 
-      result.add(
-        _ExerciseSlotCard(
-          key: ValueKey('${item.supersetIdx}-${item.exIdx}'),
-          superset: item.superset,
-          exercise: item.exercise,
-          displayIndex: i + 1,
-          showSets: isSingle || isFirstInGroup,
-          showRest: isSingle || isLastInGroup,
-          onRemove: () =>
-              _removeExerciseFromSuperset(item.supersetIdx, item.exIdx),
-        ),
-      );
+        children.add(
+          isLastSuperset
+              ? const SizedBox(height: 12)
+              : _LinkRow(isLinked: false, onLink: () => _groupWithNext(si)),
+        );
 
-      final isLastExerciseOverall = i == items.length - 1;
-      if (!isLastExerciseOverall) {
-        final nextItem = items[i + 1];
-        final isLinked = item.supersetIdx == nextItem.supersetIdx;
-
-        result.add(
-          _LinkRow(
-            isLinked: isLinked,
-            onLink: isLinked ? null : () => _groupWithNext(item.supersetIdx),
-            onUnlink: isLinked
-                ? () => _ungroupAt(item.supersetIdx, item.exIdx)
-                : null,
+        return ReorderableDelayedDragStartListener(
+          key: ValueKey(superset.id),
+          index: si,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: children,
           ),
         );
-      } else {
-        result.add(const SizedBox(height: 12));
-      }
-    }
-
-    return result;
+      },
+    );
   }
 
   // ─── Build ───────────────────────────────────────────────────────────
@@ -529,7 +538,7 @@ class _CreateWorkoutScreenState extends State<CreateWorkoutScreen> {
                         padding: const EdgeInsets.symmetric(horizontal: 16),
                         child: Column(
                           children: [
-                            ..._buildExerciseCards(),
+                            _buildExerciseList(),
                             GestureDetector(
                               onTap: _openExercisePicker,
                               child: Container(
