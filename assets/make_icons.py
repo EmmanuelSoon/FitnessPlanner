@@ -38,13 +38,15 @@ RAMP = [               # muted -> vivid, shortest bar to tallest
     (255, 205, 80),    # #FFCD50
 ]
 
-MARK_W_SQ = 0.62  # mark width as a fraction of the square icon
-MARK_W_FG = 0.50  # smaller, to stay inside the adaptive-icon safe circle
+MARK_W_SQ = 0.64  # mark width as a fraction of the square icon
+MARK_W_FG = 0.53  # smaller, to stay inside the adaptive-icon safe circle
 
-# Bar layout, as fractions of the mark's own width.
-BAR_W = 0.190
-GAP = 0.080
-BAR_H = [0.331, 0.513, 0.695, 0.877]
+# Bar layout, as fractions of the mark's own width. Bars are wide with narrow
+# gaps so the mark carries enough ink to hold its own next to other launcher
+# icons; the height range stays wide enough to still read as ascending.
+BAR_W = 0.220
+GAP = 0.040
+BAR_H = [0.420, 0.573, 0.725, 0.877]
 MARK_ASPECT = BAR_H[-1]  # mark height / mark width
 
 
