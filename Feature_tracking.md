@@ -40,7 +40,7 @@ The minimum viable app. All of these must be done before the app is usable.
 - [x] Completion summary screen after workout (total time, volume lifted where applicable)
 - [ ] Duplicate workout — copy an existing workout as a starting point
 - [x] Exercise library — preset list of exercises with categories (chest, legs, back…), including common calisthenics movements (pull-ups, dips, push-up variations, etc.). Includes a keyword search function. 
-- [ ] Reorder exercises via drag-and-drop
+- [x] Reorder exercises via drag-and-drop
 - [x] Calendar view of workouts with reminders (notify user of workout for the day)
 - [x] Allow instead of reps, it is a timer for hold exercises
 - [x] link running to app — manual entry + Health Connect import from Samsung watch; distance, duration, pace, avg HR, calories, cadence, run type, notes; run indicators on calendar

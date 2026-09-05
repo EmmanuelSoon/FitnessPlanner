@@ -16,6 +16,23 @@ Future<void> _addExerciseByTyping(WidgetTester tester, String name) async {
   await tester.pumpAndSettle();
 }
 
+/// Drives a long-press-then-drag gesture: holds still long enough to satisfy
+/// [ReorderableDelayedDragStartListener]'s long-press recognizer, then moves.
+Future<void> _longPressDrag(
+  WidgetTester tester,
+  Finder finder,
+  Offset moveBy,
+) async {
+  final gesture = await tester.startGesture(tester.getCenter(finder));
+  await tester.pump(const Duration(milliseconds: 600));
+  await gesture.moveBy(moveBy);
+  await tester.pump(const Duration(milliseconds: 50));
+  await gesture.moveBy(moveBy);
+  await tester.pump(const Duration(milliseconds: 50));
+  await gesture.up();
+  await tester.pumpAndSettle();
+}
+
 void main() {
   late FakeWorkoutRepository fakeRepo;
 
@@ -83,5 +100,56 @@ void main() {
 
     // Back on CreateWorkoutScreen (the root route in this test).
     expect(find.text('New workout'), findsOneWidget);
+  });
+
+  testWidgets('drag-and-drop reorders standalone exercises', (tester) async {
+    await pumpCreateWorkout(tester);
+    await tester.enterText(find.byType(TextField).first, 'Push Day');
+
+    await _addExerciseByTyping(tester, 'Exercise A');
+    await _addExerciseByTyping(tester, 'Exercise B');
+    await _addExerciseByTyping(tester, 'Exercise C');
+
+    // Drag "Exercise A" down past "Exercise B" so the order becomes B, A, C.
+    await _longPressDrag(tester, find.text('Exercise A'), const Offset(0, 220));
+
+    await tester.tap(find.byIcon(Icons.check_rounded));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Save workout'));
+    await tester.pumpAndSettle();
+
+    final saved = fakeRepo.store.values.single;
+    expect(
+      saved.exercises.map((s) => s.exercises.single.name),
+      ['Exercise B', 'Exercise A', 'Exercise C'],
+    );
+  });
+
+  testWidgets('dragging a superset group moves it as a unit', (tester) async {
+    await pumpCreateWorkout(tester);
+    await tester.enterText(find.byType(TextField).first, 'Push Day');
+
+    await _addExerciseByTyping(tester, 'Exercise A');
+    await _addExerciseByTyping(tester, 'Exercise B');
+    await _addExerciseByTyping(tester, 'Exercise C');
+
+    // Group A and B into a superset, then drag that group below C.
+    await tester.tap(find.text('Group with next').first);
+    await tester.pumpAndSettle();
+
+    await _longPressDrag(tester, find.text('Exercise A'), const Offset(0, 320));
+
+    await tester.tap(find.byIcon(Icons.check_rounded));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Save workout'));
+    await tester.pumpAndSettle();
+
+    final saved = fakeRepo.store.values.single;
+    expect(saved.exercises, hasLength(2));
+    expect(saved.exercises[0].exercises.map((e) => e.name), ['Exercise C']);
+    expect(
+      saved.exercises[1].exercises.map((e) => e.name),
+      ['Exercise A', 'Exercise B'],
+    );
   });
 }
