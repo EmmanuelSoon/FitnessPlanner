@@ -1,51 +1,79 @@
-from PIL import Image
+"""Generates the PlateUp app icon (ascending plates) into assets/.
 
-SRC   = r'c:\Users\emman\Desktop\Plates _ bare _ light.png'
-FG    = r'D:\Git Repos\fitnessPlanner\FitnessPlanner\assets\icon_fg.png'
-ICON  = r'D:\Git Repos\fitnessPlanner\FitnessPlanner\assets\icon.png'
-SIZE  = 1024
-MINT  = (230, 237, 231, 255)   # #E6EDE7
+Self-contained: the mark is drawn from primitives, so this can be re-run by
+anyone without external source images.
 
-# Plate bounds (all 3 plates, no label)
-PLATE_TOP, PLATE_BOT   = 174, 438   # top=first plate top, bot=last plate bottom
-PLATE_LEFT, PLATE_RIGHT = 153, 530
-BUFFER = 8  # small buffer so we don't clip anti-aliased edges
+    uv run --with Pillow python assets/make_icons.py
 
-# 1. Crop just the plates (tight, no label)
-src = Image.open(SRC).convert('RGBA')
-region = src.crop((
-    PLATE_LEFT  - BUFFER,
-    PLATE_TOP   - BUFFER,
-    PLATE_RIGHT + BUFFER,
-    PLATE_BOT   + BUFFER,
-))
+Then regenerate the platform assets:
 
-# 2. Scale plates so they fill ~58% of the output width
-target_w = int(SIZE * 0.58)
-pw, ph = region.size
-scale = target_w / pw
-target_h = int(ph * scale)
-region = region.resize((target_w, target_h), Image.LANCZOS)
+    dart run flutter_launcher_icons
 
-# 3. Remove white pixels -> transparent
-px = region.load()
-TOL = 8   # tight — plates have near-white edges; only remove true white background
-for y in range(target_h):
-    for x in range(target_w):
-        r, g, b, a = px[x, y]
-        if abs(r-255) <= TOL and abs(g-255) <= TOL and abs(b-255) <= TOL:
-            px[x, y] = (0, 0, 0, 0)
+Outputs:
+  assets/icon.png     1024x1024, mark on the ground colour (legacy/iOS icon)
+  assets/icon_fg.png  1024x1024, transparent, mark only (adaptive foreground)
 
-# 4. Paste centered on a transparent canvas -> icon_fg.png
-fg = Image.new('RGBA', (SIZE, SIZE), (0, 0, 0, 0))
-ox = (SIZE - target_w) // 2
-oy = (SIZE - target_h) // 2
-fg.paste(region, (ox, oy), region)
-fg.save(FG)
-print(f'Saved {FG}  (plates {target_w}x{target_h} at {ox},{oy})')
+Four bars rising left to right, each a step brighter than the last, so the
+mark reads as progression rather than as a static object.
 
-# 5. Composite over mint background -> icon.png
-bg = Image.new('RGBA', (SIZE, SIZE), MINT)
-bg.alpha_composite(fg)
-bg.convert('RGB').save(ICON)
-print(f'Saved {ICON}')
+MARK_W_FG is smaller than MARK_W_SQ on purpose. Android adaptive icons are
+masked to an arbitrary shape and only a centre circle of ~66% diameter is
+guaranteed visible. The tallest bar's top corner is the furthest point from
+centre, so the foreground is scaled until that corner sits inside that circle.
+"""
+
+from pathlib import Path
+from PIL import Image, ImageDraw
+
+OUT = Path(__file__).parent
+SIZE = 1024
+SS = 4  # supersample factor, for clean anti-aliased edges
+W = SIZE * SS
+
+GROUND = (16, 18, 22)  # #101216
+RAMP = [               # muted -> vivid, shortest bar to tallest
+    (120, 84, 46),     # #78542E
+    (190, 124, 44),    # #BE7C2C
+    (240, 168, 44),    # #F0A82C
+    (255, 205, 80),    # #FFCD50
+]
+
+MARK_W_SQ = 0.62  # mark width as a fraction of the square icon
+MARK_W_FG = 0.50  # smaller, to stay inside the adaptive-icon safe circle
+
+# Bar layout, as fractions of the mark's own width.
+BAR_W = 0.190
+GAP = 0.080
+BAR_H = [0.331, 0.513, 0.695, 0.877]
+MARK_ASPECT = BAR_H[-1]  # mark height / mark width
+
+
+def draw_mark(d: ImageDraw.ImageDraw, canvas: int, width_frac: float) -> None:
+    mw = canvas * width_frac
+    mh = mw * MARK_ASPECT
+    left = (canvas - mw) / 2
+    base = (canvas + mh) / 2  # baseline, so the mark is vertically centred
+
+    bw, gap = mw * BAR_W, mw * GAP
+    for i, hf in enumerate(BAR_H):
+        x = left + i * (bw + gap)
+        h = mw * hf
+        d.rounded_rectangle(
+            [x, base - h, x + bw, base], radius=bw / 2, fill=RAMP[i]
+        )
+
+
+def render(background, width_frac: float, path: Path) -> None:
+    im = Image.new("RGBA", (W, W), background)
+    draw_mark(ImageDraw.Draw(im), W, width_frac)
+    im = im.resize((SIZE, SIZE), Image.LANCZOS)
+    if background[3] == 255:
+        im.convert("RGB").save(path)
+    else:
+        im.save(path)
+    print(f"wrote {path}")
+
+
+if __name__ == "__main__":
+    render(GROUND + (255,), MARK_W_SQ, OUT / "icon.png")
+    render((0, 0, 0, 0), MARK_W_FG, OUT / "icon_fg.png")
