@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:fitness_planner/data/run_repository.dart';
 import 'package:fitness_planner/data/session_repository.dart';
 import 'package:fitness_planner/domain/models/logged_set.dart';
 import 'package:fitness_planner/domain/models/workout_session.dart';
@@ -25,21 +26,49 @@ Finder _exerciseChip(String label) =>
 
 void main() {
   late FakeSessionRepository fakeRepo;
+  late FakeRunRepository fakeRunRepo;
 
   setUp(() {
     fakeRepo = FakeSessionRepository();
+    fakeRunRepo = FakeRunRepository();
   });
 
   Future<void> pumpInsights(WidgetTester tester) => pumpApp(
         tester,
         const InsightsScreen(),
-        overrides: [sessionRepositoryProvider.overrideWithValue(fakeRepo)],
+        overrides: [
+          sessionRepositoryProvider.overrideWithValue(fakeRepo),
+          runRepositoryProvider.overrideWithValue(fakeRunRepo),
+        ],
       );
 
   testWidgets('shows the empty state when there are no sessions', (tester) async {
     await pumpInsights(tester);
 
     expect(find.text('No sessions yet'), findsOneWidget);
+  });
+
+  testWidgets('does not show the empty state when there are no workout sessions but a run is logged',
+      (tester) async {
+    fakeRunRepo.store['r1'] = buildRunSession(id: 'r1', startedAt: DateTime(2026, 1, 5));
+
+    await pumpInsights(tester);
+
+    expect(find.text('No sessions yet'), findsNothing);
+    expect(find.text('Strength'), findsOneWidget); // the mode toggle is showing
+  });
+
+  testWidgets('defaults to Running mode when there are runs but no workout sessions', (tester) async {
+    final thisWeek = _mondayOf(DateTime.now());
+    fakeRunRepo.store['r1'] = buildRunSession(
+      id: 'r1',
+      startedAt: thisWeek.add(const Duration(days: 1, hours: 7)),
+    );
+
+    await pumpInsights(tester);
+
+    expect(find.text('Distance over time'.toUpperCase()), findsOneWidget);
+    expect(find.text('5.0'), findsWidgets); // distance: strip cell + distance card
   });
 
   testWidgets('shows the trend for the most recently logged exercise by default', (tester) async {
@@ -87,6 +116,11 @@ void main() {
 
     expect(find.textContaining('Top set'), findsOneWidget);
 
+    // The exercise-trend card sits below the fold once the mode toggle and
+    // Recent records are on screen, so its chips aren't built yet — scroll
+    // them into the sliver's cache extent first.
+    await tester.scrollUntilVisible(_exerciseChip('Pull-up'), 300);
+    await tester.pumpAndSettle();
     await tester.tap(_exerciseChip('Pull-up'));
     await tester.pumpAndSettle();
 
@@ -135,6 +169,8 @@ void main() {
     // Pull-up is the most recently logged exercise, so it's selected by default.
     expect(find.textContaining('Best set'), findsOneWidget);
 
+    await tester.scrollUntilVisible(_exerciseChip('Bench Press'), 300);
+    await tester.pumpAndSettle();
     await tester.tap(_exerciseChip('Bench Press'));
     await tester.pumpAndSettle();
     expect(find.textContaining('Top set'), findsOneWidget);
@@ -298,5 +334,47 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Records'), findsOneWidget);
+  });
+
+  testWidgets(
+      'switching to Running mode shows the weekly running stats, distance/pace charts, and a fastest-pace record',
+      (tester) async {
+    fakeRepo.store['ws1'] = buildWorkoutSession(id: 'ws1', startedAt: DateTime(2026, 1, 5));
+    final thisWeek = _mondayOf(DateTime.now());
+    fakeRunRepo.store['r1'] = buildRunSession(
+      id: 'r1',
+      startedAt: thisWeek.add(const Duration(days: 1, hours: 7)),
+    ); // 5km / 30min = 6:00/km, per buildRunSession's defaults
+
+    await pumpInsights(tester);
+
+    await tester.tap(find.text('Running'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Distance over time'.toUpperCase()), findsOneWidget);
+    expect(find.text('Pace trend'.toUpperCase()), findsOneWidget);
+    expect(find.text('5.0'), findsWidgets); // distance: strip cell + distance card
+    expect(find.text('6:00'), findsWidgets); // avg pace: strip cell + fastest-pace PR card
+    expect(find.text('FASTEST PACE'), findsOneWidget);
+  });
+
+  testWidgets('Strength mode filters the fastest-pace record out of Recent records', (tester) async {
+    fakeRepo.store['ws1'] = buildWorkoutSession(id: 'ws1', startedAt: DateTime(2026, 1, 5));
+    fakeRunRepo.store['r1'] = buildRunSession(id: 'r1', startedAt: DateTime(2026, 1, 5));
+
+    await pumpInsights(tester);
+
+    expect(find.text('FASTEST PACE'), findsNothing);
+  });
+
+  testWidgets('shows a no-records message for Running when no runs are logged', (tester) async {
+    fakeRepo.store['ws1'] = buildWorkoutSession(id: 'ws1', startedAt: DateTime(2026, 1, 5));
+
+    await pumpInsights(tester);
+
+    await tester.tap(find.text('Running'));
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('No records yet — log a run'), findsOneWidget);
   });
 }

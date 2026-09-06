@@ -5,7 +5,7 @@
 - [x] **PR 1 — Insights tab shell + per-exercise strength trend**
 - [x] **PR 2 — Volume over time (tonnage / reps)**
 - [x] **PR 3 — Personal records**
-- [ ] **PR 4 — Running trends**
+- [x] **PR 4 — Running trends**
 - [ ] **PR 5 — Surface new PRs on Workout Complete**
 
 ## Context

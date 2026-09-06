@@ -248,23 +248,81 @@ void main() {
       expect(computePersonalRecords([session], []), isEmpty);
     });
 
-    test('accepts runs without using them yet — they change nothing about the result', () {
+    test('a single run sets a fastest-pace PR with no previous value', () {
       final run = RunSession(
         id: 'r1',
         startedAt: DateTime(2026, 3, 1),
         endedAt: DateTime(2026, 3, 1, 0, 30),
-        distanceMeters: 5000,
+        distanceMeters: 5000, // 30min / 5km = 360s/km
       );
-      final session = _session(
-        id: 's1',
+
+      final record = _find(
+        computePersonalRecords([], [run]),
+        PersonalRecordType.fastestPace,
+      );
+
+      expect(record.value, 360);
+      expect(record.previousValue, isNull);
+      expect(record.achievedAt, DateTime(2026, 3, 1));
+      expect(record.sessionId, 'r1');
+    });
+
+    test('a faster later run replaces the fastest-pace record', () {
+      final slow = RunSession(
+        id: 'r1',
         startedAt: DateTime(2026, 3, 1),
-        sets: [_weighted(weight: 60, reps: 8)],
+        endedAt: DateTime(2026, 3, 1, 0, 30),
+        distanceMeters: 5000, // 360s/km
+      );
+      final fast = RunSession(
+        id: 'r2',
+        startedAt: DateTime(2026, 3, 8),
+        endedAt: DateTime(2026, 3, 8, 0, 20),
+        distanceMeters: 5000, // 240s/km
       );
 
-      final withRun = computePersonalRecords([session], [run]);
-      final withoutRun = computePersonalRecords([session], []);
+      final record = _find(
+        computePersonalRecords([], [fast, slow]),
+        PersonalRecordType.fastestPace,
+      );
 
-      expect(withRun.length, withoutRun.length);
+      expect(record.value, 240);
+      expect(record.previousValue, 360);
+      expect(record.sessionId, 'r2');
+    });
+
+    test('a slower later run does not override the standing fastest-pace record', () {
+      final fast = RunSession(
+        id: 'r1',
+        startedAt: DateTime(2026, 3, 1),
+        endedAt: DateTime(2026, 3, 1, 0, 20),
+        distanceMeters: 5000, // 240s/km
+      );
+      final slow = RunSession(
+        id: 'r2',
+        startedAt: DateTime(2026, 3, 8),
+        endedAt: DateTime(2026, 3, 8, 0, 30),
+        distanceMeters: 5000, // 360s/km
+      );
+
+      final record = _find(
+        computePersonalRecords([], [fast, slow]),
+        PersonalRecordType.fastestPace,
+      );
+
+      expect(record.value, 240);
+      expect(record.sessionId, 'r1');
+    });
+
+    test('a zero-distance run has no pace and is excluded from the fastest-pace record', () {
+      final run = RunSession(
+        id: 'r1',
+        startedAt: DateTime(2026, 3, 1),
+        endedAt: DateTime(2026, 3, 1, 0, 30),
+        distanceMeters: 0,
+      );
+
+      expect(computePersonalRecords([], [run]), isEmpty);
     });
 
     test('orders records newest-achieved first', () {
