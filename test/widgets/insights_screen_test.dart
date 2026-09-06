@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -15,6 +16,12 @@ DateTime _mondayOf(DateTime dt) {
   final day = DateTime(dt.year, dt.month, dt.day);
   return day.subtract(Duration(days: day.weekday - DateTime.monday));
 }
+
+// The exercise-trend card's chip row is the only `Wrap` on the screen, so
+// scoping to it disambiguates an exercise name from any Recent records
+// card that happens to show the same exercise.
+Finder _exerciseChip(String label) =>
+    find.descendant(of: find.byType(Wrap), matching: find.text(label));
 
 void main() {
   late FakeSessionRepository fakeRepo;
@@ -40,8 +47,11 @@ void main() {
 
     await pumpInsights(tester);
 
-    expect(find.text('Bench Press'), findsOneWidget);
-    expect(find.text('60'), findsOneWidget);
+    expect(_exerciseChip('Bench Press'), findsOneWidget);
+    expect(
+      tester.widget<Text>(find.byKey(const ValueKey('exerciseTrendCurrentValue'))).data,
+      '60',
+    );
     expect(find.textContaining('Top set'), findsOneWidget);
   });
 
@@ -77,7 +87,7 @@ void main() {
 
     expect(find.textContaining('Top set'), findsOneWidget);
 
-    await tester.tap(find.text('Pull-up'));
+    await tester.tap(_exerciseChip('Pull-up'));
     await tester.pumpAndSettle();
 
     expect(find.textContaining('Best set'), findsOneWidget);
@@ -125,7 +135,7 @@ void main() {
     // Pull-up is the most recently logged exercise, so it's selected by default.
     expect(find.textContaining('Best set'), findsOneWidget);
 
-    await tester.tap(find.text('Bench Press'));
+    await tester.tap(_exerciseChip('Bench Press'));
     await tester.pumpAndSettle();
     expect(find.textContaining('Top set'), findsOneWidget);
 
@@ -234,9 +244,59 @@ void main() {
 
     await pumpInsights(tester);
 
+    // The row sits below the fold once Recent records is on screen, so it
+    // isn't built yet — scroll it into the sliver's cache extent first.
+    await tester.scrollUntilVisible(find.text('All sessions'), 300);
     await tester.tap(find.text('All sessions'));
     await tester.pumpAndSettle();
 
     expect(find.text('Push Day'), findsOneWidget);
+  });
+
+  testWidgets('shows a no-records message under Recent records when every set was skipped', (tester) async {
+    fakeRepo.store['ws1'] = WorkoutSession(
+      id: 'ws1',
+      workoutId: 'w1',
+      workoutName: 'Push Day',
+      startedAt: DateTime(2026, 1, 5),
+      endedAt: DateTime(2026, 1, 5, 1),
+      completed: true,
+      sets: [
+        LoggedSet(
+          exerciseName: 'Bench Press',
+          targetReps: 8,
+          targetWeight: 60,
+          actualReps: 8,
+          actualWeight: 60,
+          skipped: true,
+        ),
+      ],
+    );
+
+    await pumpInsights(tester);
+
+    expect(find.text('Recent records'.toUpperCase()), findsOneWidget);
+    expect(find.textContaining('No records yet'), findsOneWidget);
+  });
+
+  testWidgets('shows the top personal records under Recent records', (tester) async {
+    fakeRepo.store['ws1'] = buildWorkoutSession(id: 'ws1', startedAt: DateTime(2026, 1, 5));
+
+    await pumpInsights(tester);
+
+    expect(find.text('Recent records'.toUpperCase()), findsOneWidget);
+    expect(find.text('HEAVIEST WEIGHT'), findsOneWidget);
+    expect(find.text('Bench Press'), findsWidgets);
+  });
+
+  testWidgets('See all navigates to the full records screen', (tester) async {
+    fakeRepo.store['ws1'] = buildWorkoutSession(id: 'ws1', startedAt: DateTime(2026, 1, 5));
+
+    await pumpInsights(tester);
+
+    await tester.tap(find.text('See all'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Records'), findsOneWidget);
   });
 }

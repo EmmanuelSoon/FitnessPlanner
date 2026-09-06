@@ -2,6 +2,12 @@ import 'package:flutter/foundation.dart' show listEquals, setEquals;
 import 'package:flutter/material.dart';
 import 'package:fitness_planner/theme/app_theme.dart';
 
+/// A number with no meaningful decimal part shows as a bare integer
+/// ("75"); otherwise one decimal place ("62.5"). Shared by every insights
+/// card that prints a raw trend or record value.
+String fmtTrimmedNumber(double v) =>
+    v == v.roundToDouble() ? v.round().toString() : v.toStringAsFixed(1);
+
 // ─── Soft-area trend chart ─────────────────────────────────────────────
 //
 // A line with a soft gradient fill underneath, a baseline hairline, a live

@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:fitness_planner/domain/insights/exercise_trend.dart';
+import 'package:fitness_planner/domain/insights/personal_records.dart';
 import 'package:fitness_planner/domain/insights/volume_stats.dart';
 import 'package:fitness_planner/domain/models/workout_session.dart';
 import 'package:fitness_planner/presentation/all_sessions_screen.dart';
+import 'package:fitness_planner/presentation/records_screen.dart';
 import 'package:fitness_planner/presentation/widgets/app_widgets.dart';
 import 'package:fitness_planner/presentation/widgets/insights_charts.dart';
+import 'package:fitness_planner/presentation/widgets/pr_card.dart';
 import 'package:fitness_planner/providers/session_providers.dart';
 import 'package:fitness_planner/theme/app_theme.dart';
 
@@ -30,6 +33,7 @@ class _InsightsScreenState extends ConsumerState<InsightsScreen> {
   final Map<String, List<ExerciseTrendPoint>> _trendCache = {};
   List<WeekVolume>? _cachedWeeklyVolume;
   DateTime? _cachedWeekStart;
+  List<PersonalRecord>? _cachedRecords;
 
   List<String> _namesFor(List<WorkoutSession> sessions) {
     if (!identical(_cachedSessions, sessions)) {
@@ -37,8 +41,14 @@ class _InsightsScreenState extends ConsumerState<InsightsScreen> {
       _cachedNames = exerciseNamesLogged(sessions);
       _trendCache.clear();
       _cachedWeeklyVolume = null;
+      _cachedRecords = null;
     }
     return _cachedNames;
+  }
+
+  List<PersonalRecord> _recordsFor(List<WorkoutSession> sessions) {
+    _namesFor(sessions); // ensures the cache above is current for `sessions`
+    return _cachedRecords ??= computePersonalRecords(sessions, const []);
   }
 
   List<ExerciseTrendPoint> _trendFor(List<WorkoutSession> sessions, String exercise) {
@@ -115,6 +125,7 @@ class _InsightsScreenState extends ConsumerState<InsightsScreen> {
                       ? const <ExerciseTrendPoint>[]
                       : _trendFor(sessions, exercise);
                   final weeks = _weeklyVolumeFor(sessions);
+                  final records = _recordsFor(sessions);
 
                   return _Body(
                     sessionCount: sessions.length,
@@ -127,6 +138,7 @@ class _InsightsScreenState extends ConsumerState<InsightsScreen> {
                     volumeMetric: _volumeMetric,
                     onSelectVolumeMetric: (metric) =>
                         setState(() => _volumeMetric = metric),
+                    records: records,
                   );
                 },
               ),
@@ -147,6 +159,7 @@ class _Body extends StatelessWidget {
   final List<WeekVolume> weeks;
   final String volumeMetric;
   final ValueChanged<String> onSelectVolumeMetric;
+  final List<PersonalRecord> records;
 
   const _Body({
     required this.sessionCount,
@@ -157,6 +170,7 @@ class _Body extends StatelessWidget {
     required this.weeks,
     required this.volumeMetric,
     required this.onSelectVolumeMetric,
+    required this.records,
   });
 
   @override
@@ -178,6 +192,31 @@ class _Body extends StatelessWidget {
           'weighted and bodyweight — the two are never added together.',
           style: bodyStyle(fontSize: 11, color: c.inkDim, height: 1.5),
         ),
+        const SizedBox(height: 22),
+        _SectionLabel(
+          'Recent records',
+          action: records.isEmpty
+              ? null
+              : ('See all', () => Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const RecordsScreen()),
+                  )),
+        ),
+        const SizedBox(height: 10),
+        if (records.isEmpty)
+          Text(
+            'No records yet — log a set to start setting personal bests.',
+            style: bodyStyle(fontSize: 13, color: c.inkMute),
+          )
+        else
+          Column(
+            children: [
+              for (final record in records.take(2)) ...[
+                PRCard(record: record),
+                const SizedBox(height: 10),
+              ],
+            ],
+          ),
         const SizedBox(height: 22),
         const _SectionLabel('Volume over time'),
         const SizedBox(height: 10),
@@ -373,12 +412,13 @@ class _VolumeCard extends StatelessWidget {
 
 class _SectionLabel extends StatelessWidget {
   final String label;
-  const _SectionLabel(this.label);
+  final (String, VoidCallback)? action;
+  const _SectionLabel(this.label, {this.action});
 
   @override
   Widget build(BuildContext context) {
     final c = AppThemeData.of(context).c;
-    return Text(
+    final labelText = Text(
       label.toUpperCase(),
       style: bodyStyle(
         fontSize: 11,
@@ -386,6 +426,24 @@ class _SectionLabel extends StatelessWidget {
         color: c.inkMute,
         letterSpacing: 0.9,
       ),
+    );
+    if (action == null) return labelText;
+
+    final (actionLabel, onTap) = action!;
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      crossAxisAlignment: CrossAxisAlignment.baseline,
+      textBaseline: TextBaseline.alphabetic,
+      children: [
+        labelText,
+        GestureDetector(
+          onTap: onTap,
+          child: Text(
+            actionLabel,
+            style: bodyStyle(fontSize: 12, fontWeight: FontWeight.w600, color: c.accent),
+          ),
+        ),
+      ],
     );
   }
 }
@@ -447,7 +505,8 @@ class _ExerciseTrendCard extends StatelessWidget {
               textBaseline: TextBaseline.alphabetic,
               children: [
                 Text(
-                  _fmtValue(trend.last.value),
+                  fmtTrimmedNumber(trend.last.value),
+                  key: const ValueKey('exerciseTrendCurrentValue'),
                   style: displayStyle(
                     fontSize: 30,
                     fontWeight: FontWeight.w600,
@@ -480,9 +539,6 @@ class _ExerciseTrendCard extends StatelessWidget {
       ),
     );
   }
-
-  String _fmtValue(double v) =>
-      v == v.roundToDouble() ? v.round().toString() : v.toStringAsFixed(1);
 }
 
 class _ExerciseChip extends StatelessWidget {
