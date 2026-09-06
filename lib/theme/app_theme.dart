@@ -412,8 +412,12 @@ ThemeData buildMaterialTheme(AppThemeData appTheme) {
     // Stock Material widgets that read the ambient TextTheme directly
     // (showDatePicker/showTimePicker) rather than through displayStyle/
     // bodyStyle — this keeps them on Manrope instead of falling back to
-    // the default Material font.
-    textTheme: GoogleFonts.manropeTextTheme(),
+    // the default Material font. Base it on a TextTheme matching the
+    // current brightness: GoogleFonts.manropeTextTheme() defaults to
+    // ThemeData.light().textTheme when passed nothing, which bakes in
+    // light-mode text colors that read as near-invisible on dark
+    // backgrounds (e.g. ordinary day cells in the date picker).
+    textTheme: GoogleFonts.manropeTextTheme(ThemeData(brightness: brightness).textTheme),
     appBarTheme: AppBarTheme(
       backgroundColor: c.bg,
       foregroundColor: c.ink,
