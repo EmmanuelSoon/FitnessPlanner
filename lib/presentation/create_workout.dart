@@ -1239,16 +1239,10 @@ class _WorkoutPreviewScreenState extends ConsumerState<WorkoutPreviewScreen> {
     final w = widget.workout;
     final exercises = w.exercises; // List<Superset>
 
-    // Stats: total individual set count and total volume
+    // Stats: total individual set count
     final totalSets = exercises.fold<int>(
       0,
       (a, s) => a + s.sets * s.exercises.length,
-    );
-    final totalVol = exercises.fold<double>(
-      0,
-      (a, s) =>
-          a +
-          s.sets * s.exercises.fold(0.0, (sum, e) => sum + e.reps * e.weight),
     );
     final durMin = w.totalDuration.inMinutes;
 
@@ -1333,26 +1327,17 @@ class _WorkoutPreviewScreenState extends ConsumerState<WorkoutPreviewScreen> {
                                 child: Row(
                                   children: [
                                     Expanded(
-                                      child: _StatCell(
+                                      child: StatChip(
                                         value: durMin > 0
                                             ? fmtDur(durMin)
                                             : '—',
                                         label: 'duration',
-                                        leftBorder: false,
                                       ),
                                     ),
                                     Expanded(
-                                      child: _StatCell(
+                                      child: StatChip(
                                         value: '$totalSets',
                                         label: 'sets',
-                                        leftBorder: true,
-                                      ),
-                                    ),
-                                    Expanded(
-                                      child: _StatCell(
-                                        value:
-                                            '${(totalVol / 1000).toStringAsFixed(1)}t',
-                                        label: 'volume',
                                         leftBorder: true,
                                       ),
                                     ),
@@ -1418,58 +1403,6 @@ class _WorkoutPreviewScreenState extends ConsumerState<WorkoutPreviewScreen> {
             ),
           ],
         ),
-      ),
-    );
-  }
-}
-
-class _StatCell extends StatelessWidget {
-  final String value;
-  final String label;
-  final bool leftBorder;
-
-  const _StatCell({
-    required this.value,
-    required this.label,
-    required this.leftBorder,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = AppThemeData.of(context);
-    final c = theme.c;
-
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 12),
-      decoration: BoxDecoration(
-        border: leftBorder
-            ? Border(left: BorderSide(color: c.hairlineSoft))
-            : null,
-      ),
-      child: Column(
-        children: [
-          Text(
-            value,
-            style: displayStyle(
-              fontSize: 22,
-              fontWeight: FontWeight.w600,
-              color: c.ink,
-              letterSpacing: -0.3,
-            ),
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 2),
-          Text(
-            label.toUpperCase(),
-            style: bodyStyle(
-              fontSize: 10,
-              fontWeight: FontWeight.w500,
-              color: c.inkMute,
-              letterSpacing: 0.8,
-            ),
-            textAlign: TextAlign.center,
-          ),
-        ],
       ),
     );
   }
