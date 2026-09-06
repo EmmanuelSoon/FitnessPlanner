@@ -409,26 +409,6 @@ ThemeData buildMaterialTheme(AppThemeData appTheme) {
       surface: c.surface,
       onSurface: c.ink,
     ),
-    textTheme: GoogleFonts.manropeTextTheme().copyWith(
-      displayLarge: displayStyle(fontSize: 57, fontWeight: FontWeight.w400),
-      displayMedium: displayStyle(fontSize: 45, fontWeight: FontWeight.w400),
-      displaySmall: displayStyle(fontSize: 36, fontWeight: FontWeight.w400),
-      headlineLarge: displayStyle(fontSize: 32, fontWeight: FontWeight.w500),
-      headlineMedium: displayStyle(fontSize: 28, fontWeight: FontWeight.w500),
-      headlineSmall: displayStyle(fontSize: 24, fontWeight: FontWeight.w500),
-      titleLarge: bodyStyle(fontSize: 22, fontWeight: FontWeight.w600),
-      titleMedium: bodyStyle(fontSize: 16, fontWeight: FontWeight.w600),
-      titleSmall: bodyStyle(fontSize: 14, fontWeight: FontWeight.w600),
-      bodyLarge: bodyStyle(fontSize: 16, fontWeight: FontWeight.w400),
-      bodyMedium: bodyStyle(fontSize: 14, fontWeight: FontWeight.w400),
-      bodySmall: bodyStyle(fontSize: 12, fontWeight: FontWeight.w400),
-      labelLarge: bodyStyle(fontSize: 14, fontWeight: FontWeight.w600),
-      labelMedium: bodyStyle(fontSize: 12, fontWeight: FontWeight.w500),
-      labelSmall: bodyStyle(
-          fontSize: 11,
-          fontWeight: FontWeight.w500,
-          letterSpacing: 0.8),
-    ),
     appBarTheme: AppBarTheme(
       backgroundColor: c.bg,
       foregroundColor: c.ink,
@@ -520,6 +500,10 @@ const double kSpaceSm = 8.0;
 const double kSpaceMd = 16.0;
 const double kSpaceLg = 24.0;
 const double kSpaceXl = 32.0;
+
+// ─── Design token: type scale ───────────────────────────────────────────
+const double kTextHeadline = 36.0;
+const double kTextLabel = 11.0;
 
 // ─── Design token: comfy density spacing ──────────────────────────────
 const double kPad = 18.0;

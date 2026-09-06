@@ -212,7 +212,7 @@ class _RecordRunScreenState extends ConsumerState<RecordRunScreen> {
                 child: Text(
                   isEdit ? 'Edit Run' : 'Log Run',
                   style: displayStyle(
-                    fontSize: 36,
+                    fontSize: kTextHeadline,
                     fontWeight: FontWeight.w500,
                     color: c.ink,
                     letterSpacing: -1.2,

@@ -79,7 +79,7 @@ class _WorkoutList extends ConsumerWidget {
                         Text(
                           dateLabel.toUpperCase(),
                           style: bodyStyle(
-                            fontSize: 12,
+                            fontSize: kTextLabel,
                             fontWeight: FontWeight.w600,
                             color: c.inkDim,
                             letterSpacing: 1.2,
@@ -161,10 +161,10 @@ class _WorkoutList extends ConsumerWidget {
                     Text(
                       'Workouts',
                       style: displayStyle(
-                        fontSize: 44,
+                        fontSize: kTextHeadline,
                         fontWeight: FontWeight.w500,
                         color: c.ink,
-                        letterSpacing: -1.8,
+                        letterSpacing: -1.2,
                         height: 1.0,
                       ),
                     ),

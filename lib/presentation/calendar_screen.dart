@@ -307,7 +307,7 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
                       Text(
                         'COMPLETED',
                         style: bodyStyle(
-                          fontSize: 11,
+                          fontSize: kTextLabel,
                           fontWeight: FontWeight.w600,
                           color: c.inkMute,
                           letterSpacing: 0.8,
@@ -411,7 +411,7 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
                       Text(
                         'PLANNED RUN',
                         style: bodyStyle(
-                          fontSize: 11,
+                          fontSize: kTextLabel,
                           fontWeight: FontWeight.w600,
                           color: c.inkMute,
                           letterSpacing: 0.8,
@@ -537,7 +537,7 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
                       Text(
                         'RUNS',
                         style: bodyStyle(
-                          fontSize: 11,
+                          fontSize: kTextLabel,
                           fontWeight: FontWeight.w600,
                           color: c.inkMute,
                           letterSpacing: 0.8,
@@ -906,7 +906,7 @@ class _WeekBanner extends StatelessWidget {
                   Text(
                     status.label,
                     style: bodyStyle(
-                      fontSize: 11,
+                      fontSize: kTextLabel,
                       fontWeight: FontWeight.w700,
                       color: status.isTraining ? c.accent : c.inkDim,
                       letterSpacing: 1.0,

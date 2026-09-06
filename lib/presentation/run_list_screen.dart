@@ -73,7 +73,7 @@ class _RunListScreenState extends ConsumerState<RunListScreen> {
                   Text(
                     'Runs',
                     style: displayStyle(
-                      fontSize: 36,
+                      fontSize: kTextHeadline,
                       fontWeight: FontWeight.w500,
                       color: c.ink,
                       letterSpacing: -1.2,

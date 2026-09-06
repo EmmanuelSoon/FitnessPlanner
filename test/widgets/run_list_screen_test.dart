@@ -6,6 +6,7 @@ import 'package:fitness_planner/data/run_repository.dart';
 import 'package:fitness_planner/presentation/run_detail_screen.dart';
 import 'package:fitness_planner/presentation/run_list_screen.dart';
 import 'package:fitness_planner/services/health_service.dart';
+import 'package:fitness_planner/theme/app_theme.dart';
 
 import '../support/fake_repositories.dart';
 import '../support/fixtures.dart';
@@ -115,5 +116,14 @@ void main() {
     ).dx;
 
     expect(headline, card);
+  });
+
+  testWidgets('the "Runs" headline uses the shared headline text scale', (tester) async {
+    await pumpList(tester);
+    await tester.pumpAndSettle();
+
+    final headline = tester.widget<Text>(find.text('Runs'));
+
+    expect(headline.style?.fontSize, kTextHeadline);
   });
 }
