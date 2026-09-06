@@ -20,12 +20,7 @@ class HistoryScreen extends ConsumerWidget {
       body: SafeArea(
         child: Column(
           children: [
-            AppHeaderBar(
-              leading: AppIconButton(
-                icon: Icons.arrow_back_rounded,
-                onPressed: () => Navigator.pop(context),
-              ),
-            ),
+            const AppHeaderBar(),
             Padding(
               padding: const EdgeInsets.fromLTRB(22, 8, 22, 20),
               child: Column(

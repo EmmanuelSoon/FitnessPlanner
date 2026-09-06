@@ -17,7 +17,7 @@ import 'domain/models/mesocycle.dart';
 import 'domain/models/day_override.dart';
 import 'domain/models/run_override.dart';
 import 'domain/models/run_session.dart';
-import 'presentation/workout_list_screen.dart';
+import 'presentation/home_shell.dart';
 import 'providers/theme_provider.dart';
 import 'providers/mesocycle_providers.dart';
 import 'services/notification_service.dart';
@@ -107,7 +107,7 @@ class _FitnessPlannerAppState extends ConsumerState<FitnessPlannerApp>
             theme: materialTheme,
             darkTheme: materialTheme,
             themeMode: appTheme.isDark ? ThemeMode.dark : ThemeMode.light,
-            home: const WorkoutListScreen(),
+            home: const HomeShell(),
           ),
         );
       },
