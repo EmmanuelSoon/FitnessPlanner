@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -93,5 +94,14 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('GET READY'), findsOneWidget);
+  });
+
+  testWidgets('shows the workout\'s chosen icon on each exercise row instead of the generic dumbbell', (tester) async {
+    final workout = buildWorkout(id: 'w4', icon: 'cardio');
+
+    await pumpPreview(tester, workout);
+
+    expect(find.byIcon(Icons.favorite_rounded), findsWidgets);
+    expect(find.byIcon(Icons.fitness_center_rounded), findsNothing);
   });
 }

@@ -195,6 +195,7 @@ class _WorkoutList extends ConsumerWidget {
                     exerciseCount: w.exercises
                         .fold(0, (sum, s) => sum + s.exercises.length),
                     durationMinutes: dur > 0 ? dur : null,
+                    icon: w.icon,
                     onTap: () => Navigator.push(
                       context,
                       MaterialPageRoute(

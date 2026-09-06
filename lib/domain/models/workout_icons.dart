@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 
 /// Fixed catalog of icons a user can pick from when creating/editing a
-/// workout — shown as a small dot/icon on the calendar for that workout.
+/// workout — shown wherever that workout is represented: the calendar grid,
+/// its list card, the start-preview screen, and the workout picker.
 const Map<String, IconData> kWorkoutIcons = {
   'dumbbell': Icons.fitness_center_rounded,
   'pull_up': Icons.sports_gymnastics_rounded,

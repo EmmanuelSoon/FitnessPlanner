@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:fitness_planner/domain/models/exercise.dart';
 import 'package:fitness_planner/domain/models/superset.dart';
 import 'package:fitness_planner/domain/models/workout.dart';
+import 'package:fitness_planner/domain/models/workout_icons.dart';
 import 'package:fitness_planner/domain/models/workout_session.dart';
 import 'package:fitness_planner/domain/models/logged_set.dart';
 import 'package:fitness_planner/providers/session_providers.dart';
@@ -97,6 +98,7 @@ class _WorkoutStartPreviewScreenState
         _PreviewExerciseCard(
           superset: item.superset,
           exercise: item.exercise,
+          icon: widget.workout.icon,
           showSets: isSingle || isFirstInGroup,
           showRest: isSingle || isLastInGroup,
           isInGroup: !isSingle,
@@ -195,6 +197,7 @@ class _WorkoutStartPreviewScreenState
 class _PreviewExerciseCard extends StatelessWidget {
   final Superset superset;
   final Exercise exercise;
+  final String? icon;
   final bool showSets;
   final bool showRest;
   final bool isInGroup;
@@ -206,6 +209,7 @@ class _PreviewExerciseCard extends StatelessWidget {
   const _PreviewExerciseCard({
     required this.superset,
     required this.exercise,
+    this.icon,
     required this.showSets,
     required this.showRest,
     required this.isInGroup,
@@ -243,7 +247,7 @@ class _PreviewExerciseCard extends StatelessWidget {
                 ),
                 alignment: Alignment.center,
                 child: Icon(
-                  Icons.fitness_center_rounded,
+                  workoutIconFor(icon),
                   size: 12,
                   color: isInGroup ? c.accent : c.inkDim,
                 ),

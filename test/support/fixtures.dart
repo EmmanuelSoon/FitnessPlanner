@@ -12,9 +12,10 @@ import 'package:fitness_planner/domain/models/workout_session.dart';
 /// Small builder functions for the test objects used across repository,
 /// provider, and widget tests. Every field is overridable via named params.
 
-Workout buildWorkout({String id = 'w1', String name = 'Push Day'}) => Workout(
+Workout buildWorkout({String id = 'w1', String name = 'Push Day', String? icon}) => Workout(
   id: id,
   name: name,
+  icon: icon,
   exercises: [
     Superset(
       id: 'sup1',
