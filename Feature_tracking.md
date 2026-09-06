@@ -11,19 +11,6 @@
 
 ### Calendar
 - [ ] Week view toggle — switch calendar between month and week view; week view should be bigger/easier to read than the current cramped month cells
-- [ ] No back icon on the calendar — `_buildHeader` (`calendar_screen.dart`) is chevron-left / month label / chevron-right / bell / edit, with no back button; the only way out is the system back gesture, and the left chevron (previous month) reads like a back button. Add an explicit back affordance.
-
-### Design System
-Measured on a Pixel 8 emulator (1080×2400 @ 2.625x). These are the likely cause of the app feeling "off" without any single screen looking wrong — the defects live in the relationships between elements, so a screen-by-screen review passes them.
-
-- [ ] Adopt a spacing scale — there are 8 different left margins in use across `lib/presentation` (4, 8, 10, 12, 16, 18, 22, 32), several off any 4/8pt grid. The visible symptom: on Workouts the headline sits at 22.5dp while the cards under it sit at 15.6dp and the card contents at 32dp, so the headline aligns with neither. Same 22-vs-16 mismatch in `create_workout` ("EXERCISES" label) and `run_list_screen`. Pick one inset (16 or 24) and make headers, section labels, and list padding share it. ~16 horizontal call sites use 22/18, but this needs judgement, not find-and-replace — bottom sheets are their own surface and may be fine as-is.
-- [ ] Adopt a type scale — the `TextTheme` defined in `app_theme.dart:412-431` is never read: `textTheme` appears exactly once in all of `lib/`, at its own definition. Instead there are 245 hand-typed `fontSize` literals passed to the `displayStyle`/`bodyStyle`/`monoStyle` helpers. Mostly a maintainability problem (one lever instead of 245, and the dead `TextTheme` currently misleads anyone who edits it) — the only visibly broken part is peer screens disagreeing on headline size (Workouts 44 vs Runs 36). Either wire the `TextTheme` up or delete it, and introduce named steps for the helpers.
-
-### UI Fixes
-- [ ] Runs headline renders centred while every other headline is left-aligned — measured: the "Runs" headline spans x=438-643px, dead centre of the 1080px screen, whereas "Workouts" starts at 22.5dp. This is a bug, not a style choice: in `run_list_screen.dart:67-84` the inner `Column` sets `CrossAxisAlignment.start`, but it shrink-wraps to the text width and the *outer* `Column` (line 40) uses the default `CrossAxisAlignment.center`, so the whole padded block gets centred and the `.start` is a no-op.
-- [ ] Workout icon doesn't show on the main page — the icon picked in New/Edit Workout is only read by the calendar grid; the workout list card, start-preview screen, and workout picker all hardcode the dumbbell glyph. Use `workoutIconFor(workout.icon)` in those three places.
-- [ ] Top-right icon row mixes navigation and settings — the main page header (`workout_list_screen.dart`) has four unlabeled 20px icons in a row: appearance (opens a modal sheet), history, calendar, and runs (all push a screen). Nothing distinguishes "jumps to a screen" from "opens a settings sheet", and there are no labels or grouping.
-- [ ] Exercise field columns shift meaning between rows — in New/Edit Workout the field row is built conditionally (`showSets` on the first exercise of a group, `showRest` on the last), so a standalone exercise shows SETS/REPS/WEIGHT/REST while a superset's first exercise shows SETS/REPS/WEIGHT and its partner shows REPS/WEIGHT/REST. Scanning down a column doesn't mean the same thing row to row. Keep the columns semantically fixed.
 
 ### Other
 - [ ] Duplicate workout — copy an existing workout as a starting point
@@ -73,3 +60,12 @@ Measured on a Pixel 8 emulator (1080×2400 @ 2.625x). These are the likely cause
 
 ### Mesocycles
 - [x] Mesocycles
+
+### UI Consistency
+- [x] Adopt a spacing scale — headers, section labels, and list padding across `lib/presentation` now share one 16dp inset instead of 8 different left margins.
+- [x] Adopt a type scale — named size constants for headlines and section labels replace hand-typed `fontSize` literals for those roles; the dead `TextTheme` in `app_theme.dart` was deleted.
+- [x] Runs headline renders centred while every other headline is left-aligned — fixed the `CrossAxisAlignment` mismatch between the inner and outer `Column` in `run_list_screen.dart`.
+- [x] Workout icon doesn't show on the main page — the workout list card, start-preview screen, and workout picker now use `workoutIconFor(workout.icon)` instead of a hardcoded dumbbell glyph.
+- [x] Exercise field columns shift meaning between rows — SETS and REST now render once per superset group instead of shifting between rows; every exercise row shows REPS/WEIGHT uniformly.
+- [x] No back icon on the calendar — superseded by bottom navigation: Workouts, Calendar, Runs, and History are now `NavigationBar` tabs, so there's no back button to be missing.
+- [x] Top-right icon row mixes navigation and settings — superseded by bottom navigation: the header icon row (history/calendar/runs) is gone, and the Workouts header now shows only the appearance picker.
