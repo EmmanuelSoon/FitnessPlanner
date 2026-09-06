@@ -48,6 +48,29 @@ void main() {
     expect(find.text('No sessions yet'), findsOneWidget);
   });
 
+  testWidgets('does not show the empty state when there are no workout sessions but a run is logged',
+      (tester) async {
+    fakeRunRepo.store['r1'] = buildRunSession(id: 'r1', startedAt: DateTime(2026, 1, 5));
+
+    await pumpInsights(tester);
+
+    expect(find.text('No sessions yet'), findsNothing);
+    expect(find.text('Strength'), findsOneWidget); // the mode toggle is showing
+  });
+
+  testWidgets('defaults to Running mode when there are runs but no workout sessions', (tester) async {
+    final thisWeek = _mondayOf(DateTime.now());
+    fakeRunRepo.store['r1'] = buildRunSession(
+      id: 'r1',
+      startedAt: thisWeek.add(const Duration(days: 1, hours: 7)),
+    );
+
+    await pumpInsights(tester);
+
+    expect(find.text('Distance over time'.toUpperCase()), findsOneWidget);
+    expect(find.text('5.0'), findsWidgets); // distance: strip cell + distance card
+  });
+
   testWidgets('shows the trend for the most recently logged exercise by default', (tester) async {
     fakeRepo.store['ws1'] = buildWorkoutSession(id: 'ws1', startedAt: DateTime(2026, 1, 5));
 

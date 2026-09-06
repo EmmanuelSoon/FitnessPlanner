@@ -25,7 +25,11 @@ class InsightsScreen extends ConsumerStatefulWidget {
 class _InsightsScreenState extends ConsumerState<InsightsScreen> {
   String? _selectedExercise;
   String _volumeMetric = 'Tonnage';
-  String _mode = 'Strength';
+  // Null until the user explicitly taps a mode: resolved to 'Running' when
+  // there's nothing but run data to show (a lifter with zero runs sees
+  // 'Strength' the same way), so a user with no logged workout sessions
+  // doesn't land on an all-zero Strength view by default.
+  String? _mode;
 
   // Memoized on the sessions and runs lists' identity: `sessionsProvider`
   // and `runsProvider` hand back the same List instance across rebuilds
@@ -140,7 +144,7 @@ class _InsightsScreenState extends ConsumerState<InsightsScreen> {
                     child: Text('Error: $e',
                         style: bodyStyle(color: c.danger))),
                 data: (sessions) {
-                  if (sessions.isEmpty) return const _EmptyState();
+                  if (sessions.isEmpty && runs.isEmpty) return const _EmptyState();
 
                   final names = _namesFor(sessions, runs);
                   // Fall back to the most recently logged exercise if
@@ -158,6 +162,7 @@ class _InsightsScreenState extends ConsumerState<InsightsScreen> {
                   final weeks = _weeklyVolumeFor(sessions, runs);
                   final runWeeks = _weeklyRunStatsFor(sessions, runs);
                   final records = _recordsFor(sessions, runs);
+                  final mode = _mode ?? (sessions.isEmpty && runs.isNotEmpty ? 'Running' : 'Strength');
 
                   return _Body(
                     sessionCount: sessions.length,
@@ -171,7 +176,7 @@ class _InsightsScreenState extends ConsumerState<InsightsScreen> {
                     onSelectVolumeMetric: (metric) =>
                         setState(() => _volumeMetric = metric),
                     records: records,
-                    mode: _mode,
+                    mode: mode,
                     onSelectMode: (mode) => setState(() => _mode = mode),
                     runWeeks: runWeeks,
                   );
