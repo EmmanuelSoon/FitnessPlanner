@@ -84,7 +84,7 @@ class _AppearancePicker extends ConsumerWidget {
           Text(
             'THEME',
             style: bodyStyle(
-              fontSize: 11,
+              fontSize: kTextLabel,
               fontWeight: FontWeight.w600,
               color: c.inkMute,
               letterSpacing: 1.0,
@@ -213,7 +213,7 @@ class _AppearancePicker extends ConsumerWidget {
           Text(
             'MODE',
             style: bodyStyle(
-              fontSize: 11,
+              fontSize: kTextLabel,
               fontWeight: FontWeight.w600,
               color: c.inkMute,
               letterSpacing: 1.0,

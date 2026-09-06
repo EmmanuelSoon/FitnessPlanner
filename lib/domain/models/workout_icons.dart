@@ -9,6 +9,12 @@ const Map<String, IconData> kWorkoutIcons = {
   'cardio': Icons.favorite_rounded,
   'stretch': Icons.self_improvement_rounded,
   'core': Icons.horizontal_rule_rounded,
+  'running': Icons.directions_run_rounded,
+  'cycling': Icons.directions_bike_rounded,
+  'swimming': Icons.pool_rounded,
+  'yoga': Icons.spa_rounded,
+  'boxing': Icons.sports_mma_rounded,
+  'hiit': Icons.bolt_rounded,
 };
 
 IconData workoutIconFor(String? key) =>

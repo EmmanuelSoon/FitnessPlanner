@@ -335,7 +335,7 @@ class _CreateWorkoutScreenState extends State<CreateWorkoutScreen> {
                             Text(
                               'WORKOUT NAME',
                               style: bodyStyle(
-                                fontSize: 11,
+                                fontSize: kTextLabel,
                                 fontWeight: FontWeight.w500,
                                 color: c.inkMute,
                                 letterSpacing: 0.8,
@@ -381,16 +381,18 @@ class _CreateWorkoutScreenState extends State<CreateWorkoutScreen> {
                             Text(
                               'ICON',
                               style: bodyStyle(
-                                fontSize: 11,
+                                fontSize: kTextLabel,
                                 fontWeight: FontWeight.w500,
                                 color: c.inkMute,
                                 letterSpacing: 0.8,
                               ),
                             ),
                             const SizedBox(height: 10),
-                            Row(
+                            Wrap(
+                              spacing: 10,
+                              runSpacing: 10,
                               children: [
-                                for (final entry in kWorkoutIcons.entries) ...[
+                                for (final entry in kWorkoutIcons.entries)
                                   _IconSwatch(
                                     icon: entry.value,
                                     selected: _selectedIcon == entry.key,
@@ -398,8 +400,6 @@ class _CreateWorkoutScreenState extends State<CreateWorkoutScreen> {
                                       () => _selectedIcon = entry.key,
                                     ),
                                   ),
-                                  const SizedBox(width: 10),
-                                ],
                               ],
                             ),
                           ],
@@ -418,7 +418,7 @@ class _CreateWorkoutScreenState extends State<CreateWorkoutScreen> {
                               Text(
                                 'WARM-UP',
                                 style: bodyStyle(
-                                  fontSize: 11,
+                                  fontSize: kTextLabel,
                                   fontWeight: FontWeight.w500,
                                   color: c.inkMute,
                                   letterSpacing: 0.8,
@@ -429,7 +429,7 @@ class _CreateWorkoutScreenState extends State<CreateWorkoutScreen> {
                                   Text(
                                     '${_warmup.length}',
                                     style: bodyStyle(
-                                      fontSize: 11,
+                                      fontSize: kTextLabel,
                                       fontWeight: FontWeight.w500,
                                       color: c.inkMute,
                                       letterSpacing: 0.8,
@@ -516,7 +516,7 @@ class _CreateWorkoutScreenState extends State<CreateWorkoutScreen> {
                             Text(
                               'EXERCISES',
                               style: bodyStyle(
-                                fontSize: 11,
+                                fontSize: kTextLabel,
                                 fontWeight: FontWeight.w500,
                                 color: c.inkMute,
                                 letterSpacing: 0.8,
@@ -525,7 +525,7 @@ class _CreateWorkoutScreenState extends State<CreateWorkoutScreen> {
                             Text(
                               '$totalExercises',
                               style: bodyStyle(
-                                fontSize: 11,
+                                fontSize: kTextLabel,
                                 fontWeight: FontWeight.w500,
                                 color: c.inkMute,
                                 letterSpacing: 0.8,

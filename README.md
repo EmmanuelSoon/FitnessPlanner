@@ -1,6 +1,6 @@
 # PlateUp
 
-A Flutter workout tracking app for Android that keeps everything local.
+A Flutter workout tracking app using local storage (ie. no cloud required).
 
 ## What it does
 

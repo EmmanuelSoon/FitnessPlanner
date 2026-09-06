@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:fitness_planner/data/workout_repository.dart';
 import 'package:fitness_planner/presentation/workout_list_screen.dart';
 import 'package:fitness_planner/presentation/widgets/app_widgets.dart';
+import 'package:fitness_planner/theme/app_theme.dart';
 
 import '../support/fake_repositories.dart';
 import '../support/fixtures.dart';
@@ -76,5 +77,27 @@ void main() {
     final card = tester.getTopLeft(find.byType(WorkoutListCard).first).dx;
 
     expect(headline, card);
+  });
+
+  testWidgets('the "Workouts" headline uses the shared headline text scale', (tester) async {
+    fakeRepo.store['w1'] = buildWorkout(id: 'w1', name: 'Push Day');
+    await pumpList(tester);
+
+    final headline = tester.widget<Text>(find.text('Workouts'));
+
+    expect(headline.style?.fontSize, kTextHeadline);
+  });
+
+  testWidgets('the date eyebrow label uses the shared label text scale', (tester) async {
+    fakeRepo.store['w1'] = buildWorkout(id: 'w1', name: 'Push Day');
+    await pumpList(tester);
+
+    final dateLabel = tester.widget<Text>(
+      find.byWidgetPredicate(
+        (w) => w is Text && (w.data?.contains(RegExp(r'^[A-Z]+ · ')) ?? false),
+      ),
+    );
+
+    expect(dateLabel.style?.fontSize, kTextLabel);
   });
 }
