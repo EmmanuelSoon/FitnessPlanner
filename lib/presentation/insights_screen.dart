@@ -29,6 +29,7 @@ class _InsightsScreenState extends ConsumerState<InsightsScreen> {
   List<String> _cachedNames = const [];
   final Map<String, List<ExerciseTrendPoint>> _trendCache = {};
   List<WeekVolume>? _cachedWeeklyVolume;
+  DateTime? _cachedWeekStart;
 
   List<String> _namesFor(List<WorkoutSession> sessions) {
     if (!identical(_cachedSessions, sessions)) {
@@ -47,7 +48,17 @@ class _InsightsScreenState extends ConsumerState<InsightsScreen> {
 
   List<WeekVolume> _weeklyVolumeFor(List<WorkoutSession> sessions) {
     _namesFor(sessions); // ensures the cache above is current for `sessions`
-    return _cachedWeeklyVolume ??= weeklyVolume(sessions);
+    // Keyed on the current week's start too, not just the sessions list —
+    // this screen can be kept alive (e.g. in a bottom-nav IndexedStack)
+    // across a real week boundary with no session change, and a
+    // sessions-only key would otherwise keep serving "This week" figures
+    // for the week that just ended.
+    final weekStart = weekStartOf(DateTime.now());
+    if (_cachedWeeklyVolume == null || _cachedWeekStart != weekStart) {
+      _cachedWeeklyVolume = weeklyVolume(sessions);
+      _cachedWeekStart = weekStart;
+    }
+    return _cachedWeeklyVolume!;
   }
 
   @override
@@ -160,17 +171,7 @@ class _Body extends StatelessWidget {
       children: [
         const _SectionLabel('This week'),
         const SizedBox(height: 10),
-        StatStrip(
-          cells: [
-            StatCell(value: '${thisWeek.sessionCount}', label: 'sessions'),
-            StatCell(
-              value: fmtTonnage(thisWeek.tonnageKg),
-              unit: 't',
-              label: 'tonnage',
-            ),
-            StatCell(value: fmtCount(thisWeek.repVolume), label: 'reps'),
-          ],
-        ),
+        _ThisWeekStrip(week: thisWeek),
         const SizedBox(height: 8),
         Text(
           'Tonnage counts weighted sets only. Reps count everything, '
@@ -209,6 +210,13 @@ class _Body extends StatelessWidget {
   }
 }
 
+const _kShortMonths = [
+  'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+  'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+];
+
+String _formatShortDate(DateTime dt) => '${_kShortMonths[dt.month - 1]} ${dt.day}';
+
 String fmtTonnage(double kg) => (kg / 1000).toStringAsFixed(1);
 
 String fmtCount(int n) {
@@ -221,6 +229,51 @@ String fmtCount(int n) {
   return buffer.toString();
 }
 
+class _ThisWeekStrip extends StatelessWidget {
+  final WeekVolume week;
+
+  const _ThisWeekStrip({required this.week});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = AppThemeData.of(context);
+    final c = theme.c;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: c.surface,
+        borderRadius: BorderRadius.circular(kRadius),
+        border: theme.isDark ? Border.all(color: c.hairlineSoft) : null,
+        boxShadow: cardShadow(theme.isDark),
+      ),
+      child: IntrinsicHeight(
+        child: Row(
+          children: [
+            Expanded(
+              child: StatChip(value: '${week.sessionCount}', label: 'sessions'),
+            ),
+            Expanded(
+              child: StatChip(
+                value: fmtTonnage(week.tonnageKg),
+                unit: 't',
+                label: 'tonnage',
+                leftBorder: true,
+              ),
+            ),
+            Expanded(
+              child: StatChip(
+                value: fmtCount(week.repVolume),
+                label: 'reps',
+                leftBorder: true,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _VolumeCard extends StatelessWidget {
   final List<WeekVolume> weeks;
   final String metric;
@@ -231,14 +284,6 @@ class _VolumeCard extends StatelessWidget {
     required this.metric,
     required this.onSelectMetric,
   });
-
-  String _formatWeekLabel(DateTime dt) {
-    const months = [
-      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
-    ];
-    return '${months[dt.month - 1]} ${dt.day}';
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -316,8 +361,8 @@ class _VolumeCard extends StatelessWidget {
           AreaTrendChart(
             series: series,
             edgeLabels: [
-              _formatWeekLabel(weeks.first.weekStart),
-              _formatWeekLabel(weeks.last.weekStart),
+              _formatShortDate(weeks.first.weekStart),
+              _formatShortDate(weeks.last.weekStart),
             ],
           ),
         ],
@@ -357,14 +402,6 @@ class _ExerciseTrendCard extends StatelessWidget {
     required this.onSelect,
     required this.trend,
   });
-
-  String _formatDate(DateTime dt) {
-    const months = [
-      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
-    ];
-    return '${months[dt.month - 1]} ${dt.day}';
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -434,8 +471,8 @@ class _ExerciseTrendCard extends StatelessWidget {
             AreaTrendChart(
               series: [for (final p in trend) p.value],
               edgeLabels: [
-                _formatDate(trend.first.date),
-                _formatDate(trend.last.date),
+                _formatShortDate(trend.first.date),
+                _formatShortDate(trend.last.date),
               ],
             ),
           ],

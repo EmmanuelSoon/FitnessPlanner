@@ -404,15 +404,18 @@ class AppFab extends StatelessWidget {
   }
 }
 
-// ─── Stat chip (used in stat strips: workout preview, workout complete) ───
+// ─── Stat chip (used in stat strips: workout preview, workout complete,
+// insights) ───
 class StatChip extends StatelessWidget {
   final String value;
+  final String? unit;
   final String label;
   final bool leftBorder;
 
   const StatChip({
     super.key,
     required this.value,
+    this.unit,
     required this.label,
     this.leftBorder = false,
   });
@@ -431,15 +434,25 @@ class StatChip extends StatelessWidget {
       ),
       child: Column(
         children: [
-          Text(
-            value,
-            style: displayStyle(
-              fontSize: 22,
-              fontWeight: FontWeight.w600,
-              color: c.ink,
-              letterSpacing: -0.3,
-            ),
-            textAlign: TextAlign.center,
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.baseline,
+            textBaseline: TextBaseline.alphabetic,
+            children: [
+              Text(
+                value,
+                style: displayStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.w600,
+                  color: c.ink,
+                  letterSpacing: -0.3,
+                ),
+              ),
+              if (unit != null) ...[
+                const SizedBox(width: 2),
+                Text(unit!, style: bodyStyle(fontSize: 12, color: c.inkDim)),
+              ],
+            ],
           ),
           const SizedBox(height: 2),
           Text(

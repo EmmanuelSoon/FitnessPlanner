@@ -27,10 +27,14 @@ List<WeekVolume> weeklyVolume(
   int weeks = 8,
   DateTime? now,
 }) {
-  final currentWeekStart = _weekStart(now ?? DateTime.now());
+  final currentWeekStart = weekStartOf(now ?? DateTime.now());
   final bucketStarts = [
     for (var i = weeks - 1; i >= 0; i--)
-      currentWeekStart.subtract(Duration(days: 7 * i)),
+      DateTime(
+        currentWeekStart.year,
+        currentWeekStart.month,
+        currentWeekStart.day - 7 * i,
+      ),
   ];
 
   final tonnageByWeek = <DateTime, double>{
@@ -44,7 +48,7 @@ List<WeekVolume> weeklyVolume(
   };
 
   for (final session in sessions) {
-    final bucket = _weekStart(session.startedAt);
+    final bucket = weekStartOf(session.startedAt);
     if (!tonnageByWeek.containsKey(bucket)) continue;
 
     sessionCountByWeek[bucket] = sessionCountByWeek[bucket]! + 1;
@@ -74,7 +78,14 @@ double? percentChange(double current, double previous) {
   return (current - previous) / previous * 100;
 }
 
-DateTime _weekStart(DateTime dt) {
-  final day = DateTime(dt.year, dt.month, dt.day);
-  return day.subtract(Duration(days: day.weekday - DateTime.monday));
+/// The Monday that starts [dt]'s calendar week, at local midnight.
+///
+/// Computed entirely from calendar fields (year/month/day), never by
+/// subtracting a fixed [Duration] off a wall-clock instant — the latter
+/// drifts by an hour across a DST transition, which would shift a bucket
+/// boundary off midnight and silently exclude a week's sessions from the
+/// totals.
+DateTime weekStartOf(DateTime dt) {
+  final delta = dt.weekday - DateTime.monday;
+  return DateTime(dt.year, dt.month, dt.day - delta);
 }

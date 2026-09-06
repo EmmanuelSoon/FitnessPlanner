@@ -67,11 +67,38 @@ void main() {
       // 2026-03-09 is a Monday; the current week's bucket starts on it.
       expect(weeks.last.weekStart, DateTime(2026, 3, 9));
       expect(weeks.first.weekStart, DateTime(2026, 3, 9 - 7 * 7));
+      // Compared as UTC calendar dates rather than via `.difference()` on
+      // the local `weekStart` values: `.difference()` measures elapsed
+      // time, which a DST transition between two buckets would shift off
+      // exactly 7*24h even though they're still 7 calendar days apart.
       for (var i = 1; i < weeks.length; i++) {
-        expect(
-          weeks[i].weekStart.difference(weeks[i - 1].weekStart),
-          const Duration(days: 7),
+        final prevUtc = DateTime.utc(
+          weeks[i - 1].weekStart.year,
+          weeks[i - 1].weekStart.month,
+          weeks[i - 1].weekStart.day,
         );
+        final curUtc = DateTime.utc(
+          weeks[i].weekStart.year,
+          weeks[i].weekStart.month,
+          weeks[i].weekStart.day,
+        );
+        expect(curUtc.difference(prevUtc), const Duration(days: 7));
+      }
+    });
+
+    test('every bucket start is exact local midnight, regardless of the time of day `now` carries', () {
+      // Regression: bucket starts must come from calendar-field arithmetic
+      // (year/month/day), not from subtracting a fixed Duration off a
+      // wall-clock instant — the latter drifts by an hour across a DST
+      // transition and would shift a bucket off midnight, causing it to
+      // silently miss the sessions it should have collected.
+      final weeks = weeklyVolume([], weeks: 8, now: DateTime(2026, 3, 9, 23, 45, 30));
+
+      for (final w in weeks) {
+        expect(w.weekStart.hour, 0);
+        expect(w.weekStart.minute, 0);
+        expect(w.weekStart.second, 0);
+        expect(w.weekStart.millisecond, 0);
       }
     });
 
