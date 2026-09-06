@@ -505,7 +505,8 @@ class _ExerciseTrendCard extends StatelessWidget {
               textBaseline: TextBaseline.alphabetic,
               children: [
                 Text(
-                  _fmtValue(trend.last.value),
+                  fmtTrimmedNumber(trend.last.value),
+                  key: const ValueKey('exerciseTrendCurrentValue'),
                   style: displayStyle(
                     fontSize: 30,
                     fontWeight: FontWeight.w600,
@@ -538,9 +539,6 @@ class _ExerciseTrendCard extends StatelessWidget {
       ),
     );
   }
-
-  String _fmtValue(double v) =>
-      v == v.roundToDouble() ? v.round().toString() : v.toStringAsFixed(1);
 }
 
 class _ExerciseChip extends StatelessWidget {

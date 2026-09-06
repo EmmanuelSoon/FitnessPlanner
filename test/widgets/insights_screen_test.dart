@@ -48,7 +48,10 @@ void main() {
     await pumpInsights(tester);
 
     expect(_exerciseChip('Bench Press'), findsOneWidget);
-    expect(find.text('60'), findsWidgets); // trend value + heaviest-weight PR
+    expect(
+      tester.widget<Text>(find.byKey(const ValueKey('exerciseTrendCurrentValue'))).data,
+      '60',
+    );
     expect(find.textContaining('Top set'), findsOneWidget);
   });
 

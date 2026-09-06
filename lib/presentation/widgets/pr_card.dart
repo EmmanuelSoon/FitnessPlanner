@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:fitness_planner/domain/insights/personal_records.dart';
+import 'package:fitness_planner/presentation/widgets/insights_charts.dart' show fmtTrimmedNumber;
 import 'package:fitness_planner/theme/app_theme.dart';
 
 /// One personal-best row: icon, kind + exercise (or workout, for session
@@ -40,13 +41,7 @@ class PRCard extends StatelessWidget {
               borderRadius:
                   BorderRadius.circular((kRadius - 8).clamp(8.0, double.infinity)),
             ),
-            child: Icon(
-              record.type == PersonalRecordType.fastestPace
-                  ? Icons.directions_run_rounded
-                  : Icons.emoji_events_rounded,
-              size: 20,
-              color: c.accentInk,
-            ),
+            child: Icon(Icons.emoji_events_rounded, size: 20, color: c.accentInk),
           ),
           const SizedBox(width: 13),
           Expanded(
@@ -108,11 +103,13 @@ String _kindLabel(PersonalRecordType type) => switch (type) {
       PersonalRecordType.longestHold => 'Longest hold',
       PersonalRecordType.bestEst1Rm => 'Best est. 1RM',
       PersonalRecordType.sessionTonnage => 'Session volume',
-      PersonalRecordType.fastestPace => 'Fastest pace',
     };
 
 (String, String) _formatValue(PersonalRecord r) => switch (r.type) {
-      PersonalRecordType.heaviestWeight => (_fmtNum(r.value), 'kg × ${r.reps}'),
+      PersonalRecordType.heaviestWeight => (
+          fmtTrimmedNumber(r.value),
+          'kg × ${r.reps}',
+        ),
       PersonalRecordType.mostReps => (r.value.round().toString(), 'reps @ BW'),
       PersonalRecordType.longestHold => (_fmtClock(r.value.round()), 'hold'),
       PersonalRecordType.bestEst1Rm => (r.value.round().toString(), 'kg e1RM'),
@@ -120,7 +117,6 @@ String _kindLabel(PersonalRecordType type) => switch (type) {
           (r.value / 1000).toStringAsFixed(1),
           't lifted',
         ),
-      PersonalRecordType.fastestPace => (_fmtClock(r.value.round()), '/km'),
     };
 
 String? _formatDelta(PersonalRecord r) {
@@ -128,17 +124,14 @@ String? _formatDelta(PersonalRecord r) {
   if (previous == null) return null;
   final diff = r.value - previous;
   return switch (r.type) {
-    PersonalRecordType.heaviestWeight => '+${_fmtNum(diff)} kg',
+    PersonalRecordType.heaviestWeight => '+${fmtTrimmedNumber(diff)} kg',
     PersonalRecordType.mostReps =>
       '+${diff.round()} rep${diff.round() == 1 ? '' : 's'}',
     PersonalRecordType.longestHold => '+${diff.round()} s',
     PersonalRecordType.bestEst1Rm => '+${diff.round()} kg',
     PersonalRecordType.sessionTonnage => '+${(diff / 1000).toStringAsFixed(1)} t',
-    PersonalRecordType.fastestPace => '-${diff.abs().round()} s/km',
   };
 }
-
-String _fmtNum(double v) => v == v.roundToDouble() ? v.round().toString() : v.toStringAsFixed(1);
 
 String _fmtClock(int totalSeconds) {
   final m = totalSeconds ~/ 60;

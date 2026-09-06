@@ -248,17 +248,23 @@ void main() {
       expect(computePersonalRecords([session], []), isEmpty);
     });
 
-    test('produces no fastest-pace record yet, even when runs are passed', () {
+    test('accepts runs without using them yet — they change nothing about the result', () {
       final run = RunSession(
         id: 'r1',
         startedAt: DateTime(2026, 3, 1),
         endedAt: DateTime(2026, 3, 1, 0, 30),
         distanceMeters: 5000,
       );
+      final session = _session(
+        id: 's1',
+        startedAt: DateTime(2026, 3, 1),
+        sets: [_weighted(weight: 60, reps: 8)],
+      );
 
-      final records = computePersonalRecords([], [run]);
+      final withRun = computePersonalRecords([session], [run]);
+      final withoutRun = computePersonalRecords([session], []);
 
-      expect(records.any((r) => r.type == PersonalRecordType.fastestPace), isFalse);
+      expect(withRun.length, withoutRun.length);
     });
 
     test('orders records newest-achieved first', () {
@@ -277,6 +283,34 @@ void main() {
 
       expect(records.first.achievedAt, DateTime(2026, 3, 8));
       expect(records.last.achievedAt, DateTime(2026, 3, 1));
+    });
+
+    test('breaks ties on the same achievedAt deterministically, by type then label', () {
+      final session = _session(
+        id: 's1',
+        startedAt: DateTime(2026, 3, 1),
+        sets: [
+          _weighted(exercise: 'Squat', weight: 100, reps: 5),
+          _weighted(exercise: 'Bench Press', weight: 60, reps: 8),
+          _bodyweight(exercise: 'Push-up', reps: 15),
+        ],
+      );
+
+      // Every record here shares the same achievedAt (the one session), so
+      // this ordering must come entirely from the type/label tie-break —
+      // not from map-iteration order, which isn't guaranteed to repeat.
+      final order = computePersonalRecords([session], [])
+          .map((r) => (r.type, r.label))
+          .toList();
+
+      expect(order, [
+        (PersonalRecordType.heaviestWeight, 'Bench Press'),
+        (PersonalRecordType.heaviestWeight, 'Squat'),
+        (PersonalRecordType.mostReps, 'Push-up'),
+        (PersonalRecordType.bestEst1Rm, 'Bench Press'),
+        (PersonalRecordType.bestEst1Rm, 'Squat'),
+        (PersonalRecordType.sessionTonnage, 'Push Day'),
+      ]);
     });
   });
 }

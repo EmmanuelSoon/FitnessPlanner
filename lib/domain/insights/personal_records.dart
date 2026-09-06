@@ -1,13 +1,15 @@
 import 'package:fitness_planner/domain/models/run_session.dart';
 import 'package:fitness_planner/domain/models/workout_session.dart';
 
+// `fastestPace` isn't a member yet — it's lower-is-better, unlike every type
+// here, so it needs its own tracking (not `_Progress`'s "bigger wins") and
+// lands in PR 4 alongside the running data it's computed from.
 enum PersonalRecordType {
   heaviestWeight,
   mostReps,
   longestHold,
   bestEst1Rm,
   sessionTonnage,
-  fastestPace,
 }
 
 /// A current personal best: [type] paired with either the exercise it was
@@ -33,7 +35,10 @@ class PersonalRecord {
     this.previousValue,
     required this.achievedAt,
     required this.sessionId,
-  });
+  }) : assert(
+         type != PersonalRecordType.heaviestWeight || reps != null,
+         'heaviestWeight records must carry the reps performed at that weight',
+       );
 }
 
 /// Tracks one metric's best-so-far as sessions are offered in chronological
@@ -161,6 +166,16 @@ List<PersonalRecord> computePersonalRecords(
     ?sessionTonnage.toRecord(PersonalRecordType.sessionTonnage),
   ];
 
-  records.sort((a, b) => b.achievedAt.compareTo(a.achievedAt));
+  // Multiple records can share the same `achievedAt` (several PRs set in
+  // one session) — break ties by type, then label, so which ones surface
+  // in a `.take(2)` "recent" slice is deterministic rather than dependent
+  // on map-iteration order.
+  records.sort((a, b) {
+    final byDate = b.achievedAt.compareTo(a.achievedAt);
+    if (byDate != 0) return byDate;
+    final byType = a.type.index.compareTo(b.type.index);
+    if (byType != 0) return byType;
+    return a.label.compareTo(b.label);
+  });
   return records;
 }

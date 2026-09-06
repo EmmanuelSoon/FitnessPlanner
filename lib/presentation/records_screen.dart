@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:fitness_planner/domain/insights/personal_records.dart';
+import 'package:fitness_planner/domain/models/workout_session.dart';
 import 'package:fitness_planner/presentation/widgets/app_widgets.dart';
 import 'package:fitness_planner/presentation/widgets/pr_card.dart';
 import 'package:fitness_planner/providers/session_providers.dart';
@@ -8,11 +9,30 @@ import 'package:fitness_planner/theme/app_theme.dart';
 
 /// The full personal-records list, reached via "See all" from the Insights
 /// tab's "Recent records" section.
-class RecordsScreen extends ConsumerWidget {
+class RecordsScreen extends ConsumerStatefulWidget {
   const RecordsScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<RecordsScreen> createState() => _RecordsScreenState();
+}
+
+class _RecordsScreenState extends ConsumerState<RecordsScreen> {
+  // Memoized on the sessions list's identity, matching InsightsScreen's
+  // cache — a route-transition rebuild (or any unrelated ancestor rebuild)
+  // would otherwise re-scan every session on every frame.
+  List<WorkoutSession>? _cachedSessions;
+  List<PersonalRecord>? _cachedRecords;
+
+  List<PersonalRecord> _recordsFor(List<WorkoutSession> sessions) {
+    if (!identical(_cachedSessions, sessions)) {
+      _cachedSessions = sessions;
+      _cachedRecords = computePersonalRecords(sessions, const []);
+    }
+    return _cachedRecords!;
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final sessionsAsync = ref.watch(sessionsProvider);
     final theme = AppThemeData.of(context);
     final c = theme.c;
@@ -53,7 +73,7 @@ class RecordsScreen extends ConsumerWidget {
                 error: (e, _) =>
                     Center(child: Text('Error: $e', style: bodyStyle(color: c.danger))),
                 data: (sessions) {
-                  final records = computePersonalRecords(sessions, const []);
+                  final records = _recordsFor(sessions);
                   return records.isEmpty ? const _EmptyState() : _Body(records: records);
                 },
               ),
