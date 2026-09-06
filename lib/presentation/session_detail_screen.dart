@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:fitness_planner/domain/models/workout_session.dart';
 import 'package:fitness_planner/domain/models/logged_set.dart';
 import 'package:fitness_planner/presentation/widgets/app_widgets.dart';
 import 'package:fitness_planner/presentation/widgets/number_picker_sheet.dart';
+import 'package:fitness_planner/providers/session_providers.dart';
 import 'package:fitness_planner/theme/app_theme.dart';
 
-class SessionDetailScreen extends StatelessWidget {
+class SessionDetailScreen extends ConsumerWidget {
   final WorkoutSession session;
   const SessionDetailScreen({super.key, required this.session});
 
@@ -18,7 +20,7 @@ class SessionDetailScreen extends StatelessWidget {
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final theme = AppThemeData.of(context);
     final c = theme.c;
 
@@ -31,6 +33,10 @@ class SessionDetailScreen extends StatelessWidget {
               leading: AppIconButton(
                 icon: Icons.arrow_back_rounded,
                 onPressed: () => Navigator.pop(context),
+              ),
+              trailing: AppIconButton(
+                icon: Icons.delete_outline_rounded,
+                onPressed: () => _confirmDelete(context, ref),
               ),
             ),
             Padding(
@@ -107,6 +113,84 @@ class SessionDetailScreen extends StatelessWidget {
                         logged: session.sets[index],
                       ),
                     ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _confirmDelete(BuildContext context, WidgetRef ref) async {
+    final theme = AppThemeData.of(context);
+    final c = theme.c;
+
+    await showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => Container(
+        decoration: BoxDecoration(
+          color: c.surface,
+          borderRadius:
+              BorderRadius.vertical(top: Radius.circular(kRadius + 8)),
+        ),
+        padding: EdgeInsets.fromLTRB(
+            22, 20, 22, 28 + MediaQuery.of(context).padding.bottom),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 36,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: c.hairline,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Delete session?',
+              style: displayStyle(
+                fontSize: 22,
+                fontWeight: FontWeight.w500,
+                color: c.ink,
+                letterSpacing: -0.3,
+              ),
+            ),
+            const SizedBox(height: 10),
+            Text(
+              'Remove this "${session.workoutName}" session from your history?',
+              style: bodyStyle(
+                  fontSize: 14, color: c.inkDim, height: 1.5),
+            ),
+            const SizedBox(height: 20),
+            Row(
+              children: [
+                Expanded(
+                  child: AppButton(
+                    label: 'Cancel',
+                    kind: ButtonKind.outline,
+                    onPressed: () => Navigator.pop(ctx),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: AppButton(
+                    label: 'Delete',
+                    kind: ButtonKind.danger,
+                    icon: Icons.delete_outline_rounded,
+                    onPressed: () async {
+                      Navigator.pop(ctx);
+                      await ref
+                          .read(sessionsProvider.notifier)
+                          .deleteSession(session.id);
+                      if (context.mounted) Navigator.pop(context);
+                    },
+                  ),
+                ),
+              ],
             ),
           ],
         ),

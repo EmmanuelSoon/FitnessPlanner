@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'calendar_screen.dart';
-import 'history_screen.dart';
+import 'insights_screen.dart';
 import 'run_list_screen.dart';
 import 'workout_list_screen.dart';
 
@@ -22,7 +22,7 @@ class _HomeShellState extends State<HomeShell> {
     WorkoutListScreen(),
     CalendarScreen(),
     RunListScreen(),
-    HistoryScreen(),
+    InsightsScreen(),
   ];
 
   @override
@@ -46,8 +46,8 @@ class _HomeShellState extends State<HomeShell> {
             label: 'Runs',
           ),
           NavigationDestination(
-            icon: Icon(Icons.history_rounded),
-            label: 'History',
+            icon: Icon(Icons.insights_rounded),
+            label: 'Insights',
           ),
         ],
       ),
