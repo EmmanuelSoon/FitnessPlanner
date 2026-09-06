@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:fitness_planner/domain/format.dart';
 import 'package:fitness_planner/domain/insights/exercise_trend.dart';
 import 'package:fitness_planner/domain/insights/personal_records.dart';
 import 'package:fitness_planner/domain/insights/running_trends.dart';
@@ -335,13 +336,7 @@ String fmtCount(int n) {
 
 /// Clock-style pace, e.g. "4:52"; "--:--" when there's no distance behind
 /// the pace to show one for (an empty week, or a zero-distance run).
-String fmtPace(double? secPerKm) {
-  if (secPerKm == null) return '--:--';
-  final total = secPerKm.round();
-  final m = total ~/ 60;
-  final s = total % 60;
-  return '$m:${s.toString().padLeft(2, '0')}';
-}
+String fmtPace(double? secPerKm) => secPerKm == null ? '--:--' : formatClock(secPerKm.round());
 
 class _ThisWeekStrip extends StatelessWidget {
   final WeekVolume week;

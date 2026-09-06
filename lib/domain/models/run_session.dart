@@ -1,3 +1,5 @@
+import 'package:fitness_planner/domain/format.dart';
+
 enum RunType { easy, tempo, interval, long, race, treadmill, other }
 
 enum RunSource { manual, healthConnect }
@@ -47,10 +49,7 @@ class RunSession {
   /// Human-readable pace string, e.g. "5:17".
   String get formattedPace {
     final p = pacePerKm;
-    if (p == null) return '--:--';
-    final m = p.inMinutes;
-    final s = p.inSeconds % 60;
-    return '$m:${s.toString().padLeft(2, '0')}';
+    return p == null ? '--:--' : formatClock(p.inSeconds);
   }
 
   // ─── Serialisation ──────────────────────────────────────────────────

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:fitness_planner/domain/format.dart';
 import 'package:fitness_planner/domain/insights/personal_records.dart';
 import 'package:fitness_planner/presentation/widgets/insights_charts.dart' show fmtTrimmedNumber;
 import 'package:fitness_planner/theme/app_theme.dart';
@@ -118,13 +119,13 @@ String _kindLabel(PersonalRecordType type) => switch (type) {
           'kg × ${r.reps}',
         ),
       PersonalRecordType.mostReps => (r.value.round().toString(), 'reps @ BW'),
-      PersonalRecordType.longestHold => (_fmtClock(r.value.round()), 'hold'),
+      PersonalRecordType.longestHold => (formatClock(r.value.round()), 'hold'),
       PersonalRecordType.bestEst1Rm => (r.value.round().toString(), 'kg e1RM'),
       PersonalRecordType.sessionTonnage => (
           (r.value / 1000).toStringAsFixed(1),
           't lifted',
         ),
-      PersonalRecordType.fastestPace => (_fmtClock(r.value.round()), '/km'),
+      PersonalRecordType.fastestPace => (formatClock(r.value.round()), '/km'),
     };
 
 String? _formatDelta(PersonalRecord r) {
@@ -142,12 +143,6 @@ String? _formatDelta(PersonalRecord r) {
     // sign is already correct with no '+' to add.
     PersonalRecordType.fastestPace => '${diff.round()} s/km',
   };
-}
-
-String _fmtClock(int totalSeconds) {
-  final m = totalSeconds ~/ 60;
-  final s = totalSeconds % 60;
-  return '$m:${s.toString().padLeft(2, '0')}';
 }
 
 /// Coarse relative-time label ("Today", "3d ago", "2w ago", "4mo ago",
