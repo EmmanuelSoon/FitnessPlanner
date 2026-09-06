@@ -6,8 +6,11 @@ import 'package:fitness_planner/presentation/session_detail_screen.dart';
 import 'package:fitness_planner/presentation/widgets/app_widgets.dart';
 import 'package:fitness_planner/theme/app_theme.dart';
 
-class HistoryScreen extends ConsumerWidget {
-  const HistoryScreen({super.key});
+/// The full chronological session list, demoted from its own tab (History)
+/// to a link at the bottom of Insights — Calendar already shows sessions
+/// per day, so this is now just a browse-everything fallback.
+class AllSessionsScreen extends ConsumerWidget {
+  const AllSessionsScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -20,20 +23,25 @@ class HistoryScreen extends ConsumerWidget {
       body: SafeArea(
         child: Column(
           children: [
-            const AppHeaderBar(),
+            AppHeaderBar(
+              leading: AppIconButton(
+                icon: Icons.arrow_back_rounded,
+                onPressed: () => Navigator.pop(context),
+              ),
+            ),
             Padding(
-              padding: const EdgeInsets.fromLTRB(22, 8, 22, 20),
+              padding: const EdgeInsets.fromLTRB(22, 4, 22, 16),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'History',
+                    'All sessions',
                     style: displayStyle(
-                      fontSize: kTextHeadline,
+                      fontSize: 28,
                       fontWeight: FontWeight.w500,
                       color: c.ink,
-                      letterSpacing: -1.2,
-                      height: 1.0,
+                      letterSpacing: -0.6,
+                      height: 1.1,
                     ),
                   ),
                 ],
@@ -96,7 +104,7 @@ class _EmptyState extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           Text(
-            'Start a workout to see your history here.',
+            'Start a workout to see your sessions here.',
             style: bodyStyle(fontSize: 14, color: c.inkDim, height: 1.5),
             textAlign: TextAlign.center,
           ),
@@ -106,7 +114,7 @@ class _EmptyState extends StatelessWidget {
   }
 }
 
-class _SessionCard extends ConsumerWidget {
+class _SessionCard extends StatelessWidget {
   final WorkoutSession session;
   const _SessionCard({required this.session});
 
@@ -119,7 +127,7 @@ class _SessionCard extends ConsumerWidget {
   }
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final theme = AppThemeData.of(context);
     final c = theme.c;
     final dur = session.duration.inMinutes;
@@ -140,7 +148,6 @@ class _SessionCard extends ConsumerWidget {
         padding: const EdgeInsets.fromLTRB(16, 14, 12, 14),
         child: Row(
           children: [
-            // Icon tile
             Container(
               width: 44,
               height: 44,
@@ -213,97 +220,8 @@ class _SessionCard extends ConsumerWidget {
                 ],
               ),
             ),
-            // Delete button
-            SizedBox(
-              width: 36,
-              height: 36,
-              child: IconButton(
-                padding: EdgeInsets.zero,
-                icon: Icon(Icons.delete_outline_rounded,
-                    size: 18, color: c.inkMute),
-                onPressed: () => _confirmDelete(context, ref),
-              ),
-            ),
             Icon(Icons.chevron_right_rounded,
                 size: 18, color: c.inkMute),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Future<void> _confirmDelete(
-      BuildContext context, WidgetRef ref) async {
-    final theme = AppThemeData.of(context);
-    final c = theme.c;
-
-    await showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      builder: (ctx) => Container(
-        decoration: BoxDecoration(
-          color: c.surface,
-          borderRadius:
-              BorderRadius.vertical(top: Radius.circular(kRadius + 8)),
-        ),
-        padding: EdgeInsets.fromLTRB(
-            22, 20, 22, 28 + MediaQuery.of(context).padding.bottom),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Center(
-              child: Container(
-                width: 36,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: c.hairline,
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              'Delete session?',
-              style: displayStyle(
-                fontSize: 22,
-                fontWeight: FontWeight.w500,
-                color: c.ink,
-                letterSpacing: -0.3,
-              ),
-            ),
-            const SizedBox(height: 10),
-            Text(
-              'Remove this "${session.workoutName}" session from your history?',
-              style: bodyStyle(
-                  fontSize: 14, color: c.inkDim, height: 1.5),
-            ),
-            const SizedBox(height: 20),
-            Row(
-              children: [
-                Expanded(
-                  child: AppButton(
-                    label: 'Cancel',
-                    kind: ButtonKind.outline,
-                    onPressed: () => Navigator.pop(ctx),
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: AppButton(
-                    label: 'Delete',
-                    kind: ButtonKind.danger,
-                    icon: Icons.delete_outline_rounded,
-                    onPressed: () async {
-                      Navigator.pop(ctx);
-                      await ref
-                          .read(sessionsProvider.notifier)
-                          .deleteSession(session.id);
-                    },
-                  ),
-                ),
-              ],
-            ),
           ],
         ),
       ),

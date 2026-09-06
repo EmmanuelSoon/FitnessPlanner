@@ -1,0 +1,146 @@
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_test/flutter_test.dart';
+
+import 'package:fitness_planner/data/session_repository.dart';
+import 'package:fitness_planner/domain/models/logged_set.dart';
+import 'package:fitness_planner/domain/models/workout_session.dart';
+import 'package:fitness_planner/presentation/insights_screen.dart';
+import 'package:fitness_planner/providers/session_providers.dart';
+
+import '../support/fake_repositories.dart';
+import '../support/fixtures.dart';
+import '../support/pump_app.dart';
+
+void main() {
+  late FakeSessionRepository fakeRepo;
+
+  setUp(() {
+    fakeRepo = FakeSessionRepository();
+  });
+
+  Future<void> pumpInsights(WidgetTester tester) => pumpApp(
+        tester,
+        const InsightsScreen(),
+        overrides: [sessionRepositoryProvider.overrideWithValue(fakeRepo)],
+      );
+
+  testWidgets('shows the empty state when there are no sessions', (tester) async {
+    await pumpInsights(tester);
+
+    expect(find.text('No sessions yet'), findsOneWidget);
+  });
+
+  testWidgets('shows the trend for the most recently logged exercise by default', (tester) async {
+    fakeRepo.store['ws1'] = buildWorkoutSession(id: 'ws1', startedAt: DateTime(2026, 1, 5));
+
+    await pumpInsights(tester);
+
+    expect(find.text('Bench Press'), findsOneWidget);
+    expect(find.text('60'), findsOneWidget);
+    expect(find.textContaining('Top set'), findsOneWidget);
+  });
+
+  testWidgets('tapping another exercise chip switches the trend shown', (tester) async {
+    fakeRepo.store['ws1'] = WorkoutSession(
+      id: 'ws1',
+      workoutId: 'w1',
+      workoutName: 'Push Day',
+      startedAt: DateTime(2026, 1, 5),
+      endedAt: DateTime(2026, 1, 5, 1),
+      completed: true,
+      sets: [
+        LoggedSet(
+          exerciseName: 'Bench Press',
+          targetReps: 8,
+          targetWeight: 60,
+          actualReps: 8,
+          actualWeight: 60,
+          skipped: false,
+        ),
+        LoggedSet(
+          exerciseName: 'Pull-up',
+          targetReps: 10,
+          targetWeight: 0,
+          actualReps: 10,
+          actualWeight: 0,
+          skipped: false,
+        ),
+      ],
+    );
+
+    await pumpInsights(tester);
+
+    expect(find.textContaining('Top set'), findsOneWidget);
+
+    await tester.tap(find.text('Pull-up'));
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('Best set'), findsOneWidget);
+  });
+
+  testWidgets('falls back to another exercise when the selected one disappears from the list', (tester) async {
+    fakeRepo.store['ws1'] = WorkoutSession(
+      id: 'ws1',
+      workoutId: 'w1',
+      workoutName: 'Push Day',
+      startedAt: DateTime(2026, 1, 5),
+      endedAt: DateTime(2026, 1, 5, 1),
+      completed: true,
+      sets: [
+        LoggedSet(
+          exerciseName: 'Bench Press',
+          targetReps: 8,
+          targetWeight: 60,
+          actualReps: 8,
+          actualWeight: 60,
+          skipped: false,
+        ),
+      ],
+    );
+    fakeRepo.store['ws2'] = WorkoutSession(
+      id: 'ws2',
+      workoutId: 'w1',
+      workoutName: 'Pull Day',
+      startedAt: DateTime(2026, 1, 12),
+      endedAt: DateTime(2026, 1, 12, 1),
+      completed: true,
+      sets: [
+        LoggedSet(
+          exerciseName: 'Pull-up',
+          targetReps: 10,
+          targetWeight: 0,
+          actualReps: 10,
+          actualWeight: 0,
+          skipped: false,
+        ),
+      ],
+    );
+
+    await pumpInsights(tester);
+    // Pull-up is the most recently logged exercise, so it's selected by default.
+    expect(find.textContaining('Best set'), findsOneWidget);
+
+    await tester.tap(find.text('Bench Press'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Top set'), findsOneWidget);
+
+    final container =
+        ProviderScope.containerOf(tester.element(find.byType(InsightsScreen)));
+    await container.read(sessionsProvider.notifier).deleteSession('ws1');
+    await tester.pumpAndSettle();
+
+    expect(find.text('Bench Press'), findsNothing);
+    expect(find.textContaining('Best set'), findsOneWidget);
+  });
+
+  testWidgets('the All sessions row navigates to the full session list', (tester) async {
+    fakeRepo.store['ws1'] = buildWorkoutSession(id: 'ws1');
+
+    await pumpInsights(tester);
+
+    await tester.tap(find.text('All sessions'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Push Day'), findsOneWidget);
+  });
+}

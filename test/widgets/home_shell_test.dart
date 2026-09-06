@@ -73,7 +73,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('No runs yet'), findsOneWidget);
 
-    await tester.tap(find.text('History'));
+    await tester.tap(find.text('Insights'));
     await tester.pumpAndSettle();
     expect(find.text('No sessions yet'), findsOneWidget);
 
@@ -96,7 +96,7 @@ void main() {
         tester.state<ScrollableState>(scrollable).position.pixels;
     expect(offsetBefore, greaterThan(0));
 
-    await tester.tap(find.text('History'));
+    await tester.tap(find.text('Insights'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Workouts'));
     await tester.pumpAndSettle();
