@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:fitness_planner/domain/insights/personal_records.dart';
+import 'package:fitness_planner/domain/models/run_session.dart';
 import 'package:fitness_planner/domain/models/workout_session.dart';
 import 'package:fitness_planner/presentation/widgets/app_widgets.dart';
 import 'package:fitness_planner/presentation/widgets/pr_card.dart';
+import 'package:fitness_planner/providers/run_providers.dart';
 import 'package:fitness_planner/providers/session_providers.dart';
 import 'package:fitness_planner/theme/app_theme.dart';
 
@@ -17,16 +19,19 @@ class RecordsScreen extends ConsumerStatefulWidget {
 }
 
 class _RecordsScreenState extends ConsumerState<RecordsScreen> {
-  // Memoized on the sessions list's identity, matching InsightsScreen's
-  // cache — a route-transition rebuild (or any unrelated ancestor rebuild)
-  // would otherwise re-scan every session on every frame.
+  // Memoized on the sessions and runs lists' identity, matching
+  // InsightsScreen's cache — a route-transition rebuild (or any unrelated
+  // ancestor rebuild) would otherwise re-scan every session and run on
+  // every frame.
   List<WorkoutSession>? _cachedSessions;
+  List<RunSession>? _cachedRuns;
   List<PersonalRecord>? _cachedRecords;
 
-  List<PersonalRecord> _recordsFor(List<WorkoutSession> sessions) {
-    if (!identical(_cachedSessions, sessions)) {
+  List<PersonalRecord> _recordsFor(List<WorkoutSession> sessions, List<RunSession> runs) {
+    if (!identical(_cachedSessions, sessions) || !identical(_cachedRuns, runs)) {
       _cachedSessions = sessions;
-      _cachedRecords = computePersonalRecords(sessions, const []);
+      _cachedRuns = runs;
+      _cachedRecords = computePersonalRecords(sessions, runs);
     }
     return _cachedRecords!;
   }
@@ -34,6 +39,7 @@ class _RecordsScreenState extends ConsumerState<RecordsScreen> {
   @override
   Widget build(BuildContext context) {
     final sessionsAsync = ref.watch(sessionsProvider);
+    final runs = ref.watch(runsProvider).asData?.value ?? const <RunSession>[];
     final theme = AppThemeData.of(context);
     final c = theme.c;
 
@@ -73,7 +79,7 @@ class _RecordsScreenState extends ConsumerState<RecordsScreen> {
                 error: (e, _) =>
                     Center(child: Text('Error: $e', style: bodyStyle(color: c.danger))),
                 data: (sessions) {
-                  final records = _recordsFor(sessions);
+                  final records = _recordsFor(sessions, runs);
                   return records.isEmpty ? const _EmptyState() : _Body(records: records);
                 },
               ),

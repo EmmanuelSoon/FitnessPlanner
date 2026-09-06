@@ -2,13 +2,16 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:fitness_planner/domain/insights/exercise_trend.dart';
 import 'package:fitness_planner/domain/insights/personal_records.dart';
+import 'package:fitness_planner/domain/insights/running_trends.dart';
 import 'package:fitness_planner/domain/insights/volume_stats.dart';
+import 'package:fitness_planner/domain/models/run_session.dart';
 import 'package:fitness_planner/domain/models/workout_session.dart';
 import 'package:fitness_planner/presentation/all_sessions_screen.dart';
 import 'package:fitness_planner/presentation/records_screen.dart';
 import 'package:fitness_planner/presentation/widgets/app_widgets.dart';
 import 'package:fitness_planner/presentation/widgets/insights_charts.dart';
 import 'package:fitness_planner/presentation/widgets/pr_card.dart';
+import 'package:fitness_planner/providers/run_providers.dart';
 import 'package:fitness_planner/providers/session_providers.dart';
 import 'package:fitness_planner/theme/app_theme.dart';
 
@@ -22,20 +25,24 @@ class InsightsScreen extends ConsumerStatefulWidget {
 class _InsightsScreenState extends ConsumerState<InsightsScreen> {
   String? _selectedExercise;
   String _volumeMetric = 'Tonnage';
+  String _mode = 'Strength';
 
-  // Memoized on the sessions list's identity: `sessionsProvider` hands back
-  // the same List instance across rebuilds until its data actually
-  // changes, so a chip tap (which only changes `_selectedExercise`) can
-  // reuse the cached exercise-name list and per-exercise trends instead of
-  // re-scanning every session on every tap.
+  // Memoized on the sessions and runs lists' identity: `sessionsProvider`
+  // and `runsProvider` hand back the same List instance across rebuilds
+  // until their data actually changes, so a chip tap or mode toggle (which
+  // only changes local state) can reuse the cached derived data instead of
+  // re-scanning every session/run on every tap.
   List<WorkoutSession>? _cachedSessions;
+  List<RunSession>? _cachedRuns;
   List<String> _cachedNames = const [];
   final Map<String, List<ExerciseTrendPoint>> _trendCache = {};
   List<WeekVolume>? _cachedWeeklyVolume;
   DateTime? _cachedWeekStart;
+  List<WeekRunStats>? _cachedWeeklyRunStats;
+  DateTime? _cachedRunWeekStart;
   List<PersonalRecord>? _cachedRecords;
 
-  List<String> _namesFor(List<WorkoutSession> sessions) {
+  void _sync(List<WorkoutSession> sessions, List<RunSession> runs) {
     if (!identical(_cachedSessions, sessions)) {
       _cachedSessions = sessions;
       _cachedNames = exerciseNamesLogged(sessions);
@@ -43,21 +50,34 @@ class _InsightsScreenState extends ConsumerState<InsightsScreen> {
       _cachedWeeklyVolume = null;
       _cachedRecords = null;
     }
+    if (!identical(_cachedRuns, runs)) {
+      _cachedRuns = runs;
+      _cachedWeeklyRunStats = null;
+      _cachedRecords = null;
+    }
+  }
+
+  List<String> _namesFor(List<WorkoutSession> sessions, List<RunSession> runs) {
+    _sync(sessions, runs);
     return _cachedNames;
   }
 
-  List<PersonalRecord> _recordsFor(List<WorkoutSession> sessions) {
-    _namesFor(sessions); // ensures the cache above is current for `sessions`
-    return _cachedRecords ??= computePersonalRecords(sessions, const []);
+  List<PersonalRecord> _recordsFor(List<WorkoutSession> sessions, List<RunSession> runs) {
+    _sync(sessions, runs);
+    return _cachedRecords ??= computePersonalRecords(sessions, runs);
   }
 
-  List<ExerciseTrendPoint> _trendFor(List<WorkoutSession> sessions, String exercise) {
-    _namesFor(sessions); // ensures the cache above is current for `sessions`
+  List<ExerciseTrendPoint> _trendFor(
+    List<WorkoutSession> sessions,
+    List<RunSession> runs,
+    String exercise,
+  ) {
+    _sync(sessions, runs);
     return _trendCache.putIfAbsent(exercise, () => computeExerciseTrend(sessions, exercise));
   }
 
-  List<WeekVolume> _weeklyVolumeFor(List<WorkoutSession> sessions) {
-    _namesFor(sessions); // ensures the cache above is current for `sessions`
+  List<WeekVolume> _weeklyVolumeFor(List<WorkoutSession> sessions, List<RunSession> runs) {
+    _sync(sessions, runs);
     // Keyed on the current week's start too, not just the sessions list —
     // this screen can be kept alive (e.g. in a bottom-nav IndexedStack)
     // across a real week boundary with no session change, and a
@@ -71,9 +91,20 @@ class _InsightsScreenState extends ConsumerState<InsightsScreen> {
     return _cachedWeeklyVolume!;
   }
 
+  List<WeekRunStats> _weeklyRunStatsFor(List<WorkoutSession> sessions, List<RunSession> runs) {
+    _sync(sessions, runs);
+    final weekStart = weekStartOf(DateTime.now());
+    if (_cachedWeeklyRunStats == null || _cachedRunWeekStart != weekStart) {
+      _cachedWeeklyRunStats = weeklyRunStats(runs);
+      _cachedRunWeekStart = weekStart;
+    }
+    return _cachedWeeklyRunStats!;
+  }
+
   @override
   Widget build(BuildContext context) {
     final sessionsAsync = ref.watch(sessionsProvider);
+    final runs = ref.watch(runsProvider).asData?.value ?? const <RunSession>[];
     final theme = AppThemeData.of(context);
     final c = theme.c;
 
@@ -111,7 +142,7 @@ class _InsightsScreenState extends ConsumerState<InsightsScreen> {
                 data: (sessions) {
                   if (sessions.isEmpty) return const _EmptyState();
 
-                  final names = _namesFor(sessions);
+                  final names = _namesFor(sessions, runs);
                   // Fall back to the most recently logged exercise if
                   // nothing's selected yet, or if the previously selected
                   // one no longer appears (e.g. its only session was
@@ -123,9 +154,10 @@ class _InsightsScreenState extends ConsumerState<InsightsScreen> {
                       : (names.isEmpty ? null : names.first);
                   final trend = exercise == null
                       ? const <ExerciseTrendPoint>[]
-                      : _trendFor(sessions, exercise);
-                  final weeks = _weeklyVolumeFor(sessions);
-                  final records = _recordsFor(sessions);
+                      : _trendFor(sessions, runs, exercise);
+                  final weeks = _weeklyVolumeFor(sessions, runs);
+                  final runWeeks = _weeklyRunStatsFor(sessions, runs);
+                  final records = _recordsFor(sessions, runs);
 
                   return _Body(
                     sessionCount: sessions.length,
@@ -139,6 +171,9 @@ class _InsightsScreenState extends ConsumerState<InsightsScreen> {
                     onSelectVolumeMetric: (metric) =>
                         setState(() => _volumeMetric = metric),
                     records: records,
+                    mode: _mode,
+                    onSelectMode: (mode) => setState(() => _mode = mode),
+                    runWeeks: runWeeks,
                   );
                 },
               ),
@@ -160,6 +195,9 @@ class _Body extends StatelessWidget {
   final String volumeMetric;
   final ValueChanged<String> onSelectVolumeMetric;
   final List<PersonalRecord> records;
+  final String mode;
+  final ValueChanged<String> onSelectMode;
+  final List<WeekRunStats> runWeeks;
 
   const _Body({
     required this.sessionCount,
@@ -171,31 +209,47 @@ class _Body extends StatelessWidget {
     required this.volumeMetric,
     required this.onSelectVolumeMetric,
     required this.records,
+    required this.mode,
+    required this.onSelectMode,
+    required this.runWeeks,
   });
 
   @override
   Widget build(BuildContext context) {
     final c = AppThemeData.of(context).c;
-    // weeklyVolume() always returns at least one bucket (default 8 weeks),
-    // even for an empty session list, so `weeks` is never empty here.
+    final running = mode == 'Running';
+    // weeklyVolume()/weeklyRunStats() always return at least one bucket
+    // (default 8 weeks), even for empty input, so these are never empty.
     final thisWeek = weeks.last;
+    final thisRunWeek = runWeeks.last;
+    final recordsForMode = records
+        .where((r) => (r.type == PersonalRecordType.fastestPace) == running)
+        .toList();
 
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 32),
       children: [
+        SegmentedControl(
+          options: const ['Strength', 'Running'],
+          value: mode,
+          onChanged: onSelectMode,
+        ),
+        const SizedBox(height: 22),
         const _SectionLabel('This week'),
         const SizedBox(height: 10),
-        _ThisWeekStrip(week: thisWeek),
-        const SizedBox(height: 8),
-        Text(
-          'Tonnage counts weighted sets only. Reps count everything, '
-          'weighted and bodyweight — the two are never added together.',
-          style: bodyStyle(fontSize: 11, color: c.inkDim, height: 1.5),
-        ),
+        running ? _RunThisWeekStrip(week: thisRunWeek) : _ThisWeekStrip(week: thisWeek),
+        if (!running) ...[
+          const SizedBox(height: 8),
+          Text(
+            'Tonnage counts weighted sets only. Reps count everything, '
+            'weighted and bodyweight — the two are never added together.',
+            style: bodyStyle(fontSize: 11, color: c.inkDim, height: 1.5),
+          ),
+        ],
         const SizedBox(height: 22),
         _SectionLabel(
           'Recent records',
-          action: records.isEmpty
+          action: recordsForMode.isEmpty
               ? null
               : ('See all', () => Navigator.push(
                     context,
@@ -203,37 +257,43 @@ class _Body extends StatelessWidget {
                   )),
         ),
         const SizedBox(height: 10),
-        if (records.isEmpty)
+        if (recordsForMode.isEmpty)
           Text(
-            'No records yet — log a set to start setting personal bests.',
+            running
+                ? 'No records yet — log a run to start setting personal bests.'
+                : 'No records yet — log a set to start setting personal bests.',
             style: bodyStyle(fontSize: 13, color: c.inkMute),
           )
         else
           Column(
             children: [
-              for (final record in records.take(2)) ...[
+              for (final record in recordsForMode.take(2)) ...[
                 PRCard(record: record),
                 const SizedBox(height: 10),
               ],
             ],
           ),
         const SizedBox(height: 22),
-        const _SectionLabel('Volume over time'),
+        _SectionLabel(running ? 'Distance over time' : 'Volume over time'),
         const SizedBox(height: 10),
-        _VolumeCard(
-          weeks: weeks,
-          metric: volumeMetric,
-          onSelectMetric: onSelectVolumeMetric,
-        ),
+        running
+            ? _DistanceCard(weeks: runWeeks)
+            : _VolumeCard(
+                weeks: weeks,
+                metric: volumeMetric,
+                onSelectMetric: onSelectVolumeMetric,
+              ),
         const SizedBox(height: 22),
-        const _SectionLabel('Exercise trend'),
+        _SectionLabel(running ? 'Pace trend' : 'Exercise trend'),
         const SizedBox(height: 10),
-        _ExerciseTrendCard(
-          names: names,
-          selected: selected,
-          onSelect: onSelectExercise,
-          trend: trend,
-        ),
+        running
+            ? _PaceTrendCard(weeks: runWeeks)
+            : _ExerciseTrendCard(
+                names: names,
+                selected: selected,
+                onSelect: onSelectExercise,
+                trend: trend,
+              ),
         const SizedBox(height: 22),
         _RowLink(
           icon: Icons.history_rounded,
@@ -266,6 +326,16 @@ String fmtCount(int n) {
     buffer.write(digits[i]);
   }
   return buffer.toString();
+}
+
+/// Clock-style pace, e.g. "4:52"; "--:--" when there's no distance behind
+/// the pace to show one for (an empty week, or a zero-distance run).
+String fmtPace(double? secPerKm) {
+  if (secPerKm == null) return '--:--';
+  final total = secPerKm.round();
+  final m = total ~/ 60;
+  final s = total % 60;
+  return '$m:${s.toString().padLeft(2, '0')}';
 }
 
 class _ThisWeekStrip extends StatelessWidget {
@@ -303,6 +373,50 @@ class _ThisWeekStrip extends StatelessWidget {
               child: StatChip(
                 value: fmtCount(week.repVolume),
                 label: 'reps',
+                leftBorder: true,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _RunThisWeekStrip extends StatelessWidget {
+  final WeekRunStats week;
+
+  const _RunThisWeekStrip({required this.week});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = AppThemeData.of(context);
+    final c = theme.c;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: c.surface,
+        borderRadius: BorderRadius.circular(kRadius),
+        border: theme.isDark ? Border.all(color: c.hairlineSoft) : null,
+        boxShadow: cardShadow(theme.isDark),
+      ),
+      child: IntrinsicHeight(
+        child: Row(
+          children: [
+            Expanded(
+              child: StatChip(
+                value: week.distanceKm.toStringAsFixed(1),
+                unit: 'km',
+                label: 'distance',
+              ),
+            ),
+            Expanded(
+              child: StatChip(value: '${week.runCount}', label: 'runs', leftBorder: true),
+            ),
+            Expanded(
+              child: StatChip(
+                value: fmtPace(week.avgPaceSecPerKm),
+                label: 'avg pace',
                 leftBorder: true,
               ),
             ),
@@ -374,6 +488,82 @@ class _VolumeCard extends StatelessWidget {
                 isTonnage ? 't' : 'reps',
                 style: bodyStyle(fontSize: 14, color: c.inkDim),
               ),
+              if (change != null) ...[
+                const SizedBox(width: 8),
+                Icon(
+                  change >= 0
+                      ? Icons.arrow_upward_rounded
+                      : Icons.arrow_downward_rounded,
+                  size: 13,
+                  color: c.accent,
+                ),
+                Text(
+                  '${change.abs().round()}%',
+                  style: bodyStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: c.accent,
+                  ),
+                ),
+              ],
+              const Spacer(),
+              Text('vs 8w ago', style: bodyStyle(fontSize: 12, color: c.inkMute)),
+            ],
+          ),
+          const SizedBox(height: 8),
+          AreaTrendChart(
+            series: series,
+            edgeLabels: [
+              _formatShortDate(weeks.first.weekStart),
+              _formatShortDate(weeks.last.weekStart),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _DistanceCard extends StatelessWidget {
+  final List<WeekRunStats> weeks;
+
+  const _DistanceCard({required this.weeks});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = AppThemeData.of(context);
+    final c = theme.c;
+
+    final series = [for (final w in weeks) w.distanceKm];
+    final change = percentChange(series.last, series.first);
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: c.surface,
+        borderRadius: BorderRadius.circular(kRadius),
+        border: theme.isDark ? Border.all(color: c.hairlineSoft) : null,
+        boxShadow: cardShadow(theme.isDark),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.baseline,
+            textBaseline: TextBaseline.alphabetic,
+            children: [
+              Text(
+                series.last.toStringAsFixed(1),
+                style: displayStyle(
+                  fontSize: 30,
+                  fontWeight: FontWeight.w600,
+                  color: c.ink,
+                  letterSpacing: -1,
+                ),
+              ),
+              const SizedBox(width: 3),
+              Text('km', style: bodyStyle(fontSize: 14, color: c.inkDim)),
               if (change != null) ...[
                 const SizedBox(width: 8),
                 Icon(
@@ -535,6 +725,65 @@ class _ExerciseTrendCard extends StatelessWidget {
               ],
             ),
           ],
+        ],
+      ),
+    );
+  }
+}
+
+class _PaceTrendCard extends StatelessWidget {
+  final List<WeekRunStats> weeks;
+
+  const _PaceTrendCard({required this.weeks});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = AppThemeData.of(context);
+    final c = theme.c;
+
+    // Weeks with no runs carry no pace — plotting them as 0 would read as
+    // an impossibly fast week on an inverted (lower-is-better) axis, so
+    // they're dropped rather than zero-filled like the distance chart.
+    final withPace = [for (final w in weeks) if (w.avgPaceSecPerKm != null) w];
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: c.surface,
+        borderRadius: BorderRadius.circular(kRadius),
+        border: theme.isDark ? Border.all(color: c.hairlineSoft) : null,
+        boxShadow: cardShadow(theme.isDark),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Average pace',
+            style: displayStyle(
+              fontSize: 17,
+              fontWeight: FontWeight.w600,
+              color: c.ink,
+              letterSpacing: -0.3,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text('Lower is faster · min/km', style: bodyStyle(fontSize: 12, color: c.inkDim)),
+          const SizedBox(height: 12),
+          if (withPace.isEmpty)
+            Text(
+              'No runs logged in the last 8 weeks.',
+              style: bodyStyle(fontSize: 13, color: c.inkMute),
+            )
+          else
+            AreaTrendChart(
+              series: [for (final w in withPace) w.avgPaceSecPerKm!],
+              edgeLabels: [
+                _formatShortDate(withPace.first.weekStart),
+                _formatShortDate(withPace.last.weekStart),
+              ],
+              invert: true,
+            ),
         ],
       ),
     );

@@ -41,7 +41,13 @@ class PRCard extends StatelessWidget {
               borderRadius:
                   BorderRadius.circular((kRadius - 8).clamp(8.0, double.infinity)),
             ),
-            child: Icon(Icons.emoji_events_rounded, size: 20, color: c.accentInk),
+            child: Icon(
+              record.type == PersonalRecordType.fastestPace
+                  ? Icons.directions_run_rounded
+                  : Icons.emoji_events_rounded,
+              size: 20,
+              color: c.accentInk,
+            ),
           ),
           const SizedBox(width: 13),
           Expanded(
@@ -103,6 +109,7 @@ String _kindLabel(PersonalRecordType type) => switch (type) {
       PersonalRecordType.longestHold => 'Longest hold',
       PersonalRecordType.bestEst1Rm => 'Best est. 1RM',
       PersonalRecordType.sessionTonnage => 'Session volume',
+      PersonalRecordType.fastestPace => 'Fastest pace',
     };
 
 (String, String) _formatValue(PersonalRecord r) => switch (r.type) {
@@ -117,6 +124,7 @@ String _kindLabel(PersonalRecordType type) => switch (type) {
           (r.value / 1000).toStringAsFixed(1),
           't lifted',
         ),
+      PersonalRecordType.fastestPace => (_fmtClock(r.value.round()), '/km'),
     };
 
 String? _formatDelta(PersonalRecord r) {
@@ -130,6 +138,9 @@ String? _formatDelta(PersonalRecord r) {
     PersonalRecordType.longestHold => '+${diff.round()} s',
     PersonalRecordType.bestEst1Rm => '+${diff.round()} kg',
     PersonalRecordType.sessionTonnage => '+${(diff / 1000).toStringAsFixed(1)} t',
+    // Lower is better, so an improvement is always a negative diff — the
+    // sign is already correct with no '+' to add.
+    PersonalRecordType.fastestPace => '${diff.round()} s/km',
   };
 }
 

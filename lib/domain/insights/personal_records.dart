@@ -1,15 +1,15 @@
 import 'package:fitness_planner/domain/models/run_session.dart';
 import 'package:fitness_planner/domain/models/workout_session.dart';
 
-// `fastestPace` isn't a member yet — it's lower-is-better, unlike every type
-// here, so it needs its own tracking (not `_Progress`'s "bigger wins") and
-// lands in PR 4 alongside the running data it's computed from.
 enum PersonalRecordType {
   heaviestWeight,
   mostReps,
   longestHold,
   bestEst1Rm,
   sessionTonnage,
+  // Lower is better, unlike every type above — tracked via `_Progress`'s
+  // `lowerIsBetter` flag instead of its default "bigger wins" comparison.
+  fastestPace,
 }
 
 /// A current personal best: [type] paired with either the exercise it was
@@ -45,6 +45,7 @@ class PersonalRecord {
 /// order, remembering the value it replaces so the eventual [PersonalRecord]
 /// can show a delta against the previous best.
 class _Progress {
+  final bool lowerIsBetter;
   double? best;
   double? previousBest;
   int? reps;
@@ -52,8 +53,11 @@ class _Progress {
   DateTime? achievedAt;
   String? sessionId;
 
+  _Progress({this.lowerIsBetter = false});
+
   void offer(double value, String label, DateTime at, String sessId, {int? reps}) {
-    if (best == null || value > best!) {
+    final isBetter = best == null || (lowerIsBetter ? value < best! : value > best!);
+    if (isBetter) {
       previousBest = best;
       best = value;
       this.label = label;
@@ -78,21 +82,22 @@ class _Progress {
   }
 }
 
-/// The current personal-best for each non-running [PersonalRecordType],
-/// one per exercise for the four per-exercise types, plus one overall for
-/// `sessionTonnage`. [runs] is accepted now so `fastestPace` can be added
-/// later without a breaking signature change — it isn't used yet.
+/// The current personal-best for each [PersonalRecordType]: one per
+/// exercise for the four per-exercise strength types, plus one overall
+/// each for `sessionTonnage` and `fastestPace`.
 List<PersonalRecord> computePersonalRecords(
   List<WorkoutSession> sessions,
   List<RunSession> runs,
 ) {
   final sorted = [...sessions]..sort((a, b) => a.startedAt.compareTo(b.startedAt));
+  final sortedRuns = [...runs]..sort((a, b) => a.startedAt.compareTo(b.startedAt));
 
   final heaviestWeight = <String, _Progress>{};
   final mostReps = <String, _Progress>{};
   final longestHold = <String, _Progress>{};
   final bestEst1Rm = <String, _Progress>{};
   final sessionTonnage = _Progress();
+  final fastestPace = _Progress(lowerIsBetter: true);
 
   for (final session in sorted) {
     final bestWeightSet = <String, ({double weight, int reps})>{};
@@ -158,12 +163,19 @@ List<PersonalRecord> computePersonalRecords(
     }
   }
 
+  for (final run in sortedRuns) {
+    final pace = run.pacePerKm;
+    if (pace == null) continue;
+    fastestPace.offer(pace.inSeconds.toDouble(), 'Running', run.startedAt, run.id);
+  }
+
   final records = <PersonalRecord>[
     for (final p in heaviestWeight.values) ?p.toRecord(PersonalRecordType.heaviestWeight),
     for (final p in mostReps.values) ?p.toRecord(PersonalRecordType.mostReps),
     for (final p in longestHold.values) ?p.toRecord(PersonalRecordType.longestHold),
     for (final p in bestEst1Rm.values) ?p.toRecord(PersonalRecordType.bestEst1Rm),
     ?sessionTonnage.toRecord(PersonalRecordType.sessionTonnage),
+    ?fastestPace.toRecord(PersonalRecordType.fastestPace),
   ];
 
   // Multiple records can share the same `achievedAt` (several PRs set in
