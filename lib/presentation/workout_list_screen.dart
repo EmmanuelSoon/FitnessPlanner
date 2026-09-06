@@ -336,7 +336,7 @@ class _EmptyState extends StatelessWidget {
                 ),
                 const SizedBox(height: 12),
                 Text(
-                  'Plan a workout once, follow it at the gym.\nEverything stays on your device.',
+                  'Plan a workout once, follow it at the gym.',
                   style: bodyStyle(
                     fontSize: 14,
                     color: c.inkDim,
