@@ -69,7 +69,7 @@ class _WorkoutList extends ConsumerWidget {
             // ─── Hero header ────────────────────────────────────────
             SliverToBoxAdapter(
               child: Padding(
-                padding: const EdgeInsets.fromLTRB(22, 32, 22, 22),
+                padding: const EdgeInsets.fromLTRB(kSpaceMd, 32, kSpaceMd, 22),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [

@@ -103,4 +103,17 @@ void main() {
     expect(fakeRunRepo.store.containsKey('r1'), isFalse);
     expect(find.text('No runs yet'), findsOneWidget);
   });
+
+  testWidgets('the "Runs" headline aligns to the same left edge as the cards, not centred', (tester) async {
+    fakeRunRepo.store['r1'] = buildRunSession(id: 'r1');
+    await pumpList(tester);
+    await tester.pumpAndSettle();
+
+    final headline = tester.getTopLeft(find.text('Runs')).dx;
+    final card = tester.getTopLeft(
+      find.byWidgetPredicate((w) => w.runtimeType.toString() == '_RunCard'),
+    ).dx;
+
+    expect(headline, card);
+  });
 }

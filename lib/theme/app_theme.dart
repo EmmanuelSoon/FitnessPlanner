@@ -514,6 +514,13 @@ ThemeData buildMaterialTheme(AppThemeData appTheme) {
 // ─── Design token: corner radius ──────────────────────────────────────
 const double kRadius = 20.0;
 
+// ─── Design token: spacing scale ───────────────────────────────────────
+const double kSpaceXs = 4.0;
+const double kSpaceSm = 8.0;
+const double kSpaceMd = 16.0;
+const double kSpaceLg = 24.0;
+const double kSpaceXl = 32.0;
+
 // ─── Design token: comfy density spacing ──────────────────────────────
 const double kPad = 18.0;
 const double kGap = 14.0;

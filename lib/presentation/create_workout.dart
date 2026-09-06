@@ -328,7 +328,7 @@ class _CreateWorkoutScreenState extends State<CreateWorkoutScreen> {
                     children: [
                       // Workout name field
                       Padding(
-                        padding: const EdgeInsets.fromLTRB(18, 8, 18, 18),
+                        padding: const EdgeInsets.fromLTRB(kSpaceMd, 8, kSpaceMd, 18),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
@@ -411,7 +411,7 @@ class _CreateWorkoutScreenState extends State<CreateWorkoutScreen> {
                         onTap: () =>
                             setState(() => _warmupExpanded = !_warmupExpanded),
                         child: Padding(
-                          padding: const EdgeInsets.fromLTRB(22, 4, 22, 4),
+                          padding: const EdgeInsets.fromLTRB(kSpaceMd, 4, kSpaceMd, 4),
                           child: Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
@@ -509,7 +509,7 @@ class _CreateWorkoutScreenState extends State<CreateWorkoutScreen> {
 
                       // ── Main exercises section ────────────────────
                       Padding(
-                        padding: const EdgeInsets.fromLTRB(22, 4, 22, 10),
+                        padding: const EdgeInsets.fromLTRB(kSpaceMd, 4, kSpaceMd, 10),
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [

@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:fitness_planner/data/workout_repository.dart';
 import 'package:fitness_planner/presentation/workout_list_screen.dart';
+import 'package:fitness_planner/presentation/widgets/app_widgets.dart';
 
 import '../support/fake_repositories.dart';
 import '../support/fixtures.dart';
@@ -65,5 +66,15 @@ void main() {
 
     expect(fakeRepo.store.containsKey('w1'), isFalse);
     expect(find.text('Nothing here yet.'), findsOneWidget);
+  });
+
+  testWidgets('the "Workouts" headline aligns to the same left edge as the cards', (tester) async {
+    fakeRepo.store['w1'] = buildWorkout(id: 'w1', name: 'Push Day');
+    await pumpList(tester);
+
+    final headline = tester.getTopLeft(find.text('Workouts')).dx;
+    final card = tester.getTopLeft(find.byType(WorkoutListCard).first).dx;
+
+    expect(headline, card);
   });
 }
