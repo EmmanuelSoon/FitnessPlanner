@@ -388,9 +388,11 @@ class _CreateWorkoutScreenState extends State<CreateWorkoutScreen> {
                               ),
                             ),
                             const SizedBox(height: 10),
-                            Row(
+                            Wrap(
+                              spacing: 10,
+                              runSpacing: 10,
                               children: [
-                                for (final entry in kWorkoutIcons.entries) ...[
+                                for (final entry in kWorkoutIcons.entries)
                                   _IconSwatch(
                                     icon: entry.value,
                                     selected: _selectedIcon == entry.key,
@@ -398,8 +400,6 @@ class _CreateWorkoutScreenState extends State<CreateWorkoutScreen> {
                                       () => _selectedIcon = entry.key,
                                     ),
                                   ),
-                                  const SizedBox(width: 10),
-                                ],
                               ],
                             ),
                           ],

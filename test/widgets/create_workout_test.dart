@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:fitness_planner/data/workout_repository.dart';
 import 'package:fitness_planner/presentation/create_workout.dart';
+import 'package:fitness_planner/domain/models/workout_icons.dart';
 
 import '../support/fake_repositories.dart';
 import '../support/pump_app.dart';
@@ -164,5 +165,22 @@ void main() {
     ).dx;
 
     expect(label, card);
+  });
+
+  testWidgets('the icon picker wraps onto a second row once there are more icons than fit on one line', (tester) async {
+    await pumpCreateWorkout(tester);
+
+    final firstRowTop = tester.getTopLeft(find.byIcon(Icons.fitness_center_rounded)).dy;
+    final wrappedTop = tester.getTopLeft(find.byIcon(Icons.bolt_rounded)).dy;
+
+    expect(wrappedTop, greaterThan(firstRowTop));
+  });
+
+  testWidgets('every icon in the catalog is selectable in the icon picker', (tester) async {
+    await pumpCreateWorkout(tester);
+
+    for (final icon in kWorkoutIcons.values) {
+      expect(find.byIcon(icon), findsOneWidget);
+    }
   });
 }
