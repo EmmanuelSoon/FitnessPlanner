@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show listEquals, setEquals;
 import 'package:flutter/material.dart';
 import 'package:fitness_planner/theme/app_theme.dart';
 
@@ -166,8 +167,8 @@ class _AreaTrendPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _AreaTrendPainter oldDelegate) =>
-      oldDelegate.series != series ||
-      oldDelegate.prIndices != prIndices ||
+      !listEquals(oldDelegate.series, series) ||
+      !setEquals(oldDelegate.prIndices, prIndices) ||
       oldDelegate.invert != invert ||
       oldDelegate.accent != accent;
 }

@@ -18,6 +18,29 @@ class InsightsScreen extends ConsumerStatefulWidget {
 class _InsightsScreenState extends ConsumerState<InsightsScreen> {
   String? _selectedExercise;
 
+  // Memoized on the sessions list's identity: `sessionsProvider` hands back
+  // the same List instance across rebuilds until its data actually
+  // changes, so a chip tap (which only changes `_selectedExercise`) can
+  // reuse the cached exercise-name list and per-exercise trends instead of
+  // re-scanning every session on every tap.
+  List<WorkoutSession>? _cachedSessions;
+  List<String> _cachedNames = const [];
+  final Map<String, List<ExerciseTrendPoint>> _trendCache = {};
+
+  List<String> _namesFor(List<WorkoutSession> sessions) {
+    if (!identical(_cachedSessions, sessions)) {
+      _cachedSessions = sessions;
+      _cachedNames = exerciseNamesLogged(sessions);
+      _trendCache.clear();
+    }
+    return _cachedNames;
+  }
+
+  List<ExerciseTrendPoint> _trendFor(List<WorkoutSession> sessions, String exercise) {
+    _namesFor(sessions); // ensures the cache above is current for `sessions`
+    return _trendCache.putIfAbsent(exercise, () => computeExerciseTrend(sessions, exercise));
+  }
+
   @override
   Widget build(BuildContext context) {
     final sessionsAsync = ref.watch(sessionsProvider);
@@ -55,13 +78,32 @@ class _InsightsScreenState extends ConsumerState<InsightsScreen> {
                 error: (e, _) => Center(
                     child: Text('Error: $e',
                         style: bodyStyle(color: c.danger))),
-                data: (sessions) =>
-                    sessions.isEmpty ? const _EmptyState() : _Body(
-                      sessions: sessions,
-                      selectedExercise: _selectedExercise,
-                      onSelectExercise: (name) =>
-                          setState(() => _selectedExercise = name),
-                    ),
+                data: (sessions) {
+                  if (sessions.isEmpty) return const _EmptyState();
+
+                  final names = _namesFor(sessions);
+                  // Fall back to the most recently logged exercise if
+                  // nothing's selected yet, or if the previously selected
+                  // one no longer appears (e.g. its only session was
+                  // deleted) — an unreconciled stale selection would
+                  // otherwise show no chip selected and an empty trend.
+                  final exercise = (_selectedExercise != null &&
+                          names.contains(_selectedExercise))
+                      ? _selectedExercise!
+                      : (names.isEmpty ? null : names.first);
+                  final trend = exercise == null
+                      ? const <ExerciseTrendPoint>[]
+                      : _trendFor(sessions, exercise);
+
+                  return _Body(
+                    sessionCount: sessions.length,
+                    names: names,
+                    selected: exercise,
+                    trend: trend,
+                    onSelectExercise: (name) =>
+                        setState(() => _selectedExercise = name),
+                  );
+                },
               ),
             ),
           ],
@@ -72,23 +114,22 @@ class _InsightsScreenState extends ConsumerState<InsightsScreen> {
 }
 
 class _Body extends StatelessWidget {
-  final List<WorkoutSession> sessions;
-  final String? selectedExercise;
+  final int sessionCount;
+  final List<String> names;
+  final String? selected;
+  final List<ExerciseTrendPoint> trend;
   final ValueChanged<String> onSelectExercise;
 
   const _Body({
-    required this.sessions,
-    required this.selectedExercise,
+    required this.sessionCount,
+    required this.names,
+    required this.selected,
+    required this.trend,
     required this.onSelectExercise,
   });
 
   @override
   Widget build(BuildContext context) {
-    final names = exerciseNamesLogged(sessions);
-    final exercise = selectedExercise ?? (names.isEmpty ? null : names.first);
-    final trend =
-        exercise == null ? const <ExerciseTrendPoint>[] : computeExerciseTrend(sessions, exercise);
-
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 32),
       children: [
@@ -96,7 +137,7 @@ class _Body extends StatelessWidget {
         const SizedBox(height: 10),
         _ExerciseTrendCard(
           names: names,
-          selected: exercise,
+          selected: selected,
           onSelect: onSelectExercise,
           trend: trend,
         ),
@@ -104,7 +145,7 @@ class _Body extends StatelessWidget {
         _RowLink(
           icon: Icons.history_rounded,
           label: 'All sessions',
-          sub: '${sessions.length} logged session${sessions.length == 1 ? '' : 's'}',
+          sub: '$sessionCount logged session${sessionCount == 1 ? '' : 's'}',
           onTap: () => Navigator.push(
             context,
             MaterialPageRoute(builder: (_) => const AllSessionsScreen()),

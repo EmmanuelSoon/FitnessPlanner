@@ -130,6 +130,30 @@ void main() {
       expect(computeExerciseTrend([session], 'Bench Press').single.value, 60);
     });
 
+    test('classifies the exercise once across its whole history, so a later '
+        'zero-weight session does not flip units mid-trend', () {
+      final weighted = _session(
+        id: 's1',
+        startedAt: DateTime(2026, 1, 5),
+        sets: [_weighted(weight: 60)],
+      );
+      // Same exercise, but this session's only set has no weight recorded
+      // (e.g. left at 0kg) — should still read as a weighted "Top set" of
+      // 0kg, not flip to a bodyweight "Best set" of reps.
+      final zeroWeightLater = _session(
+        id: 's2',
+        startedAt: DateTime(2026, 1, 12),
+        sets: [_weighted(weight: 0, reps: 12)],
+      );
+
+      final points = computeExerciseTrend([weighted, zeroWeightLater], 'Bench Press');
+
+      expect(points, hasLength(2));
+      expect(points[1].unit, 'kg');
+      expect(points[1].metricLabel, 'Top set');
+      expect(points[1].value, 0);
+    });
+
     test('only includes sets matching the requested exercise name', () {
       final session = _session(
         id: 's1',

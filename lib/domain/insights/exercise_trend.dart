@@ -19,10 +19,17 @@ class ExerciseTrendPoint {
   });
 }
 
+enum _ExerciseKind { timed, weighted, bodyweight }
+
 /// One point per session (chronological) that logged a performed
 /// (non-skipped) set of [exerciseName]. Sessions where every set for the
 /// exercise was skipped, or the exercise wasn't logged at all, produce no
 /// point.
+///
+/// The exercise's kind (timed / weighted / bodyweight) is classified once
+/// across *all* its performed sets, not per session — a session logged
+/// with no weight recorded (e.g. left at 0kg) still reads as a weighted
+/// "Top set" of 0kg rather than flipping the whole trend to reps.
 List<ExerciseTrendPoint> computeExerciseTrend(
   List<WorkoutSession> sessions,
   String exerciseName,
@@ -30,19 +37,31 @@ List<ExerciseTrendPoint> computeExerciseTrend(
   final sorted = [...sessions]
     ..sort((a, b) => a.startedAt.compareTo(b.startedAt));
 
-  final points = <ExerciseTrendPoint>[];
+  final performedBySession = <List<LoggedSet>>[];
+  final allPerformed = <LoggedSet>[];
   for (final session in sorted) {
     final performed = session.sets
         .where((s) => s.exerciseName == exerciseName && !s.skipped)
         .toList();
-    if (performed.isEmpty) continue;
+    performedBySession.add(performed);
+    allPerformed.addAll(performed);
+  }
+  if (allPerformed.isEmpty) return [];
 
+  final kind = _classify(allPerformed);
+  final unit = _unitFor(kind);
+  final metricLabel = _metricLabelFor(kind);
+
+  final points = <ExerciseTrendPoint>[];
+  for (var i = 0; i < sorted.length; i++) {
+    final performed = performedBySession[i];
+    if (performed.isEmpty) continue;
     points.add(
       ExerciseTrendPoint(
-        date: session.startedAt,
-        value: _bestValue(performed),
-        unit: _unitFor(performed),
-        metricLabel: _metricLabelFor(performed),
+        date: sorted[i].startedAt,
+        value: _bestValue(kind, performed),
+        unit: unit,
+        metricLabel: metricLabel,
       ),
     );
   }
@@ -64,34 +83,35 @@ List<String> exerciseNamesLogged(List<WorkoutSession> sessions) {
   return names;
 }
 
-bool _isTimed(List<LoggedSet> performed) =>
-    performed.any((s) => s.heldSeconds != null);
+_ExerciseKind _classify(List<LoggedSet> performed) {
+  if (performed.any((s) => s.heldSeconds != null)) return _ExerciseKind.timed;
+  if (performed.any((s) => s.actualWeight > 0)) return _ExerciseKind.weighted;
+  return _ExerciseKind.bodyweight;
+}
 
-bool _isWeighted(List<LoggedSet> performed) =>
-    performed.any((s) => s.actualWeight > 0);
-
-double _bestValue(List<LoggedSet> performed) {
-  if (_isTimed(performed)) {
-    return performed
-        .map((s) => (s.heldSeconds ?? 0).toDouble())
-        .reduce((a, b) => a > b ? a : b);
+double _bestValue(_ExerciseKind kind, List<LoggedSet> performed) {
+  switch (kind) {
+    case _ExerciseKind.timed:
+      return performed
+          .map((s) => (s.heldSeconds ?? 0).toDouble())
+          .reduce((a, b) => a > b ? a : b);
+    case _ExerciseKind.weighted:
+      return performed.map((s) => s.actualWeight).reduce((a, b) => a > b ? a : b);
+    case _ExerciseKind.bodyweight:
+      return performed
+          .map((s) => s.actualReps.toDouble())
+          .reduce((a, b) => a > b ? a : b);
   }
-  if (_isWeighted(performed)) {
-    return performed.map((s) => s.actualWeight).reduce((a, b) => a > b ? a : b);
-  }
-  return performed
-      .map((s) => s.actualReps.toDouble())
-      .reduce((a, b) => a > b ? a : b);
 }
 
-String _unitFor(List<LoggedSet> performed) {
-  if (_isTimed(performed)) return 's';
-  if (_isWeighted(performed)) return 'kg';
-  return 'reps';
-}
+String _unitFor(_ExerciseKind kind) => switch (kind) {
+  _ExerciseKind.timed => 's',
+  _ExerciseKind.weighted => 'kg',
+  _ExerciseKind.bodyweight => 'reps',
+};
 
-String _metricLabelFor(List<LoggedSet> performed) {
-  if (_isTimed(performed)) return 'Longest hold';
-  if (_isWeighted(performed)) return 'Top set';
-  return 'Best set';
-}
+String _metricLabelFor(_ExerciseKind kind) => switch (kind) {
+  _ExerciseKind.timed => 'Longest hold',
+  _ExerciseKind.weighted => 'Top set',
+  _ExerciseKind.bodyweight => 'Best set',
+};

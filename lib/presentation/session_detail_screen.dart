@@ -161,7 +161,7 @@ class SessionDetailScreen extends ConsumerWidget {
             ),
             const SizedBox(height: 10),
             Text(
-              'Remove this "${session.workoutName}" session from your history?',
+              'Remove this "${session.workoutName}" session? This can\'t be undone.',
               style: bodyStyle(
                   fontSize: 14, color: c.inkDim, height: 1.5),
             ),
