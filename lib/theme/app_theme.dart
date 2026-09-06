@@ -409,6 +409,11 @@ ThemeData buildMaterialTheme(AppThemeData appTheme) {
       surface: c.surface,
       onSurface: c.ink,
     ),
+    // Stock Material widgets that read the ambient TextTheme directly
+    // (showDatePicker/showTimePicker) rather than through displayStyle/
+    // bodyStyle — this keeps them on Manrope instead of falling back to
+    // the default Material font.
+    textTheme: GoogleFonts.manropeTextTheme(),
     appBarTheme: AppBarTheme(
       backgroundColor: c.bg,
       foregroundColor: c.ink,
