@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:fitness_planner/domain/insights/exercise_trend.dart';
+import 'package:fitness_planner/domain/insights/volume_stats.dart';
 import 'package:fitness_planner/domain/models/workout_session.dart';
 import 'package:fitness_planner/presentation/all_sessions_screen.dart';
 import 'package:fitness_planner/presentation/widgets/app_widgets.dart';
@@ -17,6 +18,7 @@ class InsightsScreen extends ConsumerStatefulWidget {
 
 class _InsightsScreenState extends ConsumerState<InsightsScreen> {
   String? _selectedExercise;
+  String _volumeMetric = 'Tonnage';
 
   // Memoized on the sessions list's identity: `sessionsProvider` hands back
   // the same List instance across rebuilds until its data actually
@@ -26,12 +28,14 @@ class _InsightsScreenState extends ConsumerState<InsightsScreen> {
   List<WorkoutSession>? _cachedSessions;
   List<String> _cachedNames = const [];
   final Map<String, List<ExerciseTrendPoint>> _trendCache = {};
+  List<WeekVolume>? _cachedWeeklyVolume;
 
   List<String> _namesFor(List<WorkoutSession> sessions) {
     if (!identical(_cachedSessions, sessions)) {
       _cachedSessions = sessions;
       _cachedNames = exerciseNamesLogged(sessions);
       _trendCache.clear();
+      _cachedWeeklyVolume = null;
     }
     return _cachedNames;
   }
@@ -39,6 +43,11 @@ class _InsightsScreenState extends ConsumerState<InsightsScreen> {
   List<ExerciseTrendPoint> _trendFor(List<WorkoutSession> sessions, String exercise) {
     _namesFor(sessions); // ensures the cache above is current for `sessions`
     return _trendCache.putIfAbsent(exercise, () => computeExerciseTrend(sessions, exercise));
+  }
+
+  List<WeekVolume> _weeklyVolumeFor(List<WorkoutSession> sessions) {
+    _namesFor(sessions); // ensures the cache above is current for `sessions`
+    return _cachedWeeklyVolume ??= weeklyVolume(sessions);
   }
 
   @override
@@ -94,6 +103,7 @@ class _InsightsScreenState extends ConsumerState<InsightsScreen> {
                   final trend = exercise == null
                       ? const <ExerciseTrendPoint>[]
                       : _trendFor(sessions, exercise);
+                  final weeks = _weeklyVolumeFor(sessions);
 
                   return _Body(
                     sessionCount: sessions.length,
@@ -102,6 +112,10 @@ class _InsightsScreenState extends ConsumerState<InsightsScreen> {
                     trend: trend,
                     onSelectExercise: (name) =>
                         setState(() => _selectedExercise = name),
+                    weeks: weeks,
+                    volumeMetric: _volumeMetric,
+                    onSelectVolumeMetric: (metric) =>
+                        setState(() => _volumeMetric = metric),
                   );
                 },
               ),
@@ -119,6 +133,9 @@ class _Body extends StatelessWidget {
   final String? selected;
   final List<ExerciseTrendPoint> trend;
   final ValueChanged<String> onSelectExercise;
+  final List<WeekVolume> weeks;
+  final String volumeMetric;
+  final ValueChanged<String> onSelectVolumeMetric;
 
   const _Body({
     required this.sessionCount,
@@ -126,13 +143,49 @@ class _Body extends StatelessWidget {
     required this.selected,
     required this.trend,
     required this.onSelectExercise,
+    required this.weeks,
+    required this.volumeMetric,
+    required this.onSelectVolumeMetric,
   });
 
   @override
   Widget build(BuildContext context) {
+    final c = AppThemeData.of(context).c;
+    // weeklyVolume() always returns at least one bucket (default 8 weeks),
+    // even for an empty session list, so `weeks` is never empty here.
+    final thisWeek = weeks.last;
+
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 32),
       children: [
+        const _SectionLabel('This week'),
+        const SizedBox(height: 10),
+        StatStrip(
+          cells: [
+            StatCell(value: '${thisWeek.sessionCount}', label: 'sessions'),
+            StatCell(
+              value: fmtTonnage(thisWeek.tonnageKg),
+              unit: 't',
+              label: 'tonnage',
+            ),
+            StatCell(value: fmtCount(thisWeek.repVolume), label: 'reps'),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Text(
+          'Tonnage counts weighted sets only. Reps count everything, '
+          'weighted and bodyweight — the two are never added together.',
+          style: bodyStyle(fontSize: 11, color: c.inkDim, height: 1.5),
+        ),
+        const SizedBox(height: 22),
+        const _SectionLabel('Volume over time'),
+        const SizedBox(height: 10),
+        _VolumeCard(
+          weeks: weeks,
+          metric: volumeMetric,
+          onSelectMetric: onSelectVolumeMetric,
+        ),
+        const SizedBox(height: 22),
         const _SectionLabel('Exercise trend'),
         const SizedBox(height: 10),
         _ExerciseTrendCard(
@@ -152,6 +205,123 @@ class _Body extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+String fmtTonnage(double kg) => (kg / 1000).toStringAsFixed(1);
+
+String fmtCount(int n) {
+  final digits = n.toString();
+  final buffer = StringBuffer();
+  for (var i = 0; i < digits.length; i++) {
+    if (i > 0 && (digits.length - i) % 3 == 0) buffer.write(',');
+    buffer.write(digits[i]);
+  }
+  return buffer.toString();
+}
+
+class _VolumeCard extends StatelessWidget {
+  final List<WeekVolume> weeks;
+  final String metric;
+  final ValueChanged<String> onSelectMetric;
+
+  const _VolumeCard({
+    required this.weeks,
+    required this.metric,
+    required this.onSelectMetric,
+  });
+
+  String _formatWeekLabel(DateTime dt) {
+    const months = [
+      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+    ];
+    return '${months[dt.month - 1]} ${dt.day}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = AppThemeData.of(context);
+    final c = theme.c;
+    final isTonnage = metric == 'Tonnage';
+
+    final series = [
+      for (final w in weeks) isTonnage ? w.tonnageKg / 1000 : w.repVolume.toDouble(),
+    ];
+    final change = percentChange(series.last, series.first);
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: c.surface,
+        borderRadius: BorderRadius.circular(kRadius),
+        border: theme.isDark ? Border.all(color: c.hairlineSoft) : null,
+        boxShadow: cardShadow(theme.isDark),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SegmentedControl(
+            options: const ['Tonnage', 'Reps'],
+            value: metric,
+            onChanged: onSelectMetric,
+            small: true,
+          ),
+          const SizedBox(height: 14),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.baseline,
+            textBaseline: TextBaseline.alphabetic,
+            children: [
+              Text(
+                isTonnage
+                    ? series.last.toStringAsFixed(1)
+                    : fmtCount(series.last.round()),
+                style: displayStyle(
+                  fontSize: 30,
+                  fontWeight: FontWeight.w600,
+                  color: c.ink,
+                  letterSpacing: -1,
+                ),
+              ),
+              const SizedBox(width: 3),
+              Text(
+                isTonnage ? 't' : 'reps',
+                style: bodyStyle(fontSize: 14, color: c.inkDim),
+              ),
+              if (change != null) ...[
+                const SizedBox(width: 8),
+                Icon(
+                  change >= 0
+                      ? Icons.arrow_upward_rounded
+                      : Icons.arrow_downward_rounded,
+                  size: 13,
+                  color: c.accent,
+                ),
+                Text(
+                  '${change.abs().round()}%',
+                  style: bodyStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: c.accent,
+                  ),
+                ),
+              ],
+              const Spacer(),
+              Text('vs 8w ago', style: bodyStyle(fontSize: 12, color: c.inkMute)),
+            ],
+          ),
+          const SizedBox(height: 8),
+          AreaTrendChart(
+            series: series,
+            edgeLabels: [
+              _formatWeekLabel(weeks.first.weekStart),
+              _formatWeekLabel(weeks.last.weekStart),
+            ],
+          ),
+        ],
+      ),
     );
   }
 }

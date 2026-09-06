@@ -11,6 +11,11 @@ import '../support/fake_repositories.dart';
 import '../support/fixtures.dart';
 import '../support/pump_app.dart';
 
+DateTime _mondayOf(DateTime dt) {
+  final day = DateTime(dt.year, dt.month, dt.day);
+  return day.subtract(Duration(days: day.weekday - DateTime.monday));
+}
+
 void main() {
   late FakeSessionRepository fakeRepo;
 
@@ -131,6 +136,97 @@ void main() {
 
     expect(find.text('Bench Press'), findsNothing);
     expect(find.textContaining('Best set'), findsOneWidget);
+  });
+
+  testWidgets('shows this week\'s session count, tonnage, and rep volume', (tester) async {
+    final thisWeek = _mondayOf(DateTime.now()).add(const Duration(days: 1, hours: 9));
+    fakeRepo.store['ws1'] = WorkoutSession(
+      id: 'ws1',
+      workoutId: 'w1',
+      workoutName: 'Push Day',
+      startedAt: thisWeek,
+      endedAt: thisWeek.add(const Duration(hours: 1)),
+      completed: true,
+      sets: [
+        LoggedSet(
+          exerciseName: 'Bench Press',
+          targetReps: 10,
+          targetWeight: 60,
+          actualReps: 10,
+          actualWeight: 60,
+          skipped: false,
+        ),
+        LoggedSet(
+          exerciseName: 'Push-up',
+          targetReps: 5,
+          targetWeight: 0,
+          actualReps: 5,
+          actualWeight: 0,
+          skipped: false,
+        ),
+      ],
+    );
+
+    await pumpInsights(tester);
+
+    expect(find.text('This week'.toUpperCase()), findsOneWidget);
+    expect(find.text('1'), findsOneWidget); // sessions
+    expect(find.text('0.6'), findsWidgets); // tonnage: strip cell + volume card
+    expect(find.text('15'), findsOneWidget); // rep volume: 10 + 5
+    expect(find.textContaining('Tonnage counts weighted sets only'), findsOneWidget);
+  });
+
+  testWidgets('shows the volume-over-time card defaulting to tonnage, with the vs-8w-ago change', (tester) async {
+    final currentWeekStart = _mondayOf(DateTime.now());
+    final eightWeeksAgoStart = currentWeekStart.subtract(const Duration(days: 49));
+    fakeRepo.store['ws-now'] = WorkoutSession(
+      id: 'ws-now',
+      workoutId: 'w1',
+      workoutName: 'Push Day',
+      startedAt: currentWeekStart.add(const Duration(days: 1, hours: 9)),
+      endedAt: currentWeekStart.add(const Duration(days: 1, hours: 10)),
+      completed: true,
+      sets: [
+        LoggedSet(
+          exerciseName: 'Bench Press',
+          targetReps: 10,
+          targetWeight: 60,
+          actualReps: 10,
+          actualWeight: 60,
+          skipped: false,
+        ),
+      ],
+    );
+    fakeRepo.store['ws-old'] = WorkoutSession(
+      id: 'ws-old',
+      workoutId: 'w1',
+      workoutName: 'Push Day',
+      startedAt: eightWeeksAgoStart.add(const Duration(days: 1, hours: 9)),
+      endedAt: eightWeeksAgoStart.add(const Duration(days: 1, hours: 10)),
+      completed: true,
+      sets: [
+        LoggedSet(
+          exerciseName: 'Bench Press',
+          targetReps: 10,
+          targetWeight: 50,
+          actualReps: 10,
+          actualWeight: 50,
+          skipped: false,
+        ),
+      ],
+    );
+
+    await pumpInsights(tester);
+
+    expect(find.text('Volume over time'.toUpperCase()), findsOneWidget);
+    expect(find.text('0.6'), findsWidgets); // this week strip + volume card both show it
+    expect(find.textContaining('20%'), findsOneWidget); // (600-500)/500
+    expect(find.text('vs 8w ago'), findsOneWidget);
+
+    await tester.tap(find.text('Reps'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('10'), findsWidgets);
   });
 
   testWidgets('the All sessions row navigates to the full session list', (tester) async {
