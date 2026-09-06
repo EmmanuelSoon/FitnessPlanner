@@ -41,10 +41,6 @@ class _RunListScreenState extends ConsumerState<RunListScreen> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             AppHeaderBar(
-              leading: AppIconButton(
-                icon: Icons.arrow_back_rounded,
-                onPressed: () => Navigator.pop(context),
-              ),
               trailing: _syncing
                   ? SizedBox(
                       width: 36,
