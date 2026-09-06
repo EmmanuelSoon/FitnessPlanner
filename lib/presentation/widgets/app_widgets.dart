@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../domain/models/workout_icons.dart';
 import '../../theme/app_theme.dart';
 
 // ─── Header bar (replaces AppBar) ─────────────────────────────────────
@@ -178,6 +179,7 @@ class WorkoutListCard extends StatelessWidget {
   final int exerciseCount;
   final int? durationMinutes;
   final String? lastSession;
+  final String? icon;
   final VoidCallback? onTap;
   final VoidCallback? onEdit;
   final VoidCallback? onDelete;
@@ -188,6 +190,7 @@ class WorkoutListCard extends StatelessWidget {
     required this.exerciseCount,
     this.durationMinutes,
     this.lastSession,
+    this.icon,
     this.onTap,
     this.onEdit,
     this.onDelete,
@@ -221,7 +224,7 @@ class WorkoutListCard extends StatelessWidget {
                 borderRadius: BorderRadius.circular(
                     (kRadius - 8).clamp(8.0, double.infinity)),
               ),
-              child: Icon(Icons.fitness_center_rounded,
+              child: Icon(workoutIconFor(icon),
                   size: 22, color: c.accent),
             ),
             const SizedBox(width: 14),

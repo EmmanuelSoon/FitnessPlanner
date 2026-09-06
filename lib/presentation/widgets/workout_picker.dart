@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../domain/models/workout.dart';
+import '../../domain/models/workout_icons.dart';
 import '../../theme/app_theme.dart';
 
 void showWorkoutPicker({
@@ -99,7 +100,7 @@ class _WorkoutPickerSheet extends StatelessWidget {
                   ...workouts.map((w) => Padding(
                     padding: const EdgeInsets.only(bottom: 6),
                     child: _PickerTile(
-                      icon: Icons.fitness_center_rounded,
+                      icon: workoutIconFor(w.icon),
                       label: w.name,
                       isSelected: selectedWorkoutId == w.id,
                       isDark: isDark,

@@ -43,6 +43,15 @@ void main() {
     expect(find.text('Nothing here yet.'), findsNothing);
   });
 
+  testWidgets('renders the workout\'s chosen icon on its card instead of the generic dumbbell', (tester) async {
+    fakeRepo.store['w1'] = buildWorkout(id: 'w1', name: 'Cardio Day', icon: 'cardio');
+
+    await pumpList(tester);
+
+    expect(find.byIcon(Icons.favorite_rounded), findsOneWidget);
+    expect(find.byIcon(Icons.fitness_center_rounded), findsNothing);
+  });
+
   testWidgets('edit action opens CreateWorkoutScreen pre-filled for that workout', (tester) async {
     fakeRepo.store['w1'] = buildWorkout(id: 'w1', name: 'Push Day');
     await pumpList(tester);

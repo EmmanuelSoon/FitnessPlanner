@@ -60,4 +60,24 @@ void main() {
 
     expect(selected, isNull);
   });
+
+  testWidgets('shows each workout\'s chosen icon instead of the generic dumbbell', (tester) async {
+    final workouts = [buildWorkout(id: 'w1', name: 'Cardio Day', icon: 'cardio')];
+
+    await pumpApp(tester, Builder(builder: (context) {
+      return TextButton(
+        onPressed: () => showWorkoutPicker(
+          context: context,
+          workouts: workouts,
+          onSelected: (_) {},
+        ),
+        child: const Text('open'),
+      );
+    }));
+
+    await tester.tap(find.text('open'));
+    await tester.pumpAndSettle();
+
+    expect(find.byIcon(Icons.favorite_rounded), findsOneWidget);
+  });
 }
