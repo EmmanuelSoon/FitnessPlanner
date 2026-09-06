@@ -451,7 +451,7 @@ class _CreateWorkoutScreenState extends State<CreateWorkoutScreen> {
                       ),
                       if (_warmupExpanded) ...[
                         Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          padding: const EdgeInsets.symmetric(horizontal: kSpaceMd),
                           child: Column(
                             children: [
                               ..._warmup.asMap().entries.map((entry) {
@@ -535,7 +535,7 @@ class _CreateWorkoutScreenState extends State<CreateWorkoutScreen> {
                         ),
                       ),
                       Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        padding: const EdgeInsets.symmetric(horizontal: kSpaceMd),
                         child: Column(
                           children: [
                             _buildExerciseList(),

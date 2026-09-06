@@ -117,7 +117,7 @@ class _RunListScreenState extends ConsumerState<RunListScreen> {
                         )
                       : ListView.separated(
                           physics: const AlwaysScrollableScrollPhysics(),
-                          padding: const EdgeInsets.fromLTRB(16, 0, 16, 32),
+                          padding: const EdgeInsets.fromLTRB(kSpaceMd, 0, kSpaceMd, 32),
                           itemCount: runs.length,
                           separatorBuilder: (_, _) =>
                               const SizedBox(height: 10),
