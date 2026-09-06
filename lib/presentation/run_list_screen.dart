@@ -95,7 +95,8 @@ class _RunListScreenState extends ConsumerState<RunListScreen> {
                       SizedBox(
                         height: 200,
                         child: Center(
-                            child: CircularProgressIndicator(color: c.accent)),
+                          child: CircularProgressIndicator(color: c.accent),
+                        ),
                       ),
                     ],
                   ),
@@ -105,8 +106,11 @@ class _RunListScreenState extends ConsumerState<RunListScreen> {
                       SizedBox(
                         height: 200,
                         child: Center(
-                            child: Text('Error: $e',
-                                style: bodyStyle(color: c.danger))),
+                          child: Text(
+                            'Error: $e',
+                            style: bodyStyle(color: c.danger),
+                          ),
+                        ),
                       ),
                     ],
                   ),
@@ -117,7 +121,12 @@ class _RunListScreenState extends ConsumerState<RunListScreen> {
                         )
                       : ListView.separated(
                           physics: const AlwaysScrollableScrollPhysics(),
-                          padding: const EdgeInsets.fromLTRB(kSpaceMd, 0, kSpaceMd, 32),
+                          padding: const EdgeInsets.fromLTRB(
+                            kSpaceMd,
+                            0,
+                            kSpaceMd,
+                            32,
+                          ),
                           itemCount: runs.length,
                           separatorBuilder: (_, _) =>
                               const SizedBox(height: 10),
@@ -146,8 +155,9 @@ class _RunListScreenState extends ConsumerState<RunListScreen> {
     try {
       // Fetch the last 90 days by default.
       final since = DateTime.now().subtract(const Duration(days: 90));
-      final imported =
-          await ref.read(healthServiceProvider).fetchRuns(since: since);
+      final imported = await ref
+          .read(healthServiceProvider)
+          .fetchRuns(since: since);
 
       if (!mounted) return;
 
@@ -230,40 +240,44 @@ class _EmptyState extends StatelessWidget {
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 32),
         child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: 72,
-            height: 72,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              border: Border.all(color: c.hairline, width: 1.5),
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 72,
+              height: 72,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(color: c.hairline, width: 1.5),
+              ),
+              child: Icon(
+                Icons.directions_run_rounded,
+                size: 28,
+                color: c.inkMute,
+              ),
             ),
-            child: Icon(Icons.directions_run_rounded, size: 28, color: c.inkMute),
-          ),
-          const SizedBox(height: 18),
-          Text(
-            'No runs yet',
-            style: displayStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.w500,
-              color: c.ink,
-              letterSpacing: -0.4,
+            const SizedBox(height: 18),
+            Text(
+              'No runs yet',
+              style: displayStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.w500,
+                color: c.ink,
+                letterSpacing: -0.4,
+              ),
             ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Add a run manually or sync from your watch.',
-            style: bodyStyle(fontSize: 14, color: c.inkDim, height: 1.5),
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 24),
-          AppButton(
-            label: 'Log a run',
-            icon: Icons.add_rounded,
-            onPressed: onRecord,
-          ),
-        ],
+            const SizedBox(height: 8),
+            Text(
+              'Add a run manually or sync from health connect.',
+              style: bodyStyle(fontSize: 14, color: c.inkDim, height: 1.5),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 24),
+            AppButton(
+              label: 'Log a run',
+              icon: Icons.add_rounded,
+              onPressed: onRecord,
+            ),
+          ],
         ),
       ),
     );
@@ -277,8 +291,18 @@ class _RunCard extends ConsumerWidget {
 
   String _formatDate(DateTime dt) {
     const months = [
-      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
     ];
     return '${months[dt.month - 1]} ${dt.day}, ${dt.year}';
   }
@@ -291,8 +315,7 @@ class _RunCard extends ConsumerWidget {
     final durStr = dur.inMinutes >= 60
         ? '${dur.inHours}h ${dur.inMinutes % 60}min'
         : '${dur.inMinutes}min';
-    final distStr =
-        '${run.distanceKm.toStringAsFixed(2)} km';
+    final distStr = '${run.distanceKm.toStringAsFixed(2)} km';
 
     return GestureDetector(
       onTap: () => Navigator.push(
@@ -316,14 +339,15 @@ class _RunCard extends ConsumerWidget {
               decoration: BoxDecoration(
                 color: c.surfaceAlt,
                 borderRadius: BorderRadius.circular(
-                    (kRadius - 8).clamp(8.0, double.infinity)),
+                  (kRadius - 8).clamp(8.0, double.infinity),
+                ),
               ),
               child: Icon(
                 run.runType == RunType.treadmill
                     ? Icons.directions_walk_rounded
                     : run.source == RunSource.healthConnect
-                        ? Icons.watch_rounded
-                        : Icons.directions_run_rounded,
+                    ? Icons.watch_rounded
+                    : Icons.directions_run_rounded,
                 size: 22,
                 color: c.accent,
               ),
@@ -348,29 +372,42 @@ class _RunCard extends ConsumerWidget {
                       Text(
                         _formatDate(run.startedAt),
                         style: bodyStyle(
-                            fontSize: 13,
-                            color: c.inkDim,
-                            letterSpacing: 0.1),
+                          fontSize: 13,
+                          color: c.inkDim,
+                          letterSpacing: 0.1,
+                        ),
                       ),
-                      Text(' · ',
-                          style: bodyStyle(
-                              fontSize: 13, color: c.inkMute, letterSpacing: 0)),
+                      Text(
+                        ' · ',
+                        style: bodyStyle(
+                          fontSize: 13,
+                          color: c.inkMute,
+                          letterSpacing: 0,
+                        ),
+                      ),
                       Text(
                         distStr,
                         style: bodyStyle(
-                            fontSize: 13,
-                            color: c.inkDim,
-                            letterSpacing: 0.1),
+                          fontSize: 13,
+                          color: c.inkDim,
+                          letterSpacing: 0.1,
+                        ),
                       ),
-                      Text(' · ',
-                          style: bodyStyle(
-                              fontSize: 13, color: c.inkMute, letterSpacing: 0)),
+                      Text(
+                        ' · ',
+                        style: bodyStyle(
+                          fontSize: 13,
+                          color: c.inkMute,
+                          letterSpacing: 0,
+                        ),
+                      ),
                       Text(
                         durStr,
                         style: bodyStyle(
-                            fontSize: 13,
-                            color: c.inkDim,
-                            letterSpacing: 0.1),
+                          fontSize: 13,
+                          color: c.inkDim,
+                          letterSpacing: 0.1,
+                        ),
                       ),
                     ],
                   ),
@@ -383,8 +420,11 @@ class _RunCard extends ConsumerWidget {
               height: 36,
               child: IconButton(
                 padding: EdgeInsets.zero,
-                icon: Icon(Icons.delete_outline_rounded,
-                    size: 18, color: c.inkMute),
+                icon: Icon(
+                  Icons.delete_outline_rounded,
+                  size: 18,
+                  color: c.inkMute,
+                ),
                 onPressed: () => _confirmDelete(context, ref),
               ),
             ),
@@ -424,11 +464,16 @@ class _RunCard extends ConsumerWidget {
       builder: (ctx) => Container(
         decoration: BoxDecoration(
           color: c.surface,
-          borderRadius:
-              BorderRadius.vertical(top: Radius.circular(kRadius + 8)),
+          borderRadius: BorderRadius.vertical(
+            top: Radius.circular(kRadius + 8),
+          ),
         ),
         padding: EdgeInsets.fromLTRB(
-            22, 20, 22, 28 + MediaQuery.of(context).padding.bottom),
+          22,
+          20,
+          22,
+          28 + MediaQuery.of(context).padding.bottom,
+        ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -476,9 +521,7 @@ class _RunCard extends ConsumerWidget {
                     icon: Icons.delete_outline_rounded,
                     onPressed: () async {
                       Navigator.pop(ctx);
-                      await ref
-                          .read(runsProvider.notifier)
-                          .deleteRun(run.id);
+                      await ref.read(runsProvider.notifier).deleteRun(run.id);
                     },
                   ),
                 ),
