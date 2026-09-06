@@ -243,15 +243,16 @@ class _CreateWorkoutScreenState extends State<CreateWorkoutScreen> {
       itemCount: _exercises.length,
       itemBuilder: (context, si) {
         final superset = _exercises[si];
-        final isSingle = superset.exercises.length == 1;
         final startIndex = _exercises
             .sublist(0, si)
             .fold<int>(0, (sum, s) => sum + s.exercises.length);
         final isLastSuperset = si == _exercises.length - 1;
 
-        final children = <Widget>[];
+        final children = <Widget>[
+          _SupersetFieldsRow(key: ValueKey('${superset.id}-fields'), superset: superset),
+          const SizedBox(height: 8),
+        ];
         for (int ei = 0; ei < superset.exercises.length; ei++) {
-          final isFirstInGroup = ei == 0;
           final isLastInGroup = ei == superset.exercises.length - 1;
 
           children.add(
@@ -260,8 +261,6 @@ class _CreateWorkoutScreenState extends State<CreateWorkoutScreen> {
               superset: superset,
               exercise: superset.exercises[ei],
               displayIndex: startIndex + ei + 1,
-              showSets: isSingle || isFirstInGroup,
-              showRest: isSingle || isLastInGroup,
               onRemove: () => _removeExerciseFromSuperset(si, ei),
             ),
           );
@@ -803,16 +802,14 @@ class _WarmupExerciseCardState extends State<WarmupExerciseCard> {
 
 // ─── Exercise slot card ───────────────────────────────────────────────────
 //
-// Renders one exercise within a (possibly multi-exercise) Superset.
-//   showSets  → true for single-exercise supersets and the FIRST exercise of a group.
-//   showRest  → true for single-exercise supersets and the LAST exercise of a group.
+// Renders one exercise within a (possibly multi-exercise) Superset. SETS and
+// REST are shared per group and rendered once by _SupersetFieldsRow, not here
+// — every exercise row uniformly shows REPS (or DURATION) and WEIGHT.
 //
 class _ExerciseSlotCard extends StatefulWidget {
   final Superset superset;
   final Exercise exercise;
   final int displayIndex; // 1-based global position for the number pill
-  final bool showSets;
-  final bool showRest;
   final VoidCallback onRemove;
 
   const _ExerciseSlotCard({
@@ -820,8 +817,6 @@ class _ExerciseSlotCard extends StatefulWidget {
     required this.superset,
     required this.exercise,
     required this.displayIndex,
-    required this.showSets,
-    required this.showRest,
     required this.onRemove,
   });
 
@@ -830,10 +825,8 @@ class _ExerciseSlotCard extends StatefulWidget {
 }
 
 class _ExerciseSlotCardState extends State<_ExerciseSlotCard> {
-  late int _setsValue;
   late int _repsValue;
   late double _weightValue;
-  late Duration _restDuration;
   late bool _isTimed;
   late Duration _timedValue;
 
@@ -841,11 +834,8 @@ class _ExerciseSlotCardState extends State<_ExerciseSlotCard> {
   void initState() {
     super.initState();
     final e = widget.exercise;
-    final s = widget.superset;
-    _setsValue = s.sets;
     _repsValue = e.reps;
     _weightValue = e.weight;
-    _restDuration = s.restAfterSet;
     _isTimed = e.timedDuration != null;
     _timedValue = e.timedDuration ?? const Duration(seconds: 30);
   }
@@ -959,22 +949,9 @@ class _ExerciseSlotCardState extends State<_ExerciseSlotCard> {
             ],
           ),
           const SizedBox(height: 12),
-          // Field grid: conditional SETS + REPS + WEIGHT + conditional REST
+          // Field grid: REPS (or DURATION) + WEIGHT, uniformly on every row.
           Row(
             children: [
-              if (widget.showSets) ...[
-                _PickerField(
-                  label: 'SETS',
-                  value: '$_setsValue',
-                  onTap: () => openSetsPicker(context, _setsValue, (v) {
-                    setState(() {
-                      _setsValue = v;
-                      s.sets = v;
-                    });
-                  }),
-                ),
-                const SizedBox(width: 6),
-              ],
               if (_isTimed)
                 _PickerField(
                   label: 'DURATION',
@@ -1009,24 +986,66 @@ class _ExerciseSlotCardState extends State<_ExerciseSlotCard> {
                   });
                 }),
               ),
-              if (widget.showRest) ...[
-                const SizedBox(width: 6),
-                _PickerField(
-                  label: 'REST',
-                  value: _fmtDuration(_restDuration),
-                  onTap: () =>
-                      openDurationPicker(context, 'REST', _restDuration, (v) {
-                        setState(() {
-                          _restDuration = v;
-                          s.restAfterSet = v;
-                        });
-                      }),
-                ),
-              ],
             ],
           ),
         ],
       ),
+    );
+  }
+}
+
+// ─── Superset fields row ───────────────────────────────────────────────────
+//
+// SETS and REST belong to the group (Superset), not to any one exercise, so
+// they're rendered once here, above the group's exercise card(s) — including
+// groups of one, which still need both fields visible.
+class _SupersetFieldsRow extends StatefulWidget {
+  final Superset superset;
+
+  const _SupersetFieldsRow({super.key, required this.superset});
+
+  @override
+  State<_SupersetFieldsRow> createState() => _SupersetFieldsRowState();
+}
+
+class _SupersetFieldsRowState extends State<_SupersetFieldsRow> {
+  late int _setsValue;
+  late Duration _restDuration;
+
+  @override
+  void initState() {
+    super.initState();
+    _setsValue = widget.superset.sets;
+    _restDuration = widget.superset.restAfterSet;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final s = widget.superset;
+    return Row(
+      children: [
+        _PickerField(
+          label: 'SETS',
+          value: '$_setsValue',
+          onTap: () => openSetsPicker(context, _setsValue, (v) {
+            setState(() {
+              _setsValue = v;
+              s.sets = v;
+            });
+          }),
+        ),
+        const SizedBox(width: 6),
+        _PickerField(
+          label: 'REST',
+          value: _fmtDuration(_restDuration),
+          onTap: () => openDurationPicker(context, 'REST', _restDuration, (v) {
+            setState(() {
+              _restDuration = v;
+              s.restAfterSet = v;
+            });
+          }),
+        ),
+      ],
     );
   }
 }

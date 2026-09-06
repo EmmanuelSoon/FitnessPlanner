@@ -112,7 +112,7 @@ void main() {
     await _addExerciseByTyping(tester, 'Exercise C');
 
     // Drag "Exercise A" down past "Exercise B" so the order becomes B, A, C.
-    await _longPressDrag(tester, find.text('Exercise A'), const Offset(0, 220));
+    await _longPressDrag(tester, find.text('Exercise A'), const Offset(0, 150));
 
     await tester.tap(find.byIcon(Icons.check_rounded));
     await tester.pumpAndSettle();
@@ -152,6 +152,37 @@ void main() {
       saved.exercises[1].exercises.map((e) => e.name),
       ['Exercise A', 'Exercise B'],
     );
+  });
+
+  testWidgets('every exercise row shows the same fields, and SETS/REST render once per group', (tester) async {
+    await pumpCreateWorkout(tester);
+    await tester.enterText(find.byType(TextField).first, 'Push Day');
+
+    await _addExerciseByTyping(tester, 'Exercise A');
+    await _addExerciseByTyping(tester, 'Exercise B');
+    await _addExerciseByTyping(tester, 'Exercise C');
+
+    // Group B and C into a superset; A stays standalone.
+    await tester.tap(find.text('Group with next').last);
+    await tester.pumpAndSettle();
+
+    final cards = find.byWidgetPredicate(
+      (w) => w.runtimeType.toString() == '_ExerciseSlotCard',
+    );
+    expect(cards, findsNWidgets(3));
+
+    // Every exercise row shows REPS and WEIGHT, uniformly, and never SETS/REST.
+    for (final card in tester.widgetList(cards)) {
+      final cardFinder = find.byWidget(card);
+      expect(find.descendant(of: cardFinder, matching: find.text('REPS')), findsOneWidget);
+      expect(find.descendant(of: cardFinder, matching: find.text('WEIGHT')), findsOneWidget);
+      expect(find.descendant(of: cardFinder, matching: find.text('SETS')), findsNothing);
+      expect(find.descendant(of: cardFinder, matching: find.text('REST')), findsNothing);
+    }
+
+    // SETS/REST render once per group: standalone A + superset (B, C) = 2 groups.
+    expect(find.text('SETS'), findsNWidgets(2));
+    expect(find.text('REST'), findsNWidgets(2));
   });
 
   testWidgets('the "EXERCISES" section label aligns to the same left edge as the exercise cards', (tester) async {
