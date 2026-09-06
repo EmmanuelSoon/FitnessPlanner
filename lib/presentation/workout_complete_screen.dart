@@ -71,14 +71,13 @@ class WorkoutCompleteScreen extends StatelessWidget {
                   child: Row(
                     children: [
                       Expanded(
-                        child: _StatCell(
+                        child: StatChip(
                           value: durLabel,
                           label: 'duration',
-                          leftBorder: false,
                         ),
                       ),
                       Expanded(
-                        child: _StatCell(
+                        child: StatChip(
                           value: '$completedSets',
                           label: 'sets',
                           leftBorder: true,
@@ -174,57 +173,5 @@ class WorkoutCompleteScreen extends StatelessWidget {
       return '$h:${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
     }
     return '${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
-  }
-}
-
-class _StatCell extends StatelessWidget {
-  final String value;
-  final String label;
-  final bool leftBorder;
-
-  const _StatCell({
-    required this.value,
-    required this.label,
-    required this.leftBorder,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = AppThemeData.of(context);
-    final c = theme.c;
-
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 12),
-      decoration: BoxDecoration(
-        border: leftBorder
-            ? Border(left: BorderSide(color: c.hairlineSoft))
-            : null,
-      ),
-      child: Column(
-        children: [
-          Text(
-            value,
-            style: displayStyle(
-              fontSize: 22,
-              fontWeight: FontWeight.w600,
-              color: c.ink,
-              letterSpacing: -0.3,
-            ),
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 2),
-          Text(
-            label.toUpperCase(),
-            style: bodyStyle(
-              fontSize: 10,
-              fontWeight: FontWeight.w500,
-              color: c.inkMute,
-              letterSpacing: 0.8,
-            ),
-            textAlign: TextAlign.center,
-          ),
-        ],
-      ),
-    );
   }
 }
