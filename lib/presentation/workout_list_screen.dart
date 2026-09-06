@@ -69,7 +69,7 @@ class _WorkoutList extends ConsumerWidget {
             // ─── Hero header ────────────────────────────────────────
             SliverToBoxAdapter(
               child: Padding(
-                padding: const EdgeInsets.fromLTRB(22, 32, 22, 22),
+                padding: const EdgeInsets.fromLTRB(kSpaceMd, 32, kSpaceMd, 22),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -183,7 +183,7 @@ class _WorkoutList extends ConsumerWidget {
             ),
             // ─── Cards ──────────────────────────────────────────────
             SliverPadding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 120),
+              padding: const EdgeInsets.fromLTRB(kSpaceMd, 0, kSpaceMd, 120),
               sliver: SliverList.separated(
                 itemCount: workouts.length,
                 separatorBuilder: (_, _) => const SizedBox(height: 12),

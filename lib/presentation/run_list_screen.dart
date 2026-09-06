@@ -38,6 +38,7 @@ class _RunListScreenState extends ConsumerState<RunListScreen> {
       backgroundColor: c.bg,
       body: SafeArea(
         child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             AppHeaderBar(
               leading: AppIconButton(
@@ -65,7 +66,7 @@ class _RunListScreenState extends ConsumerState<RunListScreen> {
                     ),
             ),
             Padding(
-              padding: const EdgeInsets.fromLTRB(22, 8, 22, 20),
+              padding: const EdgeInsets.fromLTRB(kSpaceMd, 8, kSpaceMd, 20),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -116,7 +117,7 @@ class _RunListScreenState extends ConsumerState<RunListScreen> {
                         )
                       : ListView.separated(
                           physics: const AlwaysScrollableScrollPhysics(),
-                          padding: const EdgeInsets.fromLTRB(16, 0, 16, 32),
+                          padding: const EdgeInsets.fromLTRB(kSpaceMd, 0, kSpaceMd, 32),
                           itemCount: runs.length,
                           separatorBuilder: (_, _) =>
                               const SizedBox(height: 10),

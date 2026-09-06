@@ -152,4 +152,17 @@ void main() {
       ['Exercise A', 'Exercise B'],
     );
   });
+
+  testWidgets('the "EXERCISES" section label aligns to the same left edge as the exercise cards', (tester) async {
+    await pumpCreateWorkout(tester);
+    await tester.enterText(find.byType(TextField).first, 'Push Day');
+    await _addExerciseByTyping(tester, 'Exercise A');
+
+    final label = tester.getTopLeft(find.text('EXERCISES')).dx;
+    final card = tester.getTopLeft(
+      find.byWidgetPredicate((w) => w.runtimeType.toString() == '_ExerciseSlotCard'),
+    ).dx;
+
+    expect(label, card);
+  });
 }
