@@ -233,6 +233,7 @@ class _Body extends StatelessWidget {
         .toList();
 
     return ListView(
+      key: const ValueKey('insightsScrollView'),
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 32),
       children: [
         SegmentedControl(
@@ -517,6 +518,7 @@ class _VolumeCard extends StatelessWidget {
               _formatShortDate(weeks.first.weekStart),
               _formatShortDate(weeks.last.weekStart),
             ],
+            pointLabels: [for (final w in weeks) _formatShortDate(w.weekStart)],
           ),
         ],
       ),
@@ -593,6 +595,7 @@ class _DistanceCard extends StatelessWidget {
               _formatShortDate(weeks.first.weekStart),
               _formatShortDate(weeks.last.weekStart),
             ],
+            pointLabels: [for (final w in weeks) _formatShortDate(w.weekStart)],
           ),
         ],
       ),
@@ -668,17 +671,22 @@ class _ExerciseTrendCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Wrap(
-            spacing: 6,
-            runSpacing: 6,
-            children: [
-              for (final name in names)
-                _ExerciseChip(
+          SizedBox(
+            height: 34,
+            child: ListView.separated(
+              key: const ValueKey('exerciseChipRow'),
+              scrollDirection: Axis.horizontal,
+              itemCount: names.length,
+              separatorBuilder: (_, _) => const SizedBox(width: 6),
+              itemBuilder: (context, i) {
+                final name = names[i];
+                return _ExerciseChip(
                   label: name,
                   selected: name == selected,
                   onTap: () => onSelect(name),
-                ),
-            ],
+                );
+              },
+            ),
           ),
           const SizedBox(height: 14),
           if (trend.isEmpty)
@@ -723,6 +731,7 @@ class _ExerciseTrendCard extends StatelessWidget {
                 _formatShortDate(trend.first.date),
                 _formatShortDate(trend.last.date),
               ],
+              pointLabels: [for (final p in trend) _formatShortDate(p.date)],
             ),
           ],
         ],
@@ -782,6 +791,7 @@ class _PaceTrendCard extends StatelessWidget {
                 _formatShortDate(withPace.first.weekStart),
                 _formatShortDate(withPace.last.weekStart),
               ],
+              pointLabels: [for (final w in withPace) _formatShortDate(w.weekStart)],
               invert: true,
             ),
         ],

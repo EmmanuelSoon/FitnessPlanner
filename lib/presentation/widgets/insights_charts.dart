@@ -15,9 +15,10 @@ String fmtTrimmedNumber(double v) =>
 // Hand-rolled (no chart package) to match the app's existing hand-rolled
 // widget style.
 
-class AreaTrendChart extends StatelessWidget {
+class AreaTrendChart extends StatefulWidget {
   final List<double> series;
   final List<String>? edgeLabels;
+  final List<String>? pointLabels;
   final Set<int> prIndices;
   final bool invert;
   final double height;
@@ -26,10 +27,33 @@ class AreaTrendChart extends StatelessWidget {
     super.key,
     required this.series,
     this.edgeLabels,
+    this.pointLabels,
     this.prIndices = const {},
     this.invert = false,
     this.height = 108,
   });
+
+  @override
+  State<AreaTrendChart> createState() => AreaTrendChartState();
+}
+
+/// Public so widget tests can read [touchedIndex] directly — the tooltip
+/// itself is drawn on the canvas, not as inspectable widgets.
+class AreaTrendChartState extends State<AreaTrendChart> {
+  int? _touchedIndex;
+
+  int? get touchedIndex => _touchedIndex;
+
+  void _handleTouch(Offset localPosition, double width) {
+    final n = widget.series.length;
+    final labels = widget.pointLabels;
+    if (n == 0 || width <= 0 || labels == null || labels.length != n) return;
+
+    final idx = n <= 1
+        ? 0
+        : (localPosition.dx / width * (n - 1)).round().clamp(0, n - 1);
+    if (idx != _touchedIndex) setState(() => _touchedIndex = idx);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -38,26 +62,37 @@ class AreaTrendChart extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         SizedBox(
-          height: height,
-          child: CustomPaint(
-            painter: _AreaTrendPainter(
-              series: series,
-              prIndices: prIndices,
-              invert: invert,
-              accent: c.accent,
-              surface: c.surface,
-              hairline: c.hairline,
-            ),
+          height: widget.height,
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              return GestureDetector(
+                onPanDown: (d) => _handleTouch(d.localPosition, constraints.maxWidth),
+                onPanUpdate: (d) => _handleTouch(d.localPosition, constraints.maxWidth),
+                child: CustomPaint(
+                  painter: _AreaTrendPainter(
+                    series: widget.series,
+                    prIndices: widget.prIndices,
+                    invert: widget.invert,
+                    accent: c.accent,
+                    surface: c.surface,
+                    hairline: c.hairline,
+                    ink: c.ink,
+                    touchedIndex: _touchedIndex,
+                    pointLabels: widget.pointLabels,
+                  ),
+                ),
+              );
+            },
           ),
         ),
-        if (edgeLabels != null && edgeLabels!.length >= 2) ...[
+        if (widget.edgeLabels != null && widget.edgeLabels!.length >= 2) ...[
           const SizedBox(height: 2),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(edgeLabels!.first,
+              Text(widget.edgeLabels!.first,
                   style: bodyStyle(fontSize: 10, color: c.inkMute)),
-              Text(edgeLabels!.last,
+              Text(widget.edgeLabels!.last,
                   style: bodyStyle(fontSize: 10, color: c.inkMute)),
             ],
           ),
@@ -74,6 +109,9 @@ class _AreaTrendPainter extends CustomPainter {
   final Color accent;
   final Color surface;
   final Color hairline;
+  final Color ink;
+  final int? touchedIndex;
+  final List<String>? pointLabels;
 
   const _AreaTrendPainter({
     required this.series,
@@ -82,6 +120,9 @@ class _AreaTrendPainter extends CustomPainter {
     required this.accent,
     required this.surface,
     required this.hairline,
+    required this.ink,
+    this.touchedIndex,
+    this.pointLabels,
   });
 
   @override
@@ -169,12 +210,74 @@ class _AreaTrendPainter extends CustomPainter {
     }
 
     canvas.drawCircle(points.last, 4, Paint()..color = accent);
+
+    final labels = pointLabels;
+    final touched = touchedIndex;
+    if (touched != null &&
+        labels != null &&
+        labels.length == n &&
+        touched >= 0 &&
+        touched < points.length) {
+      _paintTooltip(canvas, size, points[touched], labels[touched], series[touched]);
+    }
+  }
+
+  void _paintTooltip(
+    Canvas canvas,
+    Size size,
+    Offset point,
+    String label,
+    double value,
+  ) {
+    canvas.drawLine(
+      Offset(point.dx, 0),
+      Offset(point.dx, size.height),
+      Paint()
+        ..color = hairline
+        ..strokeWidth = 1,
+    );
+    canvas.drawCircle(point, 5, Paint()..color = surface);
+    canvas.drawCircle(
+      point,
+      5,
+      Paint()
+        ..color = ink
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2,
+    );
+    canvas.drawCircle(point, 2, Paint()..color = ink);
+
+    final text = '$label · ${fmtTrimmedNumber(value)}';
+    final textPainter = TextPainter(
+      text: TextSpan(
+        text: text,
+        style: bodyStyle(fontSize: 11, fontWeight: FontWeight.w600, color: surface),
+      ),
+      textDirection: TextDirection.ltr,
+    )..layout();
+
+    const paddingH = 8.0;
+    const paddingV = 5.0;
+    final pillWidth = textPainter.width + paddingH * 2;
+    final pillHeight = textPainter.height + paddingV * 2;
+    var pillLeft = point.dx - pillWidth / 2;
+    final maxLeft = size.width - pillWidth > 0 ? size.width - pillWidth : 0.0;
+    pillLeft = pillLeft.clamp(0.0, maxLeft);
+    const pillTop = 0.0;
+
+    final pillRect = RRect.fromRectAndRadius(
+      Rect.fromLTWH(pillLeft, pillTop, pillWidth, pillHeight),
+      const Radius.circular(6),
+    );
+    canvas.drawRRect(pillRect, Paint()..color = ink);
+    textPainter.paint(canvas, Offset(pillLeft + paddingH, pillTop + paddingV));
   }
 
   @override
   bool shouldRepaint(covariant _AreaTrendPainter oldDelegate) =>
       !listEquals(oldDelegate.series, series) ||
       !setEquals(oldDelegate.prIndices, prIndices) ||
+      oldDelegate.touchedIndex != touchedIndex ||
       oldDelegate.invert != invert ||
       oldDelegate.accent != accent;
 }

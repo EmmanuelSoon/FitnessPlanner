@@ -18,11 +18,18 @@ DateTime _mondayOf(DateTime dt) {
   return day.subtract(Duration(days: day.weekday - DateTime.monday));
 }
 
-// The exercise-trend card's chip row is the only `Wrap` on the screen, so
-// scoping to it disambiguates an exercise name from any Recent records
-// card that happens to show the same exercise.
-Finder _exerciseChip(String label) =>
-    find.descendant(of: find.byType(Wrap), matching: find.text(label));
+// Scoping to the exercise chip row disambiguates an exercise name from any
+// Recent records card that happens to show the same exercise.
+Finder _exerciseChip(String label) => find.descendant(
+      of: find.byKey(const ValueKey('exerciseChipRow')),
+      matching: find.text(label),
+    );
+
+// The exercise chip row is itself a horizontally-scrolling list, so
+// `scrollUntilVisible`'s default (find.byType(Scrollable)) now matches more
+// than one Scrollable once that row is built. The outer (vertical) list is
+// always the topmost Scrollable in the tree, so `.first` pins to it.
+final Finder _outerScrollable = find.byType(Scrollable).first;
 
 void main() {
   late FakeSessionRepository fakeRepo;
@@ -119,7 +126,7 @@ void main() {
     // The exercise-trend card sits below the fold once the mode toggle and
     // Recent records are on screen, so its chips aren't built yet — scroll
     // them into the sliver's cache extent first.
-    await tester.scrollUntilVisible(_exerciseChip('Pull-up'), 300);
+    await tester.scrollUntilVisible(_exerciseChip('Pull-up'), 300, scrollable: _outerScrollable);
     await tester.pumpAndSettle();
     await tester.tap(_exerciseChip('Pull-up'));
     await tester.pumpAndSettle();
@@ -169,7 +176,7 @@ void main() {
     // Pull-up is the most recently logged exercise, so it's selected by default.
     expect(find.textContaining('Best set'), findsOneWidget);
 
-    await tester.scrollUntilVisible(_exerciseChip('Bench Press'), 300);
+    await tester.scrollUntilVisible(_exerciseChip('Bench Press'), 300, scrollable: _outerScrollable);
     await tester.pumpAndSettle();
     await tester.tap(_exerciseChip('Bench Press'));
     await tester.pumpAndSettle();
@@ -282,7 +289,7 @@ void main() {
 
     // The row sits below the fold once Recent records is on screen, so it
     // isn't built yet — scroll it into the sliver's cache extent first.
-    await tester.scrollUntilVisible(find.text('All sessions'), 300);
+    await tester.scrollUntilVisible(find.text('All sessions'), 300, scrollable: _outerScrollable);
     await tester.tap(find.text('All sessions'));
     await tester.pumpAndSettle();
 
@@ -376,5 +383,49 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.textContaining('No records yet — log a run'), findsOneWidget);
+  });
+
+  testWidgets('renders many exercises as a horizontally-scrolling row instead of wrapping to multiple lines',
+      (tester) async {
+    final exerciseNames = [for (var i = 1; i <= 12; i++) 'Exercise $i'];
+    fakeRepo.store['ws1'] = WorkoutSession(
+      id: 'ws1',
+      workoutId: 'w1',
+      workoutName: 'Push Day',
+      startedAt: DateTime(2026, 1, 5),
+      endedAt: DateTime(2026, 1, 5, 1),
+      completed: true,
+      sets: [
+        for (final name in exerciseNames)
+          LoggedSet(
+            exerciseName: name,
+            targetReps: 8,
+            targetWeight: 60,
+            actualReps: 8,
+            actualWeight: 60,
+            skipped: false,
+          ),
+      ],
+    );
+
+    await pumpInsights(tester);
+    await tester.scrollUntilVisible(
+      find.byKey(const ValueKey('exerciseChipRow')),
+      300,
+      scrollable: _outerScrollable,
+    );
+
+    // A fixed-height row proves the chips lay out on a single horizontal
+    // line rather than wrapping onto extra rows as the count grows.
+    expect(tester.getSize(find.byKey(const ValueKey('exerciseChipRow'))).height, 34);
+    final chipRow = tester.widget<ListView>(find.byKey(const ValueKey('exerciseChipRow')));
+    expect(chipRow.scrollDirection, Axis.horizontal);
+
+    // The first exercise (leftmost) is built into the lazy list up front;
+    // the twelfth is off the initial horizontal viewport and so isn't
+    // built at all yet — proof the row scrolls instead of wrapping every
+    // chip into view at once.
+    expect(_exerciseChip('Exercise 1'), findsOneWidget);
+    expect(_exerciseChip('Exercise 12'), findsNothing);
   });
 }
