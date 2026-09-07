@@ -191,3 +191,12 @@ List<PersonalRecord> computePersonalRecords(
   });
   return records;
 }
+
+/// The subset of [allTimeRecords] still held by [sessionId] — the PRs a
+/// just-finished workout or run claimed, for the Workout Complete screen's
+/// "New records" section.
+List<PersonalRecord> recordsSetInSession(
+  List<PersonalRecord> allTimeRecords,
+  String sessionId,
+) =>
+    allTimeRecords.where((r) => r.sessionId == sessionId).toList();

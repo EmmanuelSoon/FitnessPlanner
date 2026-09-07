@@ -11,19 +11,30 @@ import 'workout_list_screen.dart';
 class HomeShell extends StatefulWidget {
   const HomeShell({super.key});
 
+  /// Lets a screen pushed on top of the shell (e.g. Workout Complete) jump
+  /// straight to a tab after popping back to this route.
+  static final GlobalKey<HomeShellState> navKey = GlobalKey<HomeShellState>();
+
+  /// Index of [InsightsScreen] in [HomeShellState._screens] below — kept
+  /// next to that list so the two stay in sync if the tab order ever
+  /// changes. Exposed for screens that navigate to Insights via [navKey].
+  static const int insightsTabIndex = 3;
+
   @override
-  State<HomeShell> createState() => _HomeShellState();
+  State<HomeShell> createState() => HomeShellState();
 }
 
-class _HomeShellState extends State<HomeShell> {
+class HomeShellState extends State<HomeShell> {
   int _index = 0;
 
   static const _screens = [
     WorkoutListScreen(),
     CalendarScreen(),
     RunListScreen(),
-    InsightsScreen(),
+    InsightsScreen(), // index == HomeShell.insightsTabIndex
   ];
+
+  void switchTab(int index) => setState(() => _index = index);
 
   @override
   Widget build(BuildContext context) {

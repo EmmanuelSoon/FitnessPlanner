@@ -371,4 +371,48 @@ void main() {
       ]);
     });
   });
+
+  group('recordsSetInSession', () {
+    test('returns the records a session claimed, in the middle of other sessions\' records', () {
+      final earlier = _session(
+        id: 's1',
+        startedAt: DateTime(2026, 3, 1),
+        sets: [_weighted(weight: 60, reps: 8)],
+      );
+      final later = _session(
+        id: 's2',
+        startedAt: DateTime(2026, 3, 8),
+        sets: [_weighted(weight: 65, reps: 8)],
+      );
+
+      final all = computePersonalRecords([earlier, later], []);
+      final setInLater = recordsSetInSession(all, 's2');
+
+      // heaviestWeight + bestEst1Rm + sessionTonnage all move to the
+      // heavier, higher-volume later session.
+      expect(setInLater, hasLength(3));
+      expect(setInLater.every((r) => r.sessionId == 's2'), isTrue);
+    });
+
+    test('returns empty when the session set no new record', () {
+      final earlier = _session(
+        id: 's1',
+        startedAt: DateTime(2026, 3, 1),
+        sets: [_weighted(weight: 65, reps: 8)],
+      );
+      final later = _session(
+        id: 's2',
+        startedAt: DateTime(2026, 3, 8),
+        sets: [_weighted(weight: 60, reps: 5)],
+      );
+
+      final all = computePersonalRecords([earlier, later], []);
+
+      expect(recordsSetInSession(all, 's2'), isEmpty);
+    });
+
+    test('returns empty for a session id with no records at all', () {
+      expect(recordsSetInSession([], 'nonexistent'), isEmpty);
+    });
+  });
 }

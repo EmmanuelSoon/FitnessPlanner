@@ -1,15 +1,46 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:fitness_planner/domain/insights/personal_records.dart';
+import 'package:fitness_planner/domain/models/run_session.dart';
 import 'package:fitness_planner/domain/models/workout_session.dart';
+import 'package:fitness_planner/presentation/home_shell.dart';
 import 'package:fitness_planner/presentation/widgets/app_widgets.dart';
+import 'package:fitness_planner/presentation/widgets/pr_card.dart';
 import 'package:fitness_planner/presentation/widgets/session_breakdown.dart';
+import 'package:fitness_planner/providers/run_providers.dart';
+import 'package:fitness_planner/providers/session_providers.dart';
 import 'package:fitness_planner/theme/app_theme.dart';
 
-class WorkoutCompleteScreen extends StatelessWidget {
+class WorkoutCompleteScreen extends ConsumerStatefulWidget {
   final WorkoutSession session;
   const WorkoutCompleteScreen({super.key, required this.session});
 
   @override
+  ConsumerState<WorkoutCompleteScreen> createState() => _WorkoutCompleteScreenState();
+}
+
+class _WorkoutCompleteScreenState extends ConsumerState<WorkoutCompleteScreen> {
+  // Memoized on the sessions and runs lists' identity, matching
+  // InsightsScreen/RecordsScreen's cache — this screen can rebuild for
+  // reasons unrelated to session/run data (e.g. a theme change), and a
+  // bare `computePersonalRecords` call would otherwise rescan the entire
+  // history on every one of those rebuilds.
+  List<WorkoutSession>? _cachedSessions;
+  List<RunSession>? _cachedRuns;
+  List<PersonalRecord>? _cachedRecords;
+
+  List<PersonalRecord> _newRecordsFor(List<WorkoutSession> sessions, List<RunSession> runs) {
+    if (!identical(_cachedSessions, sessions) || !identical(_cachedRuns, runs)) {
+      _cachedSessions = sessions;
+      _cachedRuns = runs;
+      _cachedRecords = computePersonalRecords(sessions, runs);
+    }
+    return recordsSetInSession(_cachedRecords!, widget.session.id);
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final session = widget.session;
     final theme = AppThemeData.of(context);
     final c = theme.c;
 
@@ -18,6 +49,13 @@ class WorkoutCompleteScreen extends StatelessWidget {
 
     final completedSets =
         session.sets.where((s) => !s.skipped).length;
+
+    final sessions = ref.watch(sessionsProvider).asData?.value ?? const <WorkoutSession>[];
+    final runs = ref.watch(runsProvider).asData?.value ?? const <RunSession>[];
+    final newRecords = _newRecordsFor(sessions, runs);
+
+    void backToWorkouts() =>
+        Navigator.of(context).popUntil((route) => route.isFirst);
 
     return Scaffold(
       backgroundColor: c.bg,
@@ -93,6 +131,23 @@ class WorkoutCompleteScreen extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      if (newRecords.isNotEmpty) ...[
+                        Text(
+                          'NEW RECORDS',
+                          style: bodyStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                            color: c.inkMute,
+                            letterSpacing: 0.8,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        for (final record in newRecords) ...[
+                          PRCard(record: record, justNow: true),
+                          const SizedBox(height: 10),
+                        ],
+                        const SizedBox(height: 8),
+                      ],
                       Text(
                         'WHAT YOU DID',
                         style: bodyStyle(
@@ -150,13 +205,31 @@ class WorkoutCompleteScreen extends StatelessWidget {
                   ),
                 ),
               ),
-              AppButton(
-                label: 'Back to workouts',
-                full: true,
-                icon: Icons.home_rounded,
-                onPressed: () => Navigator.of(context)
-                    .popUntil((route) => route.isFirst),
-              ),
+              if (newRecords.isNotEmpty) ...[
+                AppButton(
+                  label: 'See it in Insights',
+                  full: true,
+                  icon: Icons.insights_rounded,
+                  onPressed: () {
+                    backToWorkouts();
+                    HomeShell.navKey.currentState
+                        ?.switchTab(HomeShell.insightsTabIndex);
+                  },
+                ),
+                const SizedBox(height: 10),
+                AppButton(
+                  label: 'Back to workouts',
+                  kind: ButtonKind.ghost,
+                  full: true,
+                  onPressed: backToWorkouts,
+                ),
+              ] else
+                AppButton(
+                  label: 'Back to workouts',
+                  full: true,
+                  icon: Icons.home_rounded,
+                  onPressed: backToWorkouts,
+                ),
               const SizedBox(height: 16),
             ],
           ),

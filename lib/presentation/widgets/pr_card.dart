@@ -11,8 +11,13 @@ import 'package:fitness_planner/theme/app_theme.dart';
 class PRCard extends StatelessWidget {
   final PersonalRecord record;
   final DateTime? now;
+  // True on the Workout Complete screen, where every record shown was set
+  // by the session that just ended — "Today" is technically correct but
+  // undersells how fresh it is, so that one caller overrides the usual
+  // achievedAt-derived label.
+  final bool justNow;
 
-  const PRCard({super.key, required this.record, this.now});
+  const PRCard({super.key, required this.record, this.now, this.justNow = false});
 
   @override
   Widget build(BuildContext context) {
@@ -20,9 +25,10 @@ class PRCard extends StatelessWidget {
     final c = theme.c;
     final (value, unit) = _formatValue(record);
     final delta = _formatDelta(record);
-    final subtitle = delta == null
-        ? _formatRelativeTime(record.achievedAt, now: now)
-        : '${_formatRelativeTime(record.achievedAt, now: now)} · $delta on previous best';
+    final whenLabel =
+        justNow ? 'Just now' : _formatRelativeTime(record.achievedAt, now: now);
+    final subtitle =
+        delta == null ? whenLabel : '$whenLabel · $delta on previous best';
 
     return Container(
       padding: const EdgeInsets.all(14),
