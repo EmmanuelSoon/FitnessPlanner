@@ -3,10 +3,6 @@
 ## To Do
 
 ### Progress & Insights
-- [ ] Per-exercise strength trend chart — weight/reps (or hold time) over time for a single exercise
-- [ ] Overall training volume over time — total volume per week/month (rep volume for calisthenics; weight volume where applicable)
-- [ ] Personal records — auto-detect and surface PRs (heaviest weight, most reps, longest hold) as they happen
-- [ ] Running performance trends — pace/distance/HR over time, separate from strength progress
 - [ ] AI-powered progression recommendations — analyse workout history and recommend adjustments (add/remove a rep, increase sets, raise weight, progress to harder variation) to optimise progression for the user
 
 ### Calendar
@@ -17,6 +13,13 @@
 - [ ] Improve library of exercises - increase the number of available exercises to begin with, if possible link to a demo or something. 
 
 ## Done
+
+### Progress & Insights
+- [x] Per-exercise strength trend chart — weight/reps (or hold time) over time for a single exercise
+- [x] Overall training volume over time — total volume per week/month (rep volume for calisthenics; weight volume where applicable)
+- [x] Personal records — auto-detect and surface PRs (heaviest weight, most reps, longest hold, best est. 1RM, session tonnage, fastest pace) as they happen, including on the Workout Complete screen
+- [x] Running performance trends — pace/distance over time, separate from strength progress
+- [x] Tap-to-reveal chart values and a scrollable exercise picker for the Insights charts
 
 ### Setup
 - [x] Wire up main.dart to the fitness planner (remove default counter app)
