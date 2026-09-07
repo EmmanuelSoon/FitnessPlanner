@@ -513,10 +513,7 @@ class _VolumeCard extends StatelessWidget {
           const SizedBox(height: 8),
           AreaTrendChart(
             series: series,
-            edgeLabels: [
-              _formatShortDate(weeks.first.weekStart),
-              _formatShortDate(weeks.last.weekStart),
-            ],
+            pointLabels: [for (final w in weeks) _formatShortDate(w.weekStart)],
           ),
         ],
       ),
@@ -589,10 +586,7 @@ class _DistanceCard extends StatelessWidget {
           const SizedBox(height: 8),
           AreaTrendChart(
             series: series,
-            edgeLabels: [
-              _formatShortDate(weeks.first.weekStart),
-              _formatShortDate(weeks.last.weekStart),
-            ],
+            pointLabels: [for (final w in weeks) _formatShortDate(w.weekStart)],
           ),
         ],
       ),
@@ -668,17 +662,21 @@ class _ExerciseTrendCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Wrap(
-            spacing: 6,
-            runSpacing: 6,
-            children: [
-              for (final name in names)
-                _ExerciseChip(
-                  label: name,
-                  selected: name == selected,
-                  onTap: () => onSelect(name),
-                ),
-            ],
+          SingleChildScrollView(
+            key: const ValueKey('exerciseChipRow'),
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: [
+                for (var i = 0; i < names.length; i++) ...[
+                  if (i > 0) const SizedBox(width: 6),
+                  _ExerciseChip(
+                    label: names[i],
+                    selected: names[i] == selected,
+                    onTap: () => onSelect(names[i]),
+                  ),
+                ],
+              ],
+            ),
           ),
           const SizedBox(height: 14),
           if (trend.isEmpty)
@@ -719,10 +717,7 @@ class _ExerciseTrendCard extends StatelessWidget {
             const SizedBox(height: 8),
             AreaTrendChart(
               series: [for (final p in trend) p.value],
-              edgeLabels: [
-                _formatShortDate(trend.first.date),
-                _formatShortDate(trend.last.date),
-              ],
+              pointLabels: [for (final p in trend) _formatShortDate(p.date)],
             ),
           ],
         ],
@@ -778,10 +773,7 @@ class _PaceTrendCard extends StatelessWidget {
           else
             AreaTrendChart(
               series: [for (final w in withPace) w.avgPaceSecPerKm!],
-              edgeLabels: [
-                _formatShortDate(withPace.first.weekStart),
-                _formatShortDate(withPace.last.weekStart),
-              ],
+              pointLabels: [for (final w in withPace) _formatShortDate(w.weekStart)],
               invert: true,
             ),
         ],

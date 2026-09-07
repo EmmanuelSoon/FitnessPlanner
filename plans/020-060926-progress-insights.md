@@ -7,7 +7,7 @@
 - [x] **PR 3 — Personal records**
 - [x] **PR 4 — Running trends**
 - [x] **PR 5 — Surface new PRs on Workout Complete**
-- [ ] **PR 6 — Tap-to-reveal chart values + scrollable exercise picker**
+- [x] **PR 6 — Tap-to-reveal chart values + scrollable exercise picker**
 
 ## Context
 

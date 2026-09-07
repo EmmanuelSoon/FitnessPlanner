@@ -15,9 +15,10 @@ String fmtTrimmedNumber(double v) =>
 // Hand-rolled (no chart package) to match the app's existing hand-rolled
 // widget style.
 
-class AreaTrendChart extends StatelessWidget {
+class AreaTrendChart extends StatefulWidget {
   final List<double> series;
   final List<String>? edgeLabels;
+  final List<String>? pointLabels;
   final Set<int> prIndices;
   final bool invert;
   final double height;
@@ -26,39 +27,123 @@ class AreaTrendChart extends StatelessWidget {
     super.key,
     required this.series,
     this.edgeLabels,
+    this.pointLabels,
     this.prIndices = const {},
     this.invert = false,
     this.height = 108,
   });
 
   @override
+  State<AreaTrendChart> createState() => AreaTrendChartState();
+}
+
+/// Public so widget tests can read [touchedIndex] directly — the tooltip
+/// itself is drawn on the canvas, not as inspectable widgets.
+class AreaTrendChartState extends State<AreaTrendChart> {
+  int? _touchedIndex;
+
+  int? get touchedIndex => _touchedIndex;
+
+  @override
+  void didUpdateWidget(covariant AreaTrendChart oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // A pinned tooltip index is only meaningful for the dataset it was
+    // touched on — e.g. switching the exercise-trend card's chip selects a
+    // new series entirely, and a stale index could point at the wrong (or a
+    // now out-of-range) point.
+    if (!listEquals(oldWidget.series, widget.series) ||
+        !listEquals(oldWidget.pointLabels, widget.pointLabels)) {
+      _touchedIndex = null;
+    }
+  }
+
+  void _handleTouch(Offset localPosition, double width) {
+    final n = widget.series.length;
+    final labels = widget.pointLabels;
+    if (n == 0 || width <= 0 || labels == null || labels.length != n) return;
+
+    final idx = n <= 1
+        ? 0
+        : (localPosition.dx / width * (n - 1)).round().clamp(0, n - 1);
+    if (idx != _touchedIndex) setState(() => _touchedIndex = idx);
+  }
+
+  @override
   Widget build(BuildContext context) {
     final c = AppThemeData.of(context).c;
+    final series = widget.series;
+    final maxV = series.isEmpty ? null : series.reduce((a, b) => a > b ? a : b);
+    final minV = series.isEmpty ? null : series.reduce((a, b) => a < b ? a : b);
+    // On an inverted (lower-is-better) chart, the min value plots highest —
+    // the label at the top of the box should match whatever visually reads
+    // as "the top of the line".
+    final topValue = widget.invert ? minV : maxV;
+    final bottomValue = widget.invert ? maxV : minV;
+    final labelStyle = bodyStyle(fontSize: 10, color: c.inkMute);
+    // Every call site's edgeLabels are just the first/last of its
+    // pointLabels — derive them here instead of repeating that at each of
+    // the four chart call sites.
+    final edgeLabels = widget.edgeLabels ??
+        (widget.pointLabels != null && widget.pointLabels!.length >= 2
+            ? [widget.pointLabels!.first, widget.pointLabels!.last]
+            : null);
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         SizedBox(
-          height: height,
-          child: CustomPaint(
-            painter: _AreaTrendPainter(
-              series: series,
-              prIndices: prIndices,
-              invert: invert,
-              accent: c.accent,
-              surface: c.surface,
-              hairline: c.hairline,
-            ),
+          height: widget.height,
+          child: Stack(
+            children: [
+              Positioned.fill(
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    return GestureDetector(
+                      // Horizontal-only (not onPan*) so a vertical swipe
+                      // over the chart still loses the gesture arena to the
+                      // page's own vertical ListView instead of scrubbing
+                      // the tooltip.
+                      onHorizontalDragDown: (d) => _handleTouch(d.localPosition, constraints.maxWidth),
+                      onHorizontalDragUpdate: (d) => _handleTouch(d.localPosition, constraints.maxWidth),
+                      child: CustomPaint(
+                        painter: _AreaTrendPainter(
+                          series: widget.series,
+                          prIndices: widget.prIndices,
+                          invert: widget.invert,
+                          accent: c.accent,
+                          surface: c.surface,
+                          hairline: c.hairline,
+                          ink: c.ink,
+                          touchedIndex: _touchedIndex,
+                          pointLabels: widget.pointLabels,
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+              if (topValue != null)
+                Positioned(
+                  top: 0,
+                  left: 0,
+                  child: Text(fmtTrimmedNumber(topValue), style: labelStyle),
+                ),
+              if (bottomValue != null && bottomValue != topValue)
+                Positioned(
+                  bottom: 0,
+                  left: 0,
+                  child: Text(fmtTrimmedNumber(bottomValue), style: labelStyle),
+                ),
+            ],
           ),
         ),
-        if (edgeLabels != null && edgeLabels!.length >= 2) ...[
+        if (edgeLabels != null && edgeLabels.length >= 2) ...[
           const SizedBox(height: 2),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(edgeLabels!.first,
-                  style: bodyStyle(fontSize: 10, color: c.inkMute)),
-              Text(edgeLabels!.last,
-                  style: bodyStyle(fontSize: 10, color: c.inkMute)),
+              Text(edgeLabels.first, style: labelStyle),
+              Text(edgeLabels.last, style: labelStyle),
             ],
           ),
         ],
@@ -74,6 +159,9 @@ class _AreaTrendPainter extends CustomPainter {
   final Color accent;
   final Color surface;
   final Color hairline;
+  final Color ink;
+  final int? touchedIndex;
+  final List<String>? pointLabels;
 
   const _AreaTrendPainter({
     required this.series,
@@ -82,6 +170,9 @@ class _AreaTrendPainter extends CustomPainter {
     required this.accent,
     required this.surface,
     required this.hairline,
+    required this.ink,
+    this.touchedIndex,
+    this.pointLabels,
   });
 
   @override
@@ -169,14 +260,78 @@ class _AreaTrendPainter extends CustomPainter {
     }
 
     canvas.drawCircle(points.last, 4, Paint()..color = accent);
+
+    final labels = pointLabels;
+    final touched = touchedIndex;
+    if (touched != null &&
+        labels != null &&
+        labels.length == n &&
+        touched >= 0 &&
+        touched < points.length) {
+      _paintTooltip(canvas, size, points[touched], labels[touched], series[touched]);
+    }
+  }
+
+  void _paintTooltip(
+    Canvas canvas,
+    Size size,
+    Offset point,
+    String label,
+    double value,
+  ) {
+    canvas.drawLine(
+      Offset(point.dx, 0),
+      Offset(point.dx, size.height),
+      Paint()
+        ..color = hairline
+        ..strokeWidth = 1,
+    );
+    canvas.drawCircle(point, 5, Paint()..color = surface);
+    canvas.drawCircle(
+      point,
+      5,
+      Paint()
+        ..color = ink
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2,
+    );
+    canvas.drawCircle(point, 2, Paint()..color = ink);
+
+    final text = '$label · ${fmtTrimmedNumber(value)}';
+    final textPainter = TextPainter(
+      text: TextSpan(
+        text: text,
+        style: bodyStyle(fontSize: 11, fontWeight: FontWeight.w600, color: surface),
+      ),
+      textDirection: TextDirection.ltr,
+    )..layout();
+
+    const paddingH = 8.0;
+    const paddingV = 5.0;
+    final pillWidth = textPainter.width + paddingH * 2;
+    final pillHeight = textPainter.height + paddingV * 2;
+    var pillLeft = point.dx - pillWidth / 2;
+    final maxLeft = size.width - pillWidth > 0 ? size.width - pillWidth : 0.0;
+    pillLeft = pillLeft.clamp(0.0, maxLeft);
+    const pillTop = 0.0;
+
+    final pillRect = RRect.fromRectAndRadius(
+      Rect.fromLTWH(pillLeft, pillTop, pillWidth, pillHeight),
+      const Radius.circular(6),
+    );
+    canvas.drawRRect(pillRect, Paint()..color = ink);
+    textPainter.paint(canvas, Offset(pillLeft + paddingH, pillTop + paddingV));
   }
 
   @override
   bool shouldRepaint(covariant _AreaTrendPainter oldDelegate) =>
       !listEquals(oldDelegate.series, series) ||
       !setEquals(oldDelegate.prIndices, prIndices) ||
+      oldDelegate.touchedIndex != touchedIndex ||
+      !listEquals(oldDelegate.pointLabels, pointLabels) ||
       oldDelegate.invert != invert ||
-      oldDelegate.accent != accent;
+      oldDelegate.accent != accent ||
+      oldDelegate.ink != ink;
 }
 
 // ─── Pill segmented control ─────────────────────────────────────────────
