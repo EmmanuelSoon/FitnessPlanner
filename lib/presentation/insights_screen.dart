@@ -775,6 +775,7 @@ class _PaceTrendCard extends StatelessWidget {
               series: [for (final w in withPace) w.avgPaceSecPerKm!],
               pointLabels: [for (final w in withPace) _formatShortDate(w.weekStart)],
               invert: true,
+              valueFormatter: (v) => formatClock(v.round()),
             ),
         ],
       ),

@@ -156,6 +156,30 @@ void main() {
     expect(find.text('15'), findsOneWidget);
   });
 
+  testWidgets('a custom valueFormatter formats the top/bottom labels instead of the raw number',
+      (tester) async {
+    await pumpApp(
+      tester,
+      Align(
+        alignment: Alignment.topLeft,
+        child: SizedBox(
+          width: 300,
+          child: AreaTrendChart(
+            series: const [65.0, 426.0],
+            pointLabels: const ['Jan 1', 'Jan 8'],
+            valueFormatter: (v) => '${v ~/ 60}:${(v % 60).round().toString().padLeft(2, '0')}',
+          ),
+        ),
+      ),
+      surfaceSize: const Size(400, 400),
+    );
+
+    expect(find.text('7:06'), findsOneWidget);
+    expect(find.text('1:05'), findsOneWidget);
+    expect(find.text('426'), findsNothing);
+    expect(find.text('65'), findsNothing);
+  });
+
   testWidgets('switching to a different dataset at the same chart clears a pinned tooltip',
       (tester) async {
     await pumpChart(tester);

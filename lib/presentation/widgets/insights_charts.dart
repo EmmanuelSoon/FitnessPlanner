@@ -22,6 +22,7 @@ class AreaTrendChart extends StatefulWidget {
   final Set<int> prIndices;
   final bool invert;
   final double height;
+  final String Function(double)? valueFormatter;
 
   const AreaTrendChart({
     super.key,
@@ -31,6 +32,7 @@ class AreaTrendChart extends StatefulWidget {
     this.prIndices = const {},
     this.invert = false,
     this.height = 108,
+    this.valueFormatter,
   });
 
   @override
@@ -79,6 +81,7 @@ class AreaTrendChartState extends State<AreaTrendChart> {
     // as "the top of the line".
     final topValue = widget.invert ? minV : maxV;
     final bottomValue = widget.invert ? maxV : minV;
+    final valueFormatter = widget.valueFormatter ?? fmtTrimmedNumber;
     final labelStyle = bodyStyle(fontSize: 10, color: c.inkMute);
     // Every call site's edgeLabels are just the first/last of its
     // pointLabels — derive them here instead of repeating that at each of
@@ -116,6 +119,7 @@ class AreaTrendChartState extends State<AreaTrendChart> {
                           ink: c.ink,
                           touchedIndex: _touchedIndex,
                           pointLabels: widget.pointLabels,
+                          valueFormatter: valueFormatter,
                         ),
                       ),
                     );
@@ -126,13 +130,13 @@ class AreaTrendChartState extends State<AreaTrendChart> {
                 Positioned(
                   top: 0,
                   left: 0,
-                  child: Text(fmtTrimmedNumber(topValue), style: labelStyle),
+                  child: Text(valueFormatter(topValue), style: labelStyle),
                 ),
               if (bottomValue != null && bottomValue != topValue)
                 Positioned(
                   bottom: 0,
                   left: 0,
-                  child: Text(fmtTrimmedNumber(bottomValue), style: labelStyle),
+                  child: Text(valueFormatter(bottomValue), style: labelStyle),
                 ),
             ],
           ),
@@ -162,6 +166,7 @@ class _AreaTrendPainter extends CustomPainter {
   final Color ink;
   final int? touchedIndex;
   final List<String>? pointLabels;
+  final String Function(double) valueFormatter;
 
   const _AreaTrendPainter({
     required this.series,
@@ -173,6 +178,7 @@ class _AreaTrendPainter extends CustomPainter {
     required this.ink,
     this.touchedIndex,
     this.pointLabels,
+    required this.valueFormatter,
   });
 
   @override
@@ -297,7 +303,7 @@ class _AreaTrendPainter extends CustomPainter {
     );
     canvas.drawCircle(point, 2, Paint()..color = ink);
 
-    final text = '$label · ${fmtTrimmedNumber(value)}';
+    final text = '$label · ${valueFormatter(value)}';
     final textPainter = TextPainter(
       text: TextSpan(
         text: text,
