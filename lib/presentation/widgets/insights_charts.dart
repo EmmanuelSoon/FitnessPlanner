@@ -58,31 +58,59 @@ class AreaTrendChartState extends State<AreaTrendChart> {
   @override
   Widget build(BuildContext context) {
     final c = AppThemeData.of(context).c;
+    final series = widget.series;
+    final maxV = series.isEmpty ? null : series.reduce((a, b) => a > b ? a : b);
+    final minV = series.isEmpty ? null : series.reduce((a, b) => a < b ? a : b);
+    // On an inverted (lower-is-better) chart, the min value plots highest —
+    // the label at the top of the box should match whatever visually reads
+    // as "the top of the line".
+    final topValue = widget.invert ? minV : maxV;
+    final bottomValue = widget.invert ? maxV : minV;
+    final labelStyle = bodyStyle(fontSize: 10, color: c.inkMute);
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         SizedBox(
           height: widget.height,
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              return GestureDetector(
-                onPanDown: (d) => _handleTouch(d.localPosition, constraints.maxWidth),
-                onPanUpdate: (d) => _handleTouch(d.localPosition, constraints.maxWidth),
-                child: CustomPaint(
-                  painter: _AreaTrendPainter(
-                    series: widget.series,
-                    prIndices: widget.prIndices,
-                    invert: widget.invert,
-                    accent: c.accent,
-                    surface: c.surface,
-                    hairline: c.hairline,
-                    ink: c.ink,
-                    touchedIndex: _touchedIndex,
-                    pointLabels: widget.pointLabels,
-                  ),
+          child: Stack(
+            children: [
+              Positioned.fill(
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    return GestureDetector(
+                      onPanDown: (d) => _handleTouch(d.localPosition, constraints.maxWidth),
+                      onPanUpdate: (d) => _handleTouch(d.localPosition, constraints.maxWidth),
+                      child: CustomPaint(
+                        painter: _AreaTrendPainter(
+                          series: widget.series,
+                          prIndices: widget.prIndices,
+                          invert: widget.invert,
+                          accent: c.accent,
+                          surface: c.surface,
+                          hairline: c.hairline,
+                          ink: c.ink,
+                          touchedIndex: _touchedIndex,
+                          pointLabels: widget.pointLabels,
+                        ),
+                      ),
+                    );
+                  },
                 ),
-              );
-            },
+              ),
+              if (topValue != null)
+                Positioned(
+                  top: 0,
+                  left: 0,
+                  child: Text(fmtTrimmedNumber(topValue), style: labelStyle),
+                ),
+              if (bottomValue != null && bottomValue != topValue)
+                Positioned(
+                  bottom: 0,
+                  left: 0,
+                  child: Text(fmtTrimmedNumber(bottomValue), style: labelStyle),
+                ),
+            ],
           ),
         ),
         if (widget.edgeLabels != null && widget.edgeLabels!.length >= 2) ...[

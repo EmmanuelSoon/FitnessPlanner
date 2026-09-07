@@ -118,4 +118,41 @@ void main() {
     final state = tester.state<AreaTrendChartState>(find.byType(AreaTrendChart));
     expect(state.touchedIndex, isNull);
   });
+
+  testWidgets('labels the max value near the top and the min value near the bottom', (tester) async {
+    await pumpChart(tester);
+
+    expect(find.text('30'), findsOneWidget);
+    expect(find.text('10'), findsOneWidget);
+    expect(
+      tester.getTopLeft(find.text('30')).dy,
+      lessThan(tester.getTopLeft(find.text('10')).dy),
+    );
+  });
+
+  testWidgets('an inverted chart labels the min value near the top and the max value near the bottom',
+      (tester) async {
+    await pumpApp(
+      tester,
+      Align(
+        alignment: Alignment.topLeft,
+        child: SizedBox(
+          width: 300,
+          child: AreaTrendChart(series: series, pointLabels: pointLabels, invert: true),
+        ),
+      ),
+      surfaceSize: const Size(400, 400),
+    );
+
+    expect(
+      tester.getTopLeft(find.text('10')).dy,
+      lessThan(tester.getTopLeft(find.text('30')).dy),
+    );
+  });
+
+  testWidgets('shows a single label when every point has the same value', (tester) async {
+    await pumpChart(tester, series: const [15.0, 15.0, 15.0]);
+
+    expect(find.text('15'), findsOneWidget);
+  });
 }
