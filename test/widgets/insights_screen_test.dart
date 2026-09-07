@@ -31,6 +31,26 @@ Finder _exerciseChip(String label) => find.descendant(
 // always the topmost Scrollable in the tree, so `.first` pins to it.
 final Finder _outerScrollable = find.byType(Scrollable).first;
 
+WorkoutSession _manyExercisesSession() => WorkoutSession(
+      id: 'ws1',
+      workoutId: 'w1',
+      workoutName: 'Push Day',
+      startedAt: DateTime(2026, 1, 5),
+      endedAt: DateTime(2026, 1, 5, 1),
+      completed: true,
+      sets: [
+        for (var i = 1; i <= 12; i++)
+          LoggedSet(
+            exerciseName: 'Exercise $i',
+            targetReps: 8,
+            targetWeight: 60,
+            actualReps: 8,
+            actualWeight: 60,
+            skipped: false,
+          ),
+      ],
+    );
+
 void main() {
   late FakeSessionRepository fakeRepo;
   late FakeRunRepository fakeRunRepo;
@@ -385,28 +405,9 @@ void main() {
     expect(find.textContaining('No records yet — log a run'), findsOneWidget);
   });
 
-  testWidgets('renders many exercises as a horizontally-scrolling row instead of wrapping to multiple lines',
+  testWidgets('the exercise chip row stays a single line as the number of exercises grows',
       (tester) async {
-    final exerciseNames = [for (var i = 1; i <= 12; i++) 'Exercise $i'];
-    fakeRepo.store['ws1'] = WorkoutSession(
-      id: 'ws1',
-      workoutId: 'w1',
-      workoutName: 'Push Day',
-      startedAt: DateTime(2026, 1, 5),
-      endedAt: DateTime(2026, 1, 5, 1),
-      completed: true,
-      sets: [
-        for (final name in exerciseNames)
-          LoggedSet(
-            exerciseName: name,
-            targetReps: 8,
-            targetWeight: 60,
-            actualReps: 8,
-            actualWeight: 60,
-            skipped: false,
-          ),
-      ],
-    );
+    fakeRepo.store['ws1'] = _manyExercisesSession();
 
     await pumpInsights(tester);
     await tester.scrollUntilVisible(
@@ -415,17 +416,27 @@ void main() {
       scrollable: _outerScrollable,
     );
 
-    // A fixed-height row proves the chips lay out on a single horizontal
-    // line rather than wrapping onto extra rows as the count grows.
-    expect(tester.getSize(find.byKey(const ValueKey('exerciseChipRow'))).height, 34);
-    final chipRow = tester.widget<ListView>(find.byKey(const ValueKey('exerciseChipRow')));
-    expect(chipRow.scrollDirection, Axis.horizontal);
+    // A Wrap would grow to several lines for 12 chips; staying this short
+    // proves they're laid out on one scrollable line instead.
+    expect(tester.getSize(find.byKey(const ValueKey('exerciseChipRow'))).height, lessThan(40));
+  });
 
-    // The first exercise (leftmost) is built into the lazy list up front;
-    // the twelfth is off the initial horizontal viewport and so isn't
-    // built at all yet — proof the row scrolls instead of wrapping every
-    // chip into view at once.
-    expect(_exerciseChip('Exercise 1'), findsOneWidget);
-    expect(_exerciseChip('Exercise 12'), findsNothing);
+  testWidgets('the exercise chip row scrolls horizontally when more exercises are logged than fit on screen',
+      (tester) async {
+    fakeRepo.store['ws1'] = _manyExercisesSession();
+
+    await pumpInsights(tester);
+    await tester.scrollUntilVisible(
+      find.byKey(const ValueKey('exerciseChipRow')),
+      300,
+      scrollable: _outerScrollable,
+    );
+
+    final chipRowScrollable = find.descendant(
+      of: find.byKey(const ValueKey('exerciseChipRow')),
+      matching: find.byType(Scrollable),
+    );
+    final position = tester.state<ScrollableState>(chipRowScrollable).position;
+    expect(position.maxScrollExtent, greaterThan(0));
   });
 }

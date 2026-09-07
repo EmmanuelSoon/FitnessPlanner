@@ -44,6 +44,19 @@ class AreaTrendChartState extends State<AreaTrendChart> {
 
   int? get touchedIndex => _touchedIndex;
 
+  @override
+  void didUpdateWidget(covariant AreaTrendChart oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // A pinned tooltip index is only meaningful for the dataset it was
+    // touched on — e.g. switching the exercise-trend card's chip selects a
+    // new series entirely, and a stale index could point at the wrong (or a
+    // now out-of-range) point.
+    if (!listEquals(oldWidget.series, widget.series) ||
+        !listEquals(oldWidget.pointLabels, widget.pointLabels)) {
+      _touchedIndex = null;
+    }
+  }
+
   void _handleTouch(Offset localPosition, double width) {
     final n = widget.series.length;
     final labels = widget.pointLabels;
@@ -67,6 +80,13 @@ class AreaTrendChartState extends State<AreaTrendChart> {
     final topValue = widget.invert ? minV : maxV;
     final bottomValue = widget.invert ? maxV : minV;
     final labelStyle = bodyStyle(fontSize: 10, color: c.inkMute);
+    // Every call site's edgeLabels are just the first/last of its
+    // pointLabels — derive them here instead of repeating that at each of
+    // the four chart call sites.
+    final edgeLabels = widget.edgeLabels ??
+        (widget.pointLabels != null && widget.pointLabels!.length >= 2
+            ? [widget.pointLabels!.first, widget.pointLabels!.last]
+            : null);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -79,8 +99,12 @@ class AreaTrendChartState extends State<AreaTrendChart> {
                 child: LayoutBuilder(
                   builder: (context, constraints) {
                     return GestureDetector(
-                      onPanDown: (d) => _handleTouch(d.localPosition, constraints.maxWidth),
-                      onPanUpdate: (d) => _handleTouch(d.localPosition, constraints.maxWidth),
+                      // Horizontal-only (not onPan*) so a vertical swipe
+                      // over the chart still loses the gesture arena to the
+                      // page's own vertical ListView instead of scrubbing
+                      // the tooltip.
+                      onHorizontalDragDown: (d) => _handleTouch(d.localPosition, constraints.maxWidth),
+                      onHorizontalDragUpdate: (d) => _handleTouch(d.localPosition, constraints.maxWidth),
                       child: CustomPaint(
                         painter: _AreaTrendPainter(
                           series: widget.series,
@@ -113,15 +137,13 @@ class AreaTrendChartState extends State<AreaTrendChart> {
             ],
           ),
         ),
-        if (widget.edgeLabels != null && widget.edgeLabels!.length >= 2) ...[
+        if (edgeLabels != null && edgeLabels.length >= 2) ...[
           const SizedBox(height: 2),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(widget.edgeLabels!.first,
-                  style: bodyStyle(fontSize: 10, color: c.inkMute)),
-              Text(widget.edgeLabels!.last,
-                  style: bodyStyle(fontSize: 10, color: c.inkMute)),
+              Text(edgeLabels.first, style: labelStyle),
+              Text(edgeLabels.last, style: labelStyle),
             ],
           ),
         ],
@@ -306,8 +328,10 @@ class _AreaTrendPainter extends CustomPainter {
       !listEquals(oldDelegate.series, series) ||
       !setEquals(oldDelegate.prIndices, prIndices) ||
       oldDelegate.touchedIndex != touchedIndex ||
+      !listEquals(oldDelegate.pointLabels, pointLabels) ||
       oldDelegate.invert != invert ||
-      oldDelegate.accent != accent;
+      oldDelegate.accent != accent ||
+      oldDelegate.ink != ink;
 }
 
 // ─── Pill segmented control ─────────────────────────────────────────────

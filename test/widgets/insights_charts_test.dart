@@ -155,4 +155,21 @@ void main() {
 
     expect(find.text('15'), findsOneWidget);
   });
+
+  testWidgets('switching to a different dataset at the same chart clears a pinned tooltip',
+      (tester) async {
+    await pumpChart(tester);
+
+    final topLeft = tester.getTopLeft(find.byType(AreaTrendChart));
+    await tester.tapAt(topLeft + const Offset(150, 50));
+    await tester.pump();
+    expect(tester.state<AreaTrendChartState>(find.byType(AreaTrendChart)).touchedIndex, 1);
+
+    // Same chart position/type but a new series — e.g. the exercise-trend
+    // card swapping in a different exercise's data. The previous index
+    // shouldn't carry over onto a dataset it was never touched on.
+    await pumpChart(tester, series: const [1.0, 2.0], pointLabels: const ['Feb 1', 'Feb 8']);
+
+    expect(tester.state<AreaTrendChartState>(find.byType(AreaTrendChart)).touchedIndex, isNull);
+  });
 }
