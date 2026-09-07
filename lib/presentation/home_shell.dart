@@ -15,6 +15,11 @@ class HomeShell extends StatefulWidget {
   /// straight to a tab after popping back to this route.
   static final GlobalKey<HomeShellState> navKey = GlobalKey<HomeShellState>();
 
+  /// Index of [InsightsScreen] in [HomeShellState._screens] below — kept
+  /// next to that list so the two stay in sync if the tab order ever
+  /// changes. Exposed for screens that navigate to Insights via [navKey].
+  static const int insightsTabIndex = 3;
+
   @override
   State<HomeShell> createState() => HomeShellState();
 }
@@ -26,7 +31,7 @@ class HomeShellState extends State<HomeShell> {
     WorkoutListScreen(),
     CalendarScreen(),
     RunListScreen(),
-    InsightsScreen(),
+    InsightsScreen(), // index == HomeShell.insightsTabIndex
   ];
 
   void switchTab(int index) => setState(() => _index = index);

@@ -11,12 +11,36 @@ import 'package:fitness_planner/providers/run_providers.dart';
 import 'package:fitness_planner/providers/session_providers.dart';
 import 'package:fitness_planner/theme/app_theme.dart';
 
-class WorkoutCompleteScreen extends ConsumerWidget {
+class WorkoutCompleteScreen extends ConsumerStatefulWidget {
   final WorkoutSession session;
   const WorkoutCompleteScreen({super.key, required this.session});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<WorkoutCompleteScreen> createState() => _WorkoutCompleteScreenState();
+}
+
+class _WorkoutCompleteScreenState extends ConsumerState<WorkoutCompleteScreen> {
+  // Memoized on the sessions and runs lists' identity, matching
+  // InsightsScreen/RecordsScreen's cache — this screen can rebuild for
+  // reasons unrelated to session/run data (e.g. a theme change), and a
+  // bare `computePersonalRecords` call would otherwise rescan the entire
+  // history on every one of those rebuilds.
+  List<WorkoutSession>? _cachedSessions;
+  List<RunSession>? _cachedRuns;
+  List<PersonalRecord>? _cachedRecords;
+
+  List<PersonalRecord> _newRecordsFor(List<WorkoutSession> sessions, List<RunSession> runs) {
+    if (!identical(_cachedSessions, sessions) || !identical(_cachedRuns, runs)) {
+      _cachedSessions = sessions;
+      _cachedRuns = runs;
+      _cachedRecords = computePersonalRecords(sessions, runs);
+    }
+    return recordsSetInSession(_cachedRecords!, widget.session.id);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final session = widget.session;
     final theme = AppThemeData.of(context);
     final c = theme.c;
 
@@ -28,8 +52,7 @@ class WorkoutCompleteScreen extends ConsumerWidget {
 
     final sessions = ref.watch(sessionsProvider).asData?.value ?? const <WorkoutSession>[];
     final runs = ref.watch(runsProvider).asData?.value ?? const <RunSession>[];
-    final newRecords =
-        recordsSetInSession(computePersonalRecords(sessions, runs), session.id);
+    final newRecords = _newRecordsFor(sessions, runs);
 
     void backToWorkouts() =>
         Navigator.of(context).popUntil((route) => route.isFirst);
@@ -189,8 +212,8 @@ class WorkoutCompleteScreen extends ConsumerWidget {
                   icon: Icons.insights_rounded,
                   onPressed: () {
                     backToWorkouts();
-                    // Insights is the 4th (index 3) tab in HomeShell.
-                    HomeShell.navKey.currentState?.switchTab(3);
+                    HomeShell.navKey.currentState
+                        ?.switchTab(HomeShell.insightsTabIndex);
                   },
                 ),
                 const SizedBox(height: 10),
