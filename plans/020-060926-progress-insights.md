@@ -6,7 +6,8 @@
 - [x] **PR 2 — Volume over time (tonnage / reps)**
 - [x] **PR 3 — Personal records**
 - [x] **PR 4 — Running trends**
-- [ ] **PR 5 — Surface new PRs on Workout Complete**
+- [x] **PR 5 — Surface new PRs on Workout Complete**
+- [ ] **PR 6 — Tap-to-reveal chart values + scrollable exercise picker**
 
 ## Context
 
@@ -108,6 +109,63 @@ Each gets a `test/domain/insights/*_test.dart` written first (TDD, red before gr
 - `workout_complete_screen.dart` becomes a `ConsumerWidget`; after showing, compute `recordsSetInSession` against the just-saved session and render a "New records" section (`PRCard` list) when non-empty, plus a "See it in Insights" button navigating to the Insights tab.
 - Explicitly do **not** add a tonnage `StatChip` back to the existing Duration/Sets stat strip (see plan 019 note above) — the new tonnage figure only appears inside a `PRCard`, with its delta.
 - Tests: extend `workout_complete_screen_test.dart` for the PR-present and no-PR cases.
+
+## PR 6 — Tap-to-reveal chart values + scrollable exercise picker
+
+Every `AreaTrendChart` currently renders as a bare line with no way to read
+an individual point's value — only the two edge dates and the current-value
+line above it are legible. Fix: tap/drag on the chart to reveal the nearest
+point's date + value.
+
+- `AreaTrendChart` (`lib/presentation/widgets/insights_charts.dart`) gains a
+  `pointLabels: List<String>?` param — one label per `series` entry (e.g. the
+  point's date), distinct from the existing `edgeLabels` (which only cover
+  first/last and stay as-is for the no-touch resting state).
+- Becomes a `StatefulWidget` tracking `int? _touchedIndex`. Wrap the
+  `CustomPaint` in a `GestureDetector` (`onPanDown` + `onPanUpdate` to scrub
+  across points by dragging, plus a plain tap to jump straight to a point);
+  map the gesture's local `dx` to the nearest series index using the inverse
+  of the painter's existing `x(i)` spacing formula.
+- `_AreaTrendPainter` gains `touchedIndex: int?` and, when set, draws: a
+  vertical hairline guide at that point's x, a highlighted dot distinct from
+  the existing live-dot/PR-ring styles, and a small rounded label pill
+  (drawn with `TextPainter`, no new dependency) showing `pointLabels[i]` +
+  `fmtTrimmedNumber(series[i])`, clamped so it never clips off the left/right
+  edge of the chart.
+- Default dismiss behavior: lifting the finger leaves the tooltip pinned on
+  the last-touched point (rather than snapping back to the live-dot-only
+  view) until the user taps elsewhere on the chart or navigates away — this
+  keeps the value legible instead of it flashing and disappearing. Flagging
+  this as the assumed default; call it out for a quick sanity check during
+  review since it's a UX judgment call, not a technical constraint.
+- Wire `pointLabels` through from all four existing call sites in
+  `insights_screen.dart`: exercise trend (per-session date), volume chart
+  (per-week start date, for both the tonnage and reps series), running
+  distance chart (per-week start date), running pace chart (per-week start
+  date).
+- Tests: new `test/widgets/insights_charts_test.dart` — tap shows the
+  tapped point's label+value, drag moves the tooltip to the nearest point,
+  a touch past either end clamps to the first/last point, and rendering
+  with `pointLabels == null` (or length mismatch) falls back to no tooltip
+  rather than crashing. Extend `insights_screen_test.dart` only if the
+  per-point labels being wrong is otherwise untestable at that layer.
+
+**Also in this PR — scrollable exercise picker.** `_ExerciseTrendCard`'s
+`Wrap` of `_ExerciseChip`s (`insights_screen.dart:671`) grows unbounded with
+the number of distinct exercises ever logged, turning into a wall of pills.
+Fix: swap the `Wrap` for a single horizontal scrolling row.
+
+- `insights_screen.dart`: replace the `Wrap(...)` at line 671 with a
+  `SizedBox` + horizontally-scrolling `ListView.separated` (or `Row` inside
+  a `SingleChildScrollView`) of the same `_ExerciseChip`s, in the same
+  most-recently-used order `exerciseNamesLogged` already returns — no
+  change to the domain layer needed.
+- No cap/overflow menu: relying on most-recent-first ordering so the
+  exercises actually checked often sit at the unscrolled start of the row.
+- Tests: update `insights_screen_test.dart`'s chip-row assertions (from
+  `Wrap` to horizontally-scrollable list) and add a case with many
+  (>10) exercise names confirming the row scrolls rather than wrapping to
+  multiple lines.
 
 ## Out of scope
 

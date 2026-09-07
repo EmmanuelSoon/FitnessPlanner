@@ -107,7 +107,7 @@ class _FitnessPlannerAppState extends ConsumerState<FitnessPlannerApp>
             theme: materialTheme,
             darkTheme: materialTheme,
             themeMode: appTheme.isDark ? ThemeMode.dark : ThemeMode.light,
-            home: const HomeShell(),
+            home: HomeShell(key: HomeShell.navKey),
           ),
         );
       },

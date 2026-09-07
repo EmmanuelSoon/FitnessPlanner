@@ -1,15 +1,22 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:fitness_planner/domain/insights/personal_records.dart';
+import 'package:fitness_planner/domain/models/run_session.dart';
 import 'package:fitness_planner/domain/models/workout_session.dart';
+import 'package:fitness_planner/presentation/home_shell.dart';
 import 'package:fitness_planner/presentation/widgets/app_widgets.dart';
+import 'package:fitness_planner/presentation/widgets/pr_card.dart';
 import 'package:fitness_planner/presentation/widgets/session_breakdown.dart';
+import 'package:fitness_planner/providers/run_providers.dart';
+import 'package:fitness_planner/providers/session_providers.dart';
 import 'package:fitness_planner/theme/app_theme.dart';
 
-class WorkoutCompleteScreen extends StatelessWidget {
+class WorkoutCompleteScreen extends ConsumerWidget {
   final WorkoutSession session;
   const WorkoutCompleteScreen({super.key, required this.session});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final theme = AppThemeData.of(context);
     final c = theme.c;
 
@@ -18,6 +25,14 @@ class WorkoutCompleteScreen extends StatelessWidget {
 
     final completedSets =
         session.sets.where((s) => !s.skipped).length;
+
+    final sessions = ref.watch(sessionsProvider).asData?.value ?? const <WorkoutSession>[];
+    final runs = ref.watch(runsProvider).asData?.value ?? const <RunSession>[];
+    final newRecords =
+        recordsSetInSession(computePersonalRecords(sessions, runs), session.id);
+
+    void backToWorkouts() =>
+        Navigator.of(context).popUntil((route) => route.isFirst);
 
     return Scaffold(
       backgroundColor: c.bg,
@@ -93,6 +108,23 @@ class WorkoutCompleteScreen extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      if (newRecords.isNotEmpty) ...[
+                        Text(
+                          'NEW RECORDS',
+                          style: bodyStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                            color: c.inkMute,
+                            letterSpacing: 0.8,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        for (final record in newRecords) ...[
+                          PRCard(record: record, justNow: true),
+                          const SizedBox(height: 10),
+                        ],
+                        const SizedBox(height: 8),
+                      ],
                       Text(
                         'WHAT YOU DID',
                         style: bodyStyle(
@@ -150,13 +182,31 @@ class WorkoutCompleteScreen extends StatelessWidget {
                   ),
                 ),
               ),
-              AppButton(
-                label: 'Back to workouts',
-                full: true,
-                icon: Icons.home_rounded,
-                onPressed: () => Navigator.of(context)
-                    .popUntil((route) => route.isFirst),
-              ),
+              if (newRecords.isNotEmpty) ...[
+                AppButton(
+                  label: 'See it in Insights',
+                  full: true,
+                  icon: Icons.insights_rounded,
+                  onPressed: () {
+                    backToWorkouts();
+                    // Insights is the 4th (index 3) tab in HomeShell.
+                    HomeShell.navKey.currentState?.switchTab(3);
+                  },
+                ),
+                const SizedBox(height: 10),
+                AppButton(
+                  label: 'Back to workouts',
+                  kind: ButtonKind.ghost,
+                  full: true,
+                  onPressed: backToWorkouts,
+                ),
+              ] else
+                AppButton(
+                  label: 'Back to workouts',
+                  full: true,
+                  icon: Icons.home_rounded,
+                  onPressed: backToWorkouts,
+                ),
               const SizedBox(height: 16),
             ],
           ),
