@@ -204,6 +204,9 @@ class _InsightsScreenState extends ConsumerState<InsightsScreen> {
   // doesn't land on an all-zero Strength view by default.
   String? _mode;
   InsightsWindow _window = InsightsWindow.eightWeeks;
+  // Null means "All" — every logged type blended together, the unfiltered
+  // behavior from before this filter existed.
+  RunType? _runType;
 
   // Memoized on the sessions and runs lists' identity: `sessionsProvider`
   // and `runsProvider` hand back the same List instance across rebuilds
@@ -214,6 +217,10 @@ class _InsightsScreenState extends ConsumerState<InsightsScreen> {
   List<RunSession>? _cachedRuns;
   List<WeekRunStats>? _cachedWeeklyRunStats;
   DateTime? _cachedRunWeekStart;
+  List<WeekRunStats>? _cachedPaceWeeks;
+  RunType? _cachedPaceWeeksType;
+  DateTime? _cachedPaceWeeksWeekStart;
+  List<RunType>? _cachedRunTypes;
   List<PersonalRecord>? _cachedRecords;
   Map<String, LiftSeries>? _cachedAllLiftSeries;
   List<WeekLoad>? _cachedWeekLoads;
@@ -234,6 +241,8 @@ class _InsightsScreenState extends ConsumerState<InsightsScreen> {
     if (!identical(_cachedRuns, runs)) {
       _cachedRuns = runs;
       _cachedWeeklyRunStats = null;
+      _cachedPaceWeeks = null;
+      _cachedRunTypes = null;
       _cachedRecords = null;
     }
   }
@@ -251,6 +260,37 @@ class _InsightsScreenState extends ConsumerState<InsightsScreen> {
       _cachedRunWeekStart = weekStart;
     }
     return _cachedWeeklyRunStats!;
+  }
+
+  /// The pace trend's own weekly series, filtered by [_runType] — kept
+  /// separate from [_weeklyRunStatsFor]'s all-types series (used by the
+  /// distance chart and "this week" strip, which aren't split by type)
+  /// since blending an easy run's pace with a tempo run's describes
+  /// neither. When unfiltered ("All"), this is the exact same scan
+  /// [_weeklyRunStatsFor] already did, so it's reused directly instead of
+  /// running `weeklyRunStats` over `runs` a second time.
+  List<WeekRunStats> _paceWeeksFor(List<WorkoutSession> sessions, List<RunSession> runs) {
+    if (_runType == null) return _weeklyRunStatsFor(sessions, runs);
+
+    _sync(sessions, runs);
+    final weekStart = weekStartOf(DateTime.now());
+    if (_cachedPaceWeeks == null ||
+        _cachedPaceWeeksType != _runType ||
+        _cachedPaceWeeksWeekStart != weekStart) {
+      _cachedPaceWeeks = weeklyRunStats(runs, type: _runType);
+      _cachedPaceWeeksType = _runType;
+      _cachedPaceWeeksWeekStart = weekStart;
+    }
+    return _cachedPaceWeeks!;
+  }
+
+  /// The distinct [RunType]s logged anywhere in [runs] — memoized like
+  /// every other derived value here, since it's recomputed on every build
+  /// otherwise (a mode/window toggle that leaves `runs` untouched shouldn't
+  /// re-scan it just to rebuild the same type list).
+  List<RunType> _runTypesFor(List<WorkoutSession> sessions, List<RunSession> runs) {
+    _sync(sessions, runs);
+    return _cachedRunTypes ??= runTypesPresent(runs);
   }
 
   /// Every lift's full logged history, one pass — the window selector then
@@ -343,6 +383,16 @@ class _InsightsScreenState extends ConsumerState<InsightsScreen> {
                   if (sessions.isEmpty && runs.isEmpty) return const _EmptyState();
 
                   final runWeeks = _weeklyRunStatsFor(sessions, runs);
+                  final runTypes = _runTypesFor(sessions, runs);
+                  // The selected type's own data can disappear (its last
+                  // run edited or deleted) while still selected — without
+                  // this, the selector chip vanishes (no longer "present")
+                  // but the pace trend stays stuck filtered to a type with
+                  // no way left to clear it.
+                  if (_runType != null && !runTypes.contains(_runType)) {
+                    _runType = null;
+                  }
+                  final paceWeeks = _paceWeeksFor(sessions, runs);
                   final records = _recordsFor(sessions, runs);
                   final mode = _mode ?? (sessions.isEmpty && runs.isNotEmpty ? 'Running' : 'Strength');
 
@@ -364,6 +414,10 @@ class _InsightsScreenState extends ConsumerState<InsightsScreen> {
                     weeklyLoad: comparisons,
                     thisWeekSessionCount: weekLoads.last.sessionCount,
                     totalWorkingSets: weekLoads.last.totalWorkingSets,
+                    paceWeeks: paceWeeks,
+                    runTypes: runTypes,
+                    selectedRunType: _runType,
+                    onSelectRunType: (t) => setState(() => _runType = t),
                     onTapLift: (lift) => Navigator.push(
                       context,
                       MaterialPageRoute(
@@ -404,6 +458,10 @@ class _Body extends StatelessWidget {
   final List<CategoryLoadComparison> weeklyLoad;
   final int thisWeekSessionCount;
   final int totalWorkingSets;
+  final List<WeekRunStats> paceWeeks;
+  final List<RunType> runTypes;
+  final RunType? selectedRunType;
+  final ValueChanged<RunType?> onSelectRunType;
   final ValueChanged<LiftProgress> onTapLift;
 
   const _Body({
@@ -418,6 +476,10 @@ class _Body extends StatelessWidget {
     required this.weeklyLoad,
     required this.thisWeekSessionCount,
     required this.totalWorkingSets,
+    required this.paceWeeks,
+    required this.runTypes,
+    required this.selectedRunType,
+    required this.onSelectRunType,
     required this.onTapLift,
   });
 
@@ -430,6 +492,12 @@ class _Body extends StatelessWidget {
     final recordsForMode = records
         .where((r) => (r.type == PersonalRecordType.fastestPace) == running)
         .toList();
+    // Built once and reused for both the selector's options and its
+    // onChanged lookup, so mapping a tapped label back to a RunType is an
+    // index lookup into the exact list that produced it — not a second,
+    // independently-derived label comparison that could silently pick the
+    // wrong type if two types ever produced the same label.
+    final runTypeLabels = [for (final t in runTypes) runTypeLabel(t)];
 
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 32),
@@ -501,7 +569,19 @@ class _Body extends StatelessWidget {
           const SizedBox(height: 22),
           const _SectionLabel('Pace trend'),
           const SizedBox(height: 10),
-          _PaceTrendCard(weeks: runWeeks),
+          if (runTypes.length > 1) ...[
+            SegmentedControl(
+              options: ['All', ...runTypeLabels],
+              value: selectedRunType == null ? 'All' : runTypeLabel(selectedRunType!),
+              onChanged: (label) {
+                final idx = runTypeLabels.indexOf(label);
+                onSelectRunType(idx == -1 ? null : runTypes[idx]);
+              },
+              small: true,
+            ),
+            const SizedBox(height: 10),
+          ],
+          _PaceTrendCard(weeks: paceWeeks),
         ],
         const SizedBox(height: 22),
         _RowLink(
