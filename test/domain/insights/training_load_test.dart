@@ -117,5 +117,15 @@ void main() {
 
       expect(unmatchedExerciseNames([s1, s2]), {'Some Custom Move'});
     });
+
+    test('does not flag a skipped set, matching every other insights aggregator', () {
+      final session = _session(
+        id: 's1',
+        startedAt: DateTime(2026, 1, 5),
+        sets: [_set(exerciseName: 'Some Custom Move', skipped: true)],
+      );
+
+      expect(unmatchedExerciseNames([session]), isEmpty);
+    });
   });
 }

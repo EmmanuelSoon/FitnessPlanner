@@ -29,6 +29,7 @@ Set<String> unmatchedExerciseNames(List<WorkoutSession> sessions) {
   final names = <String>{};
   for (final session in sessions) {
     for (final set in session.sets) {
+      if (set.skipped) continue;
       if (set.category != null) continue;
       if (_libraryCategoryByNormalizedName.containsKey(_normalize(set.exerciseName))) continue;
       names.add(set.exerciseName);
