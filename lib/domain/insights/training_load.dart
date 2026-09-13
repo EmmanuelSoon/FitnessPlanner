@@ -1,4 +1,5 @@
-import 'package:fitness_planner/domain/insights/volume_stats.dart' show weekStartOf;
+import 'package:fitness_planner/domain/insights/insights_shared.dart' show mean;
+import 'package:fitness_planner/domain/insights/volume_stats.dart' show weekBucketStarts, weekStartOf;
 import 'package:fitness_planner/domain/models/exercise_library.dart';
 import 'package:fitness_planner/domain/models/logged_set.dart';
 import 'package:fitness_planner/domain/models/workout_session.dart';
@@ -129,15 +130,8 @@ List<WeekLoad> weeklyTrainingLoad(
   int weeks = 8,
   DateTime? now,
 }) {
-  final currentWeekStart = weekStartOf(now ?? DateTime.now());
-  final bucketStarts = [
-    for (var i = weeks - 1; i >= 0; i--)
-      DateTime(
-        currentWeekStart.year,
-        currentWeekStart.month,
-        currentWeekStart.day - 7 * i,
-      ),
-  ];
+  final bucketStarts = weekBucketStarts(weeks: weeks, now: now);
+  final currentWeekStart = bucketStarts.last;
 
   final sessionsByWeek = <DateTime, List<WorkoutSession>>{
     for (final start in bucketStarts) start: [],
@@ -186,21 +180,18 @@ CategoryLoadComparison _compareCategory(String category, WeekLoad current, List<
     );
   }
 
-  final mean = trailing
-          .map((w) => w.byCategory[category]?.workingSets ?? 0)
-          .reduce((a, b) => a + b) /
-      trailing.length;
+  final trailingMean = mean(trailing.map((w) => w.byCategory[category]?.workingSets ?? 0));
 
   final LoadBand band;
-  if (workingSets < mean * (1 - _kLoadBandTolerance)) {
+  if (workingSets < trailingMean * (1 - _kLoadBandTolerance)) {
     band = LoadBand.light;
-  } else if (workingSets > mean * (1 + _kLoadBandTolerance)) {
+  } else if (workingSets > trailingMean * (1 + _kLoadBandTolerance)) {
     band = LoadBand.heavy;
   } else {
     band = LoadBand.typical;
   }
 
-  return CategoryLoadComparison(category: category, workingSets: workingSets, trailingMean: mean, band: band);
+  return CategoryLoadComparison(category: category, workingSets: workingSets, trailingMean: trailingMean, band: band);
 }
 
 /// Compares [weeks]' last entry (the current week, in progress) against the

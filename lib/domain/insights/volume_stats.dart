@@ -27,15 +27,7 @@ List<WeekVolume> weeklyVolume(
   int weeks = 8,
   DateTime? now,
 }) {
-  final currentWeekStart = weekStartOf(now ?? DateTime.now());
-  final bucketStarts = [
-    for (var i = weeks - 1; i >= 0; i--)
-      DateTime(
-        currentWeekStart.year,
-        currentWeekStart.month,
-        currentWeekStart.day - 7 * i,
-      ),
-  ];
+  final bucketStarts = weekBucketStarts(weeks: weeks, now: now);
 
   final tonnageByWeek = <DateTime, double>{
     for (final start in bucketStarts) start: 0,
@@ -88,4 +80,20 @@ double? percentChange(double current, double previous) {
 DateTime weekStartOf(DateTime dt) {
   final delta = dt.weekday - DateTime.monday;
   return DateTime(dt.year, dt.month, dt.day - delta);
+}
+
+/// The [weeks] most recent Monday week-starts, chronological, ending with
+/// the week containing [now] (defaults to the current time) — shared by
+/// every weekly-bucket builder so they can't drift apart on the DST-safe
+/// calendar-field math [weekStartOf] uses.
+List<DateTime> weekBucketStarts({required int weeks, DateTime? now}) {
+  final currentWeekStart = weekStartOf(now ?? DateTime.now());
+  return [
+    for (var i = weeks - 1; i >= 0; i--)
+      DateTime(
+        currentWeekStart.year,
+        currentWeekStart.month,
+        currentWeekStart.day - 7 * i,
+      ),
+  ];
 }
