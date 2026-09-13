@@ -70,6 +70,7 @@ class _WorkoutStartPreviewScreenState
                 restTime: e.restTime,
                 weight: last?.actualWeight ?? e.weight,
                 timedDuration: e.timedDuration,
+                category: e.category,
               );
             }).toList(),
           ),

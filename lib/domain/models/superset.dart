@@ -40,6 +40,7 @@ class Superset {
           restTime: isLastInRound ? restAfterSet : Duration.zero,
           weight: exercises[i].weight,
           timedDuration: exercises[i].timedDuration,
+          category: exercises[i].category,
         ));
       }
     }

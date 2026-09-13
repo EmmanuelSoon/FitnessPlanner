@@ -86,6 +86,20 @@ void main() {
       expect(slots[2].restTime, Duration.zero);
       expect(slots[3].restTime, const Duration(seconds: 90));
     });
+
+    test('preserves each exercise\'s category on every generated slot', () {
+      final superset = Superset(
+        exercises: [
+          Exercise(name: 'Squat', reps: 5, sets: 1, restTime: Duration.zero, category: 'Legs'),
+        ],
+        sets: 2,
+        restAfterSet: const Duration(seconds: 120),
+      );
+
+      final slots = superset.generateSlots();
+
+      expect(slots.every((s) => s.category == 'Legs'), isTrue);
+    });
   });
 
   group('fromLegacyExercise', () {

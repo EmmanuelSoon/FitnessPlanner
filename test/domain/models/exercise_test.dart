@@ -59,6 +59,29 @@ void main() {
 
       expect(Exercise.fromJson(json).weight, 0.0);
     });
+
+    test('round-trips a manually tagged category', () {
+      final exercise = Exercise(
+        name: 'Bench Press',
+        reps: 8,
+        sets: 3,
+        restTime: const Duration(seconds: 90),
+        category: 'Chest',
+      );
+
+      expect(Exercise.fromJson(exercise.toJson()).category, 'Chest');
+    });
+
+    test('fromJson defaults category to null when absent from the map (old data)', () {
+      final json = {
+        'name': 'Old Exercise',
+        'reps': 10,
+        'sets': 3,
+        'restTimeMicroseconds': const Duration(seconds: 60).inMicroseconds,
+      };
+
+      expect(Exercise.fromJson(json).category, isNull);
+    });
   });
 
   group('generateSequence', () {
@@ -81,6 +104,20 @@ void main() {
         expect(e.restTime, const Duration(seconds: 120));
         expect(e.weight, 100);
       }
+    });
+
+    test('preserves category on every generated copy', () {
+      final exercise = Exercise(
+        name: 'Squat',
+        reps: 5,
+        sets: 2,
+        restTime: const Duration(seconds: 120),
+        category: 'Legs',
+      );
+
+      final sequence = exercise.generateSequence();
+
+      expect(sequence.every((e) => e.category == 'Legs'), isTrue);
     });
   });
 }
