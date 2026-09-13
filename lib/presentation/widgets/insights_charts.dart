@@ -176,6 +176,15 @@ class AreaTrendChart extends StatefulWidget {
   final double height;
   final String Function(double)? valueFormatter;
   final String? unitLabel;
+  /// A dashed vertical line drawn at this point index, distinct from the
+  /// touch tooltip's solid line — e.g. the lift detail screen marking where
+  /// its currently selected Insights window begins on the full-history
+  /// chart. Out-of-range indices are silently ignored.
+  final int? markerIndex;
+  /// Called with the touched/dragged point's index whenever it changes —
+  /// lets a parent drive its own UI (e.g. a "sets behind this point" panel)
+  /// off the same touch that pins the built-in tooltip.
+  final ValueChanged<int>? onTouchIndex;
 
   const AreaTrendChart({
     super.key,
@@ -186,6 +195,8 @@ class AreaTrendChart extends StatefulWidget {
     this.height = 108,
     this.valueFormatter,
     this.unitLabel,
+    this.markerIndex,
+    this.onTouchIndex,
   });
 
   @override
@@ -244,7 +255,10 @@ class AreaTrendChartState extends State<AreaTrendChart> {
     if (n == 0 || labels == null || labels.length != n) return;
 
     final idx = chartIndexForX(localPosition.dx, n, width);
-    if (idx != _touchedIndex) setState(() => _touchedIndex = idx);
+    if (idx != _touchedIndex) {
+      setState(() => _touchedIndex = idx);
+      widget.onTouchIndex?.call(idx);
+    }
   }
 
   @override
@@ -290,7 +304,9 @@ class AreaTrendChartState extends State<AreaTrendChart> {
                           surface: c.surface,
                           hairline: c.hairline,
                           ink: c.ink,
+                          markerColor: c.inkMute,
                           touchedIndex: _touchedIndex,
+                          markerIndex: widget.markerIndex,
                           pointLabels: widget.pointLabels,
                           valueFormatter: valueFormatter,
                         ),
@@ -364,7 +380,9 @@ class _AreaTrendPainter extends CustomPainter {
   final Color surface;
   final Color hairline;
   final Color ink;
+  final Color markerColor;
   final int? touchedIndex;
+  final int? markerIndex;
   final List<String>? pointLabels;
   final String Function(double) valueFormatter;
 
@@ -377,7 +395,9 @@ class _AreaTrendPainter extends CustomPainter {
     required this.surface,
     required this.hairline,
     required this.ink,
+    required this.markerColor,
     this.touchedIndex,
+    this.markerIndex,
     this.pointLabels,
     required this.valueFormatter,
   });
@@ -414,6 +434,11 @@ class _AreaTrendPainter extends CustomPainter {
     final points = [
       for (var i = 0; i < n; i++) Offset(x(i), y(series[i])),
     ];
+
+    final marker = markerIndex;
+    if (marker != null && marker >= 0 && marker < n) {
+      _paintDashedVerticalLine(canvas, x(marker), size.height, markerColor);
+    }
 
     if (points.length > 1) {
       final fillPath = Path()..moveTo(points.first.dx, points.first.dy);
@@ -480,6 +505,22 @@ class _AreaTrendPainter extends CustomPainter {
     }
   }
 
+  /// A dashed line, distinct from the tooltip's solid one, so a "start of
+  /// window" marker and an actively touched point never read as the same
+  /// thing when both land near each other.
+  void _paintDashedVerticalLine(Canvas canvas, double dx, double height, Color color) {
+    const dashLength = 4.0;
+    const gapLength = 3.0;
+    final paint = Paint()
+      ..color = color
+      ..strokeWidth = 1;
+    var y = 0.0;
+    while (y < height) {
+      canvas.drawLine(Offset(dx, y), Offset(dx, math.min(y + dashLength, height)), paint);
+      y += dashLength + gapLength;
+    }
+  }
+
   void _paintTooltip(
     Canvas canvas,
     Size size,
@@ -539,7 +580,9 @@ class _AreaTrendPainter extends CustomPainter {
       !listEquals(oldDelegate.pointLabels, pointLabels) ||
       oldDelegate.invert != invert ||
       oldDelegate.accent != accent ||
-      oldDelegate.ink != ink;
+      oldDelegate.ink != ink ||
+      oldDelegate.markerIndex != markerIndex ||
+      oldDelegate.markerColor != markerColor;
 }
 
 // ─── Pill segmented control ─────────────────────────────────────────────

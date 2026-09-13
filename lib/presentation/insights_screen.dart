@@ -9,11 +9,13 @@ import 'package:fitness_planner/domain/insights/running_trends.dart';
 import 'package:fitness_planner/domain/insights/strength_progress.dart';
 import 'package:fitness_planner/domain/insights/training_load.dart';
 import 'package:fitness_planner/domain/insights/volume_stats.dart';
+import 'package:fitness_planner/domain/models/logged_set.dart';
 import 'package:fitness_planner/domain/models/mesocycle.dart';
 import 'package:fitness_planner/domain/models/run_session.dart';
 import 'package:fitness_planner/domain/models/workout_session.dart';
 import 'package:fitness_planner/domain/schedule/schedule_logic.dart';
 import 'package:fitness_planner/presentation/all_sessions_screen.dart';
+import 'package:fitness_planner/presentation/lift_detail_screen.dart';
 import 'package:fitness_planner/presentation/records_screen.dart';
 import 'package:fitness_planner/presentation/widgets/app_widgets.dart';
 import 'package:fitness_planner/presentation/widgets/insights_charts.dart';
@@ -149,6 +151,18 @@ const int _kWeeklyLoadWeeks = 5;
 /// list, or a session dated in the few days between a raw cutoff and the
 /// nearest Monday can silently escape deload-week exclusion, since its week
 /// would never appear in the exclusion set at all.
+List<DateTime> _bucketStartsFor(InsightsWindow window, List<DateTime> sessionDates, DateTime now) {
+  final resolvedWeeks = resolveWeeks(window, sessionDates, now);
+  return weekBucketStarts(weeks: resolvedWeeks, now: now);
+}
+
+/// The earliest Monday-aligned week-start within [window] — the same cutoff
+/// [rankedLiftsForWindow] slices lift series to. Exposed separately so a
+/// lift detail screen can mark where the tab's currently selected window
+/// begins on a lift's full, unwindowed history chart.
+DateTime windowStartFor(InsightsWindow window, List<DateTime> sessionDates, DateTime now) =>
+    _bucketStartsFor(window, sessionDates, now).first;
+
 List<LiftProgress> rankedLiftsForWindow(
   Map<String, LiftSeries> fullSeries, {
   required InsightsWindow window,
@@ -156,8 +170,7 @@ List<LiftProgress> rankedLiftsForWindow(
   required Mesocycle? mesocycle,
   required DateTime now,
 }) {
-  final resolvedWeeks = resolveWeeks(window, sessionDates, now);
-  final bucketStarts = weekBucketStarts(weeks: resolvedWeeks, now: now);
+  final bucketStarts = _bucketStartsFor(window, sessionDates, now);
   final cutoff = bucketStarts.first;
 
   final windowedSeries = {
@@ -351,6 +364,23 @@ class _InsightsScreenState extends ConsumerState<InsightsScreen> {
                     weeklyLoad: comparisons,
                     thisWeekSessionCount: weekLoads.last.sessionCount,
                     totalWorkingSets: weekLoads.last.totalWorkingSets,
+                    onTapLift: (lift) => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => LiftDetailScreen(
+                          exerciseName: lift.exerciseName,
+                          progress: lift,
+                          series: _allLiftSeriesFor(sessions, runs)[lift.exerciseName]!,
+                          windowStart: windowStartFor(
+                            _window,
+                            [for (final s in sessions) s.startedAt],
+                            DateTime.now(),
+                          ),
+                          setsBySessionId: _setsForExercise(sessions, lift.exerciseName),
+                          records: _recordsForExercise(records, lift.exerciseName),
+                        ),
+                      ),
+                    ),
                   );
                 },
               ),
@@ -374,6 +404,7 @@ class _Body extends StatelessWidget {
   final List<CategoryLoadComparison> weeklyLoad;
   final int thisWeekSessionCount;
   final int totalWorkingSets;
+  final ValueChanged<LiftProgress> onTapLift;
 
   const _Body({
     required this.sessionCount,
@@ -387,6 +418,7 @@ class _Body extends StatelessWidget {
     required this.weeklyLoad,
     required this.thisWeekSessionCount,
     required this.totalWorkingSets,
+    required this.onTapLift,
   });
 
   @override
@@ -424,7 +456,7 @@ class _Body extends StatelessWidget {
           const SizedBox(height: 22),
           const _SectionLabel('Lift ledger'),
           const SizedBox(height: 10),
-          _LiftLedger(key: const ValueKey('liftLedger'), lifts: rankedLifts),
+          _LiftLedger(key: const ValueKey('liftLedger'), lifts: rankedLifts, onTapLift: onTapLift),
           const SizedBox(height: 22),
           _SectionLabel(
             "This week's sets",
@@ -527,6 +559,39 @@ class _VerdictSection extends StatelessWidget {
 // is a loss, right is a gain) and accent is reserved for the "now" endpoint
 // only, so the bar and the start dot stay neutral.
 
+/// The [PersonalRecordType]s that belong to a single exercise (as opposed to
+/// `sessionTonnage`'s workout-name label or `fastestPace`'s running-only
+/// one) — used to filter the records list down to one lift's own records
+/// for its detail screen.
+const _kPerExerciseRecordTypes = {
+  PersonalRecordType.heaviestWeight,
+  PersonalRecordType.mostReps,
+  PersonalRecordType.longestHold,
+  PersonalRecordType.bestEst1Rm,
+};
+
+List<PersonalRecord> _recordsForExercise(List<PersonalRecord> records, String exerciseName) => [
+      for (final r in records)
+        if (_kPerExerciseRecordTypes.contains(r.type) && r.label == exerciseName) r,
+    ];
+
+/// One pass over [sessions] collecting every non-skipped set logged for
+/// [exerciseName], keyed by session id — the lift detail screen's "sets
+/// behind this point" panel. Built lazily on tap rather than memoized
+/// per-exercise up front, since only one lift's sets are ever needed at a
+/// time.
+Map<String, List<LoggedSet>> _setsForExercise(List<WorkoutSession> sessions, String exerciseName) {
+  final result = <String, List<LoggedSet>>{};
+  for (final session in sessions) {
+    final sets = [
+      for (final s in session.sets)
+        if (!s.skipped && s.exerciseName == exerciseName) s,
+    ];
+    if (sets.isNotEmpty) result[session.id] = sets;
+  }
+  return result;
+}
+
 const double _kLedgerNameWidth = 86;
 const double _kLedgerValueWidth = 82;
 const double _kLedgerPercentWidth = 52;
@@ -563,8 +628,9 @@ double _ledgerXFor(double percent, double plotWidth, double scaleMax, double max
 
 class _LiftLedger extends StatelessWidget {
   final List<LiftProgress> lifts;
+  final ValueChanged<LiftProgress> onTapLift;
 
-  const _LiftLedger({super.key, required this.lifts});
+  const _LiftLedger({super.key, required this.lifts, required this.onTapLift});
 
   @override
   Widget build(BuildContext context) {
@@ -624,53 +690,56 @@ class _LiftLedger extends StatelessWidget {
             ],
           ),
           for (final lift in lifts)
-            Padding(
-              padding: const EdgeInsets.only(top: 10),
-              child: Row(
-                children: [
-                  SizedBox(
-                    width: _kLedgerNameWidth,
-                    child: Text(
-                      lift.exerciseName,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: bodyStyle(fontSize: 12, fontWeight: FontWeight.w600, color: c.ink),
+            GestureDetector(
+              onTap: () => onTapLift(lift),
+              child: Padding(
+                padding: const EdgeInsets.only(top: 10),
+                child: Row(
+                  children: [
+                    SizedBox(
+                      width: _kLedgerNameWidth,
+                      child: Text(
+                        lift.exerciseName,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: bodyStyle(fontSize: 12, fontWeight: FontWeight.w600, color: c.ink),
+                      ),
                     ),
-                  ),
-                  SizedBox(
-                    width: _kLedgerValueWidth,
-                    child: Text(
-                      '${fmtTrimmedNumber(lift.startValue)}→${fmtTrimmedNumber(lift.currentValue)}'
-                      '${_ledgerValueSuffix(lift.metric)}',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: bodyStyle(fontSize: 11, color: c.inkDim),
+                    SizedBox(
+                      width: _kLedgerValueWidth,
+                      child: Text(
+                        '${fmtTrimmedNumber(lift.startValue)}→${fmtTrimmedNumber(lift.currentValue)}'
+                        '${_ledgerValueSuffix(lift.metric)}',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: bodyStyle(fontSize: 11, color: c.inkDim),
+                      ),
                     ),
-                  ),
-                  Expanded(
-                    child: SizedBox(
-                      height: _kLedgerRowHeight,
-                      child: CustomPaint(
-                        painter: _DumbbellRowPainter(
-                          percentDelta: lift.percentDelta ?? 0,
-                          scaleMax: scale.max,
-                          maxLossAbs: maxLossAbs,
-                          barColor: c.inkDim,
-                          nowColor: c.accent,
-                          startColor: c.inkMute,
+                    Expanded(
+                      child: SizedBox(
+                        height: _kLedgerRowHeight,
+                        child: CustomPaint(
+                          painter: _DumbbellRowPainter(
+                            percentDelta: lift.percentDelta ?? 0,
+                            scaleMax: scale.max,
+                            maxLossAbs: maxLossAbs,
+                            barColor: c.inkDim,
+                            nowColor: c.accent,
+                            startColor: c.inkMute,
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                  SizedBox(
-                    width: _kLedgerPercentWidth,
-                    child: Text(
-                      _ledgerPercentLabel(lift),
-                      textAlign: TextAlign.end,
-                      style: bodyStyle(fontSize: 12, fontWeight: FontWeight.w600, color: c.inkDim),
+                    SizedBox(
+                      width: _kLedgerPercentWidth,
+                      child: Text(
+                        _ledgerPercentLabel(lift),
+                        textAlign: TextAlign.end,
+                        style: bodyStyle(fontSize: 12, fontWeight: FontWeight.w600, color: c.inkDim),
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
         ],

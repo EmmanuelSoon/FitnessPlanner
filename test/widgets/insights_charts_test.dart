@@ -357,6 +357,59 @@ void main() {
     expect(find.byType(AreaTrendChart), paints..line());
   });
 
+  testWidgets('calls onTouchIndex with the touched index', (tester) async {
+    int? touched;
+    await pumpApp(
+      tester,
+      Align(
+        alignment: Alignment.topLeft,
+        child: SizedBox(
+          width: 300,
+          child: AreaTrendChart(
+            series: series,
+            pointLabels: pointLabels,
+            onTouchIndex: (i) => touched = i,
+          ),
+        ),
+      ),
+      surfaceSize: const Size(400, 400),
+    );
+
+    final topLeft = tester.getTopLeft(find.byType(AreaTrendChart));
+    await tester.tapAt(topLeft + const Offset(150, 50));
+    await tester.pump();
+
+    expect(touched, 1);
+  });
+
+  testWidgets('a markerIndex renders without crashing, in range or out of it', (tester) async {
+    await pumpApp(
+      tester,
+      Align(
+        alignment: Alignment.topLeft,
+        child: SizedBox(
+          width: 300,
+          child: AreaTrendChart(series: series, pointLabels: pointLabels, markerIndex: 1),
+        ),
+      ),
+      surfaceSize: const Size(400, 400),
+    );
+    expect(tester.takeException(), isNull);
+
+    await pumpApp(
+      tester,
+      Align(
+        alignment: Alignment.topLeft,
+        child: SizedBox(
+          width: 300,
+          child: AreaTrendChart(series: series, pointLabels: pointLabels, markerIndex: 99),
+        ),
+      ),
+      surfaceSize: const Size(400, 400),
+    );
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('switching to a different dataset at the same chart clears a pinned tooltip',
       (tester) async {
     await pumpChart(tester);
