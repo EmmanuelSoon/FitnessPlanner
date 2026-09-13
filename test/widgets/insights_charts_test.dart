@@ -1,9 +1,32 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:fitness_planner/domain/insights/strength_progress.dart';
 import 'package:fitness_planner/presentation/widgets/insights_charts.dart';
 
 import '../support/pump_app.dart';
+
+LiftProgress _liftProgress({
+  LiftStatus status = LiftStatus.progressing,
+  double? percentDelta = 8.3,
+}) => LiftProgress(
+  exerciseName: 'Bench Press',
+  metric: LiftMetric.weighted,
+  startValue: 60,
+  currentValue: 65,
+  absoluteDelta: 5,
+  percentDelta: percentDelta,
+  percentPer30Days: percentDelta,
+  sessionCount: 4,
+  excludedHighRepSessions: 0,
+  firstDate: DateTime(2026, 1, 1),
+  lastDate: DateTime(2026, 2, 1),
+  spanDays: 31,
+  bestDate: DateTime(2026, 2, 1),
+  weeksSinceBest: 0,
+  isExtrapolated: false,
+  status: status,
+);
 
 /// Every rendered numeric gridline label in the chart under test, parsed
 /// back to doubles via [parse] — lets tests assert on the *set* of nice
@@ -76,6 +99,41 @@ void main() {
       final formatted = [for (final tick in scale.ticks) tick.toStringAsFixed(scale.decimalPlaces)];
 
       expect(formatted.toSet().length, formatted.length, reason: 'formatted: $formatted');
+    });
+  });
+
+  group('liftValueSuffix', () {
+    test('a weighted lift has no suffix', () {
+      expect(liftValueSuffix(LiftMetric.weighted), '');
+    });
+
+    test('a bodyweight lift is suffixed with reps', () {
+      expect(liftValueSuffix(LiftMetric.repsPerSet), ' reps');
+    });
+
+    test('a timed-hold lift is suffixed with seconds', () {
+      expect(liftValueSuffix(LiftMetric.holdSeconds), 's');
+    });
+  });
+
+  group('liftPercentLabel', () {
+    test('a holding lift reads "held" regardless of its percent delta', () {
+      expect(liftPercentLabel(_liftProgress(status: LiftStatus.holding, percentDelta: 0.1)), 'held');
+    });
+
+    test('a positive delta gets an explicit plus sign', () {
+      expect(liftPercentLabel(_liftProgress(percentDelta: 16.0)), '+16.0%');
+    });
+
+    test('a negative delta keeps its own minus sign, not a double one', () {
+      expect(liftPercentLabel(_liftProgress(status: LiftStatus.regressing, percentDelta: -4.0)), '-4.0%');
+    });
+
+    test('a null percent delta is left blank rather than fabricated as no change', () {
+      expect(
+        liftPercentLabel(_liftProgress(status: LiftStatus.insufficientData, percentDelta: null)),
+        '',
+      );
     });
   });
 
@@ -355,6 +413,78 @@ void main() {
     await pumpChart(tester, series: const [], pointLabels: null);
 
     expect(find.byType(AreaTrendChart), paints..line());
+  });
+
+  testWidgets('calls onTouchIndex with the touched index', (tester) async {
+    int? touched;
+    await pumpApp(
+      tester,
+      Align(
+        alignment: Alignment.topLeft,
+        child: SizedBox(
+          width: 300,
+          child: AreaTrendChart(
+            series: series,
+            pointLabels: pointLabels,
+            onTouchIndex: (i) => touched = i,
+          ),
+        ),
+      ),
+      surfaceSize: const Size(400, 400),
+    );
+
+    final topLeft = tester.getTopLeft(find.byType(AreaTrendChart));
+    await tester.tapAt(topLeft + const Offset(150, 50));
+    await tester.pump();
+
+    expect(touched, 1);
+  });
+
+  testWidgets('the window-start marker paints above the area fill, not underneath it', (tester) async {
+    await pumpApp(
+      tester,
+      Align(
+        alignment: Alignment.topLeft,
+        child: SizedBox(
+          width: 300,
+          child: AreaTrendChart(series: series, pointLabels: pointLabels, markerIndex: 1),
+        ),
+      ),
+      surfaceSize: const Size(400, 400),
+    );
+
+    // A rising curve's semi-transparent gradient fill (a path draw) would
+    // hide a marker painted before it — the marker's dashed segments (line
+    // draws) must occur after the fill, not before.
+    expect(find.byType(AreaTrendChart), paints..path()..line());
+  });
+
+  testWidgets('a markerIndex renders without crashing, in range or out of it', (tester) async {
+    await pumpApp(
+      tester,
+      Align(
+        alignment: Alignment.topLeft,
+        child: SizedBox(
+          width: 300,
+          child: AreaTrendChart(series: series, pointLabels: pointLabels, markerIndex: 1),
+        ),
+      ),
+      surfaceSize: const Size(400, 400),
+    );
+    expect(tester.takeException(), isNull);
+
+    await pumpApp(
+      tester,
+      Align(
+        alignment: Alignment.topLeft,
+        child: SizedBox(
+          width: 300,
+          child: AreaTrendChart(series: series, pointLabels: pointLabels, markerIndex: 99),
+        ),
+      ),
+      surfaceSize: const Size(400, 400),
+    );
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('switching to a different dataset at the same chart clears a pinned tooltip',
