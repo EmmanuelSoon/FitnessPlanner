@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/foundation.dart' show listEquals, setEquals;
 import 'package:flutter/material.dart';
 import 'package:fitness_planner/theme/app_theme.dart';
@@ -8,6 +10,149 @@ import 'package:fitness_planner/theme/app_theme.dart';
 String fmtTrimmedNumber(double v) =>
     v == v.roundToDouble() ? v.round().toString() : v.toStringAsFixed(1);
 
+// ─── Nice-number axis scale ─────────────────────────────────────────────
+//
+// Classic Heckbert "nice numbers for graph labels" algorithm: gridlines land
+// on numbers a person would actually choose (10, 20, 30 — never 13, 26.4,
+// 39.8), and the range is padded outward to the nearest step rather than
+// clipped exactly to the data's own min/max.
+
+const int _kTargetYAxisTicks = 4;
+const int _kMaxXAxisTicks = 4;
+const double _kYAxisGutter = 34.0;
+const double _kPadTop = 12.0;
+const double _kPadBottom = 8.0;
+const double _kLabelHalfHeight = 6.0;
+const double _kXAxisLabelGap = 4.0;
+const double _kXAxisLabelHeight = 14.0;
+
+double _niceNum(double range, {required bool round}) {
+  if (range <= 0) return 1;
+  final exponent = (math.log(range) / math.ln10).floor();
+  final magnitude = math.pow(10, exponent).toDouble();
+  final fraction = range / magnitude;
+
+  final double niceFraction;
+  if (round) {
+    if (fraction < 1.5) {
+      niceFraction = 1;
+    } else if (fraction < 3) {
+      niceFraction = 2;
+    } else if (fraction < 7) {
+      niceFraction = 5;
+    } else {
+      niceFraction = 10;
+    }
+  } else {
+    if (fraction <= 1) {
+      niceFraction = 1;
+    } else if (fraction <= 2) {
+      niceFraction = 2;
+    } else if (fraction <= 5) {
+      niceFraction = 5;
+    } else {
+      niceFraction = 10;
+    }
+  }
+  return niceFraction * magnitude;
+}
+
+/// A padded, round-number axis: [min]/[max] bound at least [dataMin]/
+/// [dataMax], [step] apart at [ticks].
+class NiceScale {
+  final double min;
+  final double max;
+  final double step;
+
+  const NiceScale({required this.min, required this.max, required this.step});
+
+  /// Every gridline value from [min] to [max] inclusive, [step] apart.
+  List<double> get ticks {
+    final count = ((max - min) / step).round();
+    return [for (var i = 0; i <= count; i++) min + i * step];
+  }
+
+  /// Decimal places needed to render [step] (and therefore every tick)
+  /// distinctly — e.g. a step of 0.005 needs 3 decimals, or "0.010" and
+  /// "0.015" would both display as the rounded-to-one-decimal "0.0".
+  int get decimalPlaces => step >= 1 ? 0 : (-math.log(step) / math.ln10).ceil();
+}
+
+/// Computes a [NiceScale] spanning at least [dataMin]..[dataMax] with
+/// roughly [targetTicks] gridlines (clamped to at least 2 — fewer makes the
+/// step computation divide by zero). A flat series ([dataMin] == [dataMax])
+/// is padded to a small range around the value instead of collapsing to a
+/// zero-width, divide-by-zero axis.
+NiceScale computeNiceScale(double dataMin, double dataMax, {int targetTicks = _kTargetYAxisTicks}) {
+  final ticks = targetTicks < 2 ? 2 : targetTicks;
+  var min = dataMin;
+  var max = dataMax;
+  if (min == max) {
+    final pad = min == 0 ? 1.0 : min.abs() * 0.1;
+    min -= pad;
+    max += pad;
+  }
+
+  final range = _niceNum(max - min, round: false);
+  final step = _niceNum(range / (ticks - 1), round: true);
+  final niceMin = (min / step).floor() * step;
+  final niceMax = (max / step).ceil() * step;
+  return NiceScale(min: niceMin, max: niceMax, step: step);
+}
+
+/// Evenly spaced indices into a series of length [n] for x-axis date ticks,
+/// always including the first and last index, up to [maxTicks] total. A
+/// series no longer than [maxTicks] returns every index. [maxTicks] below 2
+/// (which would divide by zero below) is treated as a budget of exactly 1.
+List<int> chartTickIndices(int n, {int maxTicks = _kMaxXAxisTicks}) {
+  if (n <= 0) return const [];
+  if (maxTicks <= 1) return [0];
+  if (n <= maxTicks) return [for (var i = 0; i < n; i++) i];
+  return {
+    for (var k = 0; k < maxTicks; k++) (k * (n - 1) / (maxTicks - 1)).round(),
+  }.toList()
+    ..sort();
+}
+
+/// Fraction of the plot height from the top at which [v] falls between
+/// [min] and [max] — 0 at the top, 1 at the bottom. On an inverted
+/// (lower-is-better) axis the min value plots nearest the top.
+double _fracFromTop(double v, double min, double max, bool invert) {
+  final span = (max - min) == 0 ? 1 : (max - min);
+  final t = (v - min) / span;
+  return invert ? t : 1 - t;
+}
+
+// ─── Shared chart coordinate mapping ────────────────────────────────────
+//
+// The single source of truth for where a point/tick/tooltip lands in pixel
+// space, inset by the y-axis label gutter on the left — used by the
+// painter, the y-axis and x-axis label layout, and the touch handler, so
+// they can never quietly drift out of sync with each other.
+
+/// Horizontal pixel position of point [i] of [n] within a chart [width]
+/// wide.
+double chartX(int i, int n, double width) {
+  final plotWidth = width - _kYAxisGutter;
+  return n <= 1 ? _kYAxisGutter + plotWidth / 2 : _kYAxisGutter + (i / (n - 1)) * plotWidth;
+}
+
+/// Vertical pixel position of value [v] within a chart [height] tall,
+/// mapped through [scale] (inverted for a lower-is-better axis).
+double chartY(double v, NiceScale scale, bool invert, double height) =>
+    _kPadTop + _fracFromTop(v, scale.min, scale.max, invert) * (height - _kPadTop - _kPadBottom);
+
+/// The index of the point nearest horizontal position [dx] among [n]
+/// evenly spaced points across a chart [width] wide, clamped to a valid
+/// index — the inverse of [chartX].
+int chartIndexForX(double dx, int n, double width) {
+  if (n <= 1) return 0;
+  final plotWidth = width - _kYAxisGutter;
+  if (plotWidth <= 0) return 0;
+  final relativeDx = dx - _kYAxisGutter;
+  return (relativeDx / plotWidth * (n - 1)).round().clamp(0, n - 1);
+}
+
 // ─── Soft-area trend chart ─────────────────────────────────────────────
 //
 // A line with a soft gradient fill underneath, a baseline hairline, a live
@@ -17,22 +162,22 @@ String fmtTrimmedNumber(double v) =>
 
 class AreaTrendChart extends StatefulWidget {
   final List<double> series;
-  final List<String>? edgeLabels;
   final List<String>? pointLabels;
   final Set<int> prIndices;
   final bool invert;
   final double height;
   final String Function(double)? valueFormatter;
+  final String? unitLabel;
 
   const AreaTrendChart({
     super.key,
     required this.series,
-    this.edgeLabels,
     this.pointLabels,
     this.prIndices = const {},
     this.invert = false,
     this.height = 108,
     this.valueFormatter,
+    this.unitLabel,
   });
 
   @override
@@ -43,53 +188,72 @@ class AreaTrendChart extends StatefulWidget {
 /// itself is drawn on the canvas, not as inspectable widgets.
 class AreaTrendChartState extends State<AreaTrendChart> {
   int? _touchedIndex;
+  // Cached rather than recomputed on every build — a drag frame calls
+  // setState purely to move _touchedIndex, and neither of these depends on
+  // it, only on widget.series/pointLabels.
+  NiceScale? _scale;
+  List<int> _tickIndices = const [];
 
   int? get touchedIndex => _touchedIndex;
 
   @override
+  void initState() {
+    super.initState();
+    _recomputeDerived();
+  }
+
+  @override
   void didUpdateWidget(covariant AreaTrendChart oldWidget) {
     super.didUpdateWidget(oldWidget);
-    // A pinned tooltip index is only meaningful for the dataset it was
-    // touched on — e.g. switching the exercise-trend card's chip selects a
-    // new series entirely, and a stale index could point at the wrong (or a
-    // now out-of-range) point.
+    // A pinned tooltip index (and the cached scale/ticks) are only
+    // meaningful for the dataset they came from — e.g. switching the
+    // exercise-trend card's chip selects a new series entirely, and a stale
+    // index could point at the wrong (or a now out-of-range) point.
     if (!listEquals(oldWidget.series, widget.series) ||
         !listEquals(oldWidget.pointLabels, widget.pointLabels)) {
       _touchedIndex = null;
+      _recomputeDerived();
     }
+  }
+
+  void _recomputeDerived() {
+    final series = widget.series;
+    _scale = series.isEmpty
+        ? null
+        : computeNiceScale(
+            series.reduce((a, b) => a < b ? a : b),
+            series.reduce((a, b) => a > b ? a : b),
+          );
+    final pointLabels = widget.pointLabels;
+    _tickIndices = pointLabels != null && pointLabels.isNotEmpty
+        ? chartTickIndices(pointLabels.length)
+        : const [];
   }
 
   void _handleTouch(Offset localPosition, double width) {
     final n = widget.series.length;
     final labels = widget.pointLabels;
-    if (n == 0 || width <= 0 || labels == null || labels.length != n) return;
+    if (n == 0 || labels == null || labels.length != n) return;
 
-    final idx = n <= 1
-        ? 0
-        : (localPosition.dx / width * (n - 1)).round().clamp(0, n - 1);
+    final idx = chartIndexForX(localPosition.dx, n, width);
     if (idx != _touchedIndex) setState(() => _touchedIndex = idx);
   }
 
   @override
   Widget build(BuildContext context) {
     final c = AppThemeData.of(context).c;
-    final series = widget.series;
-    final maxV = series.isEmpty ? null : series.reduce((a, b) => a > b ? a : b);
-    final minV = series.isEmpty ? null : series.reduce((a, b) => a < b ? a : b);
-    // On an inverted (lower-is-better) chart, the min value plots highest —
-    // the label at the top of the box should match whatever visually reads
-    // as "the top of the line".
-    final topValue = widget.invert ? minV : maxV;
-    final bottomValue = widget.invert ? maxV : minV;
-    final valueFormatter = widget.valueFormatter ?? fmtTrimmedNumber;
+    final scale = _scale;
+    final tickIndices = _tickIndices;
     final labelStyle = bodyStyle(fontSize: 10, color: c.inkMute);
-    // Every call site's edgeLabels are just the first/last of its
-    // pointLabels — derive them here instead of repeating that at each of
-    // the four chart call sites.
-    final edgeLabels = widget.edgeLabels ??
-        (widget.pointLabels != null && widget.pointLabels!.length >= 2
-            ? [widget.pointLabels!.first, widget.pointLabels!.last]
-            : null);
+
+    // A step finer than one decimal place (e.g. 0.005) needs more decimals
+    // than a fixed-precision default would show, or neighboring gridlines
+    // round to the same displayed text — see NiceScale.decimalPlaces.
+    final decimalPlaces = scale?.decimalPlaces ?? 0;
+    final valueFormatter = widget.valueFormatter ??
+        (decimalPlaces <= 0 ? fmtTrimmedNumber : (v) => v.toStringAsFixed(decimalPlaces));
+
+    final pointLabels = widget.pointLabels;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -111,6 +275,7 @@ class AreaTrendChartState extends State<AreaTrendChart> {
                       child: CustomPaint(
                         painter: _AreaTrendPainter(
                           series: widget.series,
+                          scale: scale,
                           prIndices: widget.prIndices,
                           invert: widget.invert,
                           accent: c.accent,
@@ -126,29 +291,55 @@ class AreaTrendChartState extends State<AreaTrendChart> {
                   },
                 ),
               ),
-              if (topValue != null)
-                Positioned(
-                  top: 0,
-                  left: 0,
-                  child: Text(valueFormatter(topValue), style: labelStyle),
+              // A single IgnorePointer around every overlaid label rather
+              // than one per label, so a future addition to this group
+              // can't forget it and silently steal a touch from the
+              // GestureDetector beneath — RenderParagraph.hitTestSelf
+              // always returns true, regardless of interactivity.
+              IgnorePointer(
+                child: Stack(
+                  children: [
+                    if (scale != null)
+                      for (final tick in scale.ticks)
+                        Positioned(
+                          top: (chartY(tick, scale, widget.invert, widget.height) - _kLabelHalfHeight)
+                              .clamp(0.0, math.max(0.0, widget.height - _kLabelHalfHeight * 2)),
+                          left: 0,
+                          child: Text(valueFormatter(tick), style: labelStyle),
+                        ),
+                    if (widget.unitLabel != null)
+                      Positioned(
+                        top: 0,
+                        right: 0,
+                        child: Text(widget.unitLabel!, style: labelStyle),
+                      ),
+                  ],
                 ),
-              if (bottomValue != null && bottomValue != topValue)
-                Positioned(
-                  bottom: 0,
-                  left: 0,
-                  child: Text(valueFormatter(bottomValue), style: labelStyle),
-                ),
+              ),
             ],
           ),
         ),
-        if (edgeLabels != null && edgeLabels.length >= 2) ...[
-          const SizedBox(height: 2),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(edgeLabels.first, style: labelStyle),
-              Text(edgeLabels.last, style: labelStyle),
-            ],
+        if (pointLabels != null && tickIndices.isNotEmpty) ...[
+          const SizedBox(height: _kXAxisLabelGap),
+          SizedBox(
+            height: _kXAxisLabelHeight,
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final n = pointLabels.length;
+                return Stack(
+                  children: [
+                    for (final i in tickIndices)
+                      Positioned(
+                        left: chartX(i, n, constraints.maxWidth),
+                        child: FractionalTranslation(
+                          translation: Offset(i == 0 ? 0 : (i == n - 1 ? -1 : -0.5), 0),
+                          child: Text(pointLabels[i], style: labelStyle),
+                        ),
+                      ),
+                  ],
+                );
+              },
+            ),
           ),
         ],
       ],
@@ -158,6 +349,7 @@ class AreaTrendChartState extends State<AreaTrendChart> {
 
 class _AreaTrendPainter extends CustomPainter {
   final List<double> series;
+  final NiceScale? scale;
   final Set<int> prIndices;
   final bool invert;
   final Color accent;
@@ -170,6 +362,7 @@ class _AreaTrendPainter extends CustomPainter {
 
   const _AreaTrendPainter({
     required this.series,
+    required this.scale,
     required this.prIndices,
     required this.invert,
     required this.accent,
@@ -183,30 +376,31 @@ class _AreaTrendPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    const padTop = 6.0;
-    const padBottom = 8.0;
-    final baselineY = size.height - padBottom;
+    if (series.isEmpty) {
+      canvas.drawLine(
+        Offset(_kYAxisGutter, size.height - _kPadBottom),
+        Offset(size.width, size.height - _kPadBottom),
+        Paint()
+          ..color = hairline
+          ..strokeWidth = 1,
+      );
+      return;
+    }
+    final scale = this.scale!;
 
-    canvas.drawLine(
-      Offset(0, baselineY),
-      Offset(size.width, baselineY),
-      Paint()
-        ..color = hairline
-        ..strokeWidth = 1,
-    );
-
-    if (series.isEmpty) return;
-
-    final min = series.reduce((a, b) => a < b ? a : b);
-    final max = series.reduce((a, b) => a > b ? a : b);
-    final span = (max - min) == 0 ? 1 : (max - min);
+    final plotLeft = _kYAxisGutter;
+    final plotBottomY = size.height - _kPadBottom;
     final n = series.length;
 
-    double x(int i) => n <= 1 ? size.width / 2 : (i / (n - 1)) * size.width;
-    double y(double v) {
-      var t = (v - min) / span;
-      if (invert) t = 1 - t;
-      return padTop + (1 - t) * (size.height - padTop - padBottom);
+    double x(int i) => chartX(i, n, size.width);
+    double y(double v) => chartY(v, scale, invert, size.height);
+
+    final gridlinePaint = Paint()
+      ..color = hairline
+      ..strokeWidth = 1;
+    for (final tick in scale.ticks) {
+      final ty = y(tick);
+      canvas.drawLine(Offset(plotLeft, ty), Offset(size.width, ty), gridlinePaint);
     }
 
     final points = [
@@ -219,8 +413,8 @@ class _AreaTrendPainter extends CustomPainter {
         fillPath.lineTo(p.dx, p.dy);
       }
       fillPath
-        ..lineTo(points.last.dx, baselineY)
-        ..lineTo(points.first.dx, baselineY)
+        ..lineTo(points.last.dx, plotBottomY)
+        ..lineTo(points.first.dx, plotBottomY)
         ..close();
 
       canvas.drawPath(

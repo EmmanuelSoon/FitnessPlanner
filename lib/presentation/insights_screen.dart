@@ -514,6 +514,7 @@ class _VolumeCard extends StatelessWidget {
           AreaTrendChart(
             series: series,
             pointLabels: [for (final w in weeks) _formatShortDate(w.weekStart)],
+            unitLabel: isTonnage ? 't' : 'reps',
           ),
         ],
       ),
@@ -587,6 +588,7 @@ class _DistanceCard extends StatelessWidget {
           AreaTrendChart(
             series: series,
             pointLabels: [for (final w in weeks) _formatShortDate(w.weekStart)],
+            unitLabel: 'km',
           ),
         ],
       ),
@@ -718,6 +720,7 @@ class _ExerciseTrendCard extends StatelessWidget {
             AreaTrendChart(
               series: [for (final p in trend) p.value],
               pointLabels: [for (final p in trend) _formatShortDate(p.date)],
+              unitLabel: trend.last.unit,
             ),
           ],
         ],
@@ -776,6 +779,7 @@ class _PaceTrendCard extends StatelessWidget {
               pointLabels: [for (final w in withPace) _formatShortDate(w.weekStart)],
               invert: true,
               valueFormatter: (v) => formatClock(v.round()),
+              unitLabel: 'min/km',
             ),
         ],
       ),

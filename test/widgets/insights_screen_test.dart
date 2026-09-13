@@ -7,6 +7,7 @@ import 'package:fitness_planner/data/session_repository.dart';
 import 'package:fitness_planner/domain/models/logged_set.dart';
 import 'package:fitness_planner/domain/models/workout_session.dart';
 import 'package:fitness_planner/presentation/insights_screen.dart';
+import 'package:fitness_planner/presentation/widgets/app_widgets.dart';
 import 'package:fitness_planner/providers/session_providers.dart';
 
 import '../support/fake_repositories.dart';
@@ -243,7 +244,15 @@ void main() {
     await pumpInsights(tester);
 
     expect(find.text('This week'.toUpperCase()), findsOneWidget);
-    expect(find.text('1'), findsOneWidget); // sessions
+    // Scoped to the sessions StatChip: a chart axis gridline can coincidentally
+    // also render "1" elsewhere on the page.
+    expect(
+      find.descendant(
+        of: find.byWidgetPredicate((w) => w is StatChip && w.label == 'sessions'),
+        matching: find.text('1'),
+      ),
+      findsOneWidget,
+    );
     expect(find.text('0.6'), findsWidgets); // tonnage: strip cell + volume card
     expect(find.text('15'), findsOneWidget); // rep volume: 10 + 5
     expect(find.textContaining('Tonnage counts weighted sets only'), findsOneWidget);
