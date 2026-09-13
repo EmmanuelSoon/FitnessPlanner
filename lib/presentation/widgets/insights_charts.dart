@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart' show listEquals, setEquals;
 import 'package:flutter/material.dart';
+import 'package:fitness_planner/domain/insights/strength_progress.dart';
 import 'package:fitness_planner/theme/app_theme.dart';
 
 /// A number with no meaningful decimal part shows as a bare integer
@@ -9,6 +10,39 @@ import 'package:fitness_planner/theme/app_theme.dart';
 /// card that prints a raw trend or record value.
 String fmtTrimmedNumber(double v) =>
     v == v.roundToDouble() ? v.round().toString() : v.toStringAsFixed(1);
+
+// ─── Shared lift formatting ─────────────────────────────────────────────
+//
+// Used by both the Insights tab's lift ledger and its lift detail screen —
+// kept in one place so the two can't quietly drift apart on how a lift's
+// value/delta reads.
+
+/// A unit suffix for a lift's displayed value — weighted lifts stay bare (a
+/// kg figure needs no label), while a bodyweight or timed-hold lift's
+/// number needs one to disambiguate it from a kg figure wherever both
+/// metric kinds can appear together (e.g. the ledger).
+String liftValueSuffix(LiftMetric metric) {
+  switch (metric) {
+    case LiftMetric.weighted:
+      return '';
+    case LiftMetric.repsPerSet:
+      return ' reps';
+    case LiftMetric.holdSeconds:
+      return 's';
+  }
+}
+
+/// A lift's percent-change label: "held" while stalled, a signed percent
+/// otherwise, or blank when there's no comparison to show at all (fewer
+/// than two logged points) — never a fabricated "+0.0%" standing in for
+/// missing data.
+String liftPercentLabel(LiftProgress progress) {
+  if (progress.status == LiftStatus.holding) return 'held';
+  final delta = progress.percentDelta;
+  if (delta == null) return '';
+  final sign = delta >= 0 ? '+' : '';
+  return '$sign${delta.toStringAsFixed(1)}%';
+}
 
 // ─── Nice-number axis scale ─────────────────────────────────────────────
 //
@@ -435,11 +469,6 @@ class _AreaTrendPainter extends CustomPainter {
       for (var i = 0; i < n; i++) Offset(x(i), y(series[i])),
     ];
 
-    final marker = markerIndex;
-    if (marker != null && marker >= 0 && marker < n) {
-      _paintDashedVerticalLine(canvas, x(marker), size.height, markerColor);
-    }
-
     if (points.length > 1) {
       final fillPath = Path()..moveTo(points.first.dx, points.first.dy);
       for (final p in points.skip(1)) {
@@ -476,6 +505,13 @@ class _AreaTrendPainter extends CustomPainter {
           ..strokeCap = StrokeCap.round
           ..strokeJoin = StrokeJoin.round,
       );
+    }
+
+    // Painted after the fill/line so a rising curve's semi-transparent
+    // gradient never hides the marker right where it lands.
+    final marker = markerIndex;
+    if (marker != null && marker >= 0 && marker < n) {
+      _paintDashedVerticalLine(canvas, x(marker), size.height, markerColor);
     }
 
     for (final i in prIndices) {

@@ -597,28 +597,6 @@ const double _kLedgerValueWidth = 82;
 const double _kLedgerPercentWidth = 52;
 const double _kLedgerRowHeight = 22;
 
-String _ledgerPercentLabel(LiftProgress lift) {
-  if (lift.status == LiftStatus.holding) return 'held';
-  final delta = lift.percentDelta ?? 0;
-  final sign = delta >= 0 ? '+' : '';
-  return '$sign${delta.toStringAsFixed(1)}%';
-}
-
-/// A unit suffix for the ledger's value column — weighted lifts stay bare
-/// (matching the plan's mockup), but a bodyweight/timed-hold lift now shares
-/// the same ledger, so its numbers need a unit to disambiguate from a kg
-/// figure.
-String _ledgerValueSuffix(LiftMetric metric) {
-  switch (metric) {
-    case LiftMetric.weighted:
-      return '';
-    case LiftMetric.repsPerSet:
-      return ' reps';
-    case LiftMetric.holdSeconds:
-      return 's';
-  }
-}
-
 /// Pixel x of a percent value on the ledger's shared axis: inset from the
 /// left edge just far enough to fit [maxLossAbs] on a single px-per-percent
 /// scale shared with the gain side (sized to [scaleMax]) — "inset to leave
@@ -709,7 +687,7 @@ class _LiftLedger extends StatelessWidget {
                       width: _kLedgerValueWidth,
                       child: Text(
                         '${fmtTrimmedNumber(lift.startValue)}→${fmtTrimmedNumber(lift.currentValue)}'
-                        '${_ledgerValueSuffix(lift.metric)}',
+                        '${liftValueSuffix(lift.metric)}',
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: bodyStyle(fontSize: 11, color: c.inkDim),
@@ -733,7 +711,7 @@ class _LiftLedger extends StatelessWidget {
                     SizedBox(
                       width: _kLedgerPercentWidth,
                       child: Text(
-                        _ledgerPercentLabel(lift),
+                        liftPercentLabel(lift),
                         textAlign: TextAlign.end,
                         style: bodyStyle(fontSize: 12, fontWeight: FontWeight.w600, color: c.inkDim),
                       ),

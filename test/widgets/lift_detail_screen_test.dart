@@ -123,4 +123,41 @@ void main() {
 
     expect(find.textContaining('too many reps'), findsNothing);
   });
+
+  testWidgets('the PR ring marks the true all-time best point, not just the windowed one', (tester) async {
+    // The lift's true peak (100) sits before the tab's currently selected
+    // window even starts, so the windowed LiftProgress passed in has no
+    // idea it exists and reports its own (lower) windowed bestDate instead.
+    // The full-history chart still plots it, and the ring must follow the
+    // chart's own data, not the windowed progress summary.
+    final pointsWithOlderTrueBest = [
+      _point(DateTime(2025, 10, 1), 's0', 100),
+      _point(DateTime(2026, 1, 1), 's1', 60),
+      _point(DateTime(2026, 1, 15), 's2', 70),
+    ];
+    final windowedProgress = _progress(); // bestDate: Jan 15 2026 (s2, value 70)
+
+    await pumpDetail(
+      tester,
+      series: LiftSeries(points: pointsWithOlderTrueBest, excludedHighRepSessions: 0),
+      progress: windowedProgress,
+    );
+
+    final chart = tester.widget<AreaTrendChart>(find.byType(AreaTrendChart));
+    expect(chart.prIndices, {0});
+  });
+
+  test('the constructor asserts against an empty points list, rather than crashing later on _selectedIndex', () {
+    expect(
+      () => LiftDetailScreen(
+        exerciseName: 'Bench Press',
+        progress: _progress(),
+        series: const LiftSeries(points: [], excludedHighRepSessions: 0),
+        windowStart: DateTime(2026, 1, 1),
+        setsBySessionId: const {},
+        records: const [],
+      ),
+      throwsA(isA<AssertionError>()),
+    );
+  });
 }

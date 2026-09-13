@@ -16,17 +16,6 @@ String _formatShortDate(DateTime dt) => '${_kShortMonths[dt.month - 1]} ${dt.day
 
 String _formatLongDate(DateTime dt) => '${_kShortMonths[dt.month - 1]} ${dt.day}, ${dt.year}';
 
-String _valueSuffix(LiftMetric metric) {
-  switch (metric) {
-    case LiftMetric.weighted:
-      return '';
-    case LiftMetric.repsPerSet:
-      return ' reps';
-    case LiftMetric.holdSeconds:
-      return 's';
-  }
-}
-
 String? _unitLabel(LiftMetric metric) {
   switch (metric) {
     case LiftMetric.weighted:
@@ -36,14 +25,6 @@ String? _unitLabel(LiftMetric metric) {
     case LiftMetric.holdSeconds:
       return 'sec';
   }
-}
-
-String _percentLabel(LiftProgress progress) {
-  if (progress.status == LiftStatus.holding) return 'held';
-  final delta = progress.percentDelta;
-  if (delta == null) return '';
-  final sign = delta >= 0 ? '+' : '';
-  return '$sign${delta.toStringAsFixed(1)}%';
 }
 
 /// One session's sets for a lift, formatted as identical consecutive sets
@@ -80,6 +61,19 @@ int _nearestIndexOnOrAfter(List<LiftSessionPoint> points, DateTime target) {
   return idx == -1 ? points.length - 1 : idx;
 }
 
+/// The index of [points]' true all-time best session (by [LiftSessionPoint.best],
+/// the heaviest/highest single set, ties keeping the earliest) — computed
+/// directly from the full chart series rather than [LiftProgress.bestDate],
+/// which only ever considers the tab's currently selected window and can
+/// miss an earlier peak the full-history chart still plots.
+int _trueBestIndex(List<LiftSessionPoint> points) {
+  var bestIdx = 0;
+  for (var i = 1; i < points.length; i++) {
+    if (points[i].best > points[bestIdx].best) bestIdx = i;
+  }
+  return bestIdx;
+}
+
 /// A single lift's full history: current value and delta, the full-axis
 /// trend chart (with a marker for where the Insights tab's selected window
 /// begins), the sets behind whichever point is selected, and that lift's
@@ -92,7 +86,7 @@ class LiftDetailScreen extends StatefulWidget {
   final Map<String, List<LoggedSet>> setsBySessionId;
   final List<PersonalRecord> records;
 
-  const LiftDetailScreen({
+  LiftDetailScreen({
     super.key,
     required this.exerciseName,
     required this.progress,
@@ -100,7 +94,10 @@ class LiftDetailScreen extends StatefulWidget {
     required this.windowStart,
     required this.setsBySessionId,
     required this.records,
-  });
+  }) : assert(
+         series.points.isNotEmpty,
+         'LiftDetailScreen requires at least one session point to select and chart',
+       );
 
   @override
   State<LiftDetailScreen> createState() => _LiftDetailScreenState();
@@ -118,8 +115,7 @@ class _LiftDetailScreenState extends State<LiftDetailScreen> {
     final selectedSets = widget.setsBySessionId[selectedPoint.sessionId] ?? const <LoggedSet>[];
 
     final markerIndex = _nearestIndexOnOrAfter(points, widget.windowStart);
-    final bestDate = widget.progress.bestDate;
-    final bestIndex = bestDate == null ? -1 : points.indexWhere((p) => p.date == bestDate);
+    final bestIndex = _trueBestIndex(points);
 
     return Scaffold(
       backgroundColor: c.bg,
@@ -152,7 +148,7 @@ class _LiftDetailScreenState extends State<LiftDetailScreen> {
                     textBaseline: TextBaseline.alphabetic,
                     children: [
                       Text(
-                        '${fmtTrimmedNumber(widget.progress.currentValue)}${_valueSuffix(widget.progress.metric)}',
+                        '${fmtTrimmedNumber(widget.progress.currentValue)}${liftValueSuffix(widget.progress.metric)}',
                         style: displayStyle(
                           fontSize: 30,
                           fontWeight: FontWeight.w600,
@@ -162,7 +158,7 @@ class _LiftDetailScreenState extends State<LiftDetailScreen> {
                       ),
                       const SizedBox(width: 8),
                       Text(
-                        _percentLabel(widget.progress),
+                        liftPercentLabel(widget.progress),
                         style: bodyStyle(fontSize: 13, fontWeight: FontWeight.w600, color: c.accent),
                       ),
                     ],
