@@ -9,6 +9,7 @@ import 'package:fitness_planner/domain/insights/running_trends.dart';
 import 'package:fitness_planner/domain/insights/strength_progress.dart';
 import 'package:fitness_planner/domain/insights/training_load.dart';
 import 'package:fitness_planner/domain/insights/volume_stats.dart';
+import 'package:fitness_planner/domain/models/mesocycle.dart';
 import 'package:fitness_planner/domain/models/run_session.dart';
 import 'package:fitness_planner/domain/models/workout_session.dart';
 import 'package:fitness_planner/domain/schedule/schedule_logic.dart';
@@ -93,7 +94,7 @@ Verdict computeVerdict(List<LiftProgress> ranked) {
     final names = _joinNames([for (final l in holding) l.exerciseName]);
     detail = "$names ${holding.length == 1 ? "hasn't" : "haven't"} moved in six weeks.";
   } else {
-    detail = 'Everything else is holding steady.';
+    detail = 'Keep it up.';
   }
 
   return Verdict(kind: VerdictKind.progressing, headline: headline, detail: detail);
@@ -134,6 +135,55 @@ String _windowCaption(InsightsWindow window) {
 /// ledger's own window selector above it.
 const int _kWeeklyLoadWeeks = 5;
 
+/// Every ranked lift within [window], across all three [LiftMetric] kinds —
+/// concatenated by metric (weighted, then bodyweight reps, then timed
+/// holds) rather than interleaved by raw percent, since cross-normalising
+/// percentages across metric kinds is misleading (plan 022: a 6→9 rep jump
+/// reads as +50%, dwarfing a realistic e1RM gain). Restricting the ledger to
+/// weighted lifts only would silently drop bodyweight/timed-hold exercises
+/// from progression tracking entirely.
+///
+/// The window's cutoff is the earliest Monday in the same
+/// [weekBucketStarts] list used to build [excludedWeekStarts] below — not a
+/// raw day-count subtraction from [now]. Those two must share one week-start
+/// list, or a session dated in the few days between a raw cutoff and the
+/// nearest Monday can silently escape deload-week exclusion, since its week
+/// would never appear in the exclusion set at all.
+List<LiftProgress> rankedLiftsForWindow(
+  Map<String, LiftSeries> fullSeries, {
+  required InsightsWindow window,
+  required List<DateTime> sessionDates,
+  required Mesocycle? mesocycle,
+  required DateTime now,
+}) {
+  final resolvedWeeks = resolveWeeks(window, sessionDates, now);
+  final bucketStarts = weekBucketStarts(weeks: resolvedWeeks, now: now);
+  final cutoff = bucketStarts.first;
+
+  final windowedSeries = {
+    for (final entry in fullSeries.entries)
+      entry.key: LiftSeries(
+        points: [
+          for (final p in entry.value.points)
+            if (!p.date.isBefore(cutoff)) p,
+        ],
+        excludedHighRepSessions: entry.value.excludedHighRepSessions,
+      ),
+  };
+
+  final excludedWeekStarts = mesocycle == null
+      ? const <DateTime>{}
+      : {
+          for (final w in bucketStarts)
+            if (isRestWeek(mesocycle, w)) w,
+        };
+
+  return [
+    for (final metric in LiftMetric.values)
+      ...rankedLifts(windowedSeries, only: metric, now: now, excludedWeekStarts: excludedWeekStarts),
+  ];
+}
+
 class _InsightsScreenState extends ConsumerState<InsightsScreen> {
   // Null until the user explicitly taps a mode: resolved to 'Running' when
   // there's nothing but run data to show (a lifter with zero runs sees
@@ -155,6 +205,10 @@ class _InsightsScreenState extends ConsumerState<InsightsScreen> {
   Map<String, LiftSeries>? _cachedAllLiftSeries;
   List<WeekLoad>? _cachedWeekLoads;
   DateTime? _cachedWeekLoadsWeekStart;
+  List<LiftProgress>? _cachedRanked;
+  InsightsWindow? _cachedRankedWindow;
+  DateTime? _cachedRankedDay;
+  Mesocycle? _cachedRankedMeso;
 
   void _sync(List<WorkoutSession> sessions, List<RunSession> runs) {
     if (!identical(_cachedSessions, sessions)) {
@@ -162,6 +216,7 @@ class _InsightsScreenState extends ConsumerState<InsightsScreen> {
       _cachedRecords = null;
       _cachedAllLiftSeries = null;
       _cachedWeekLoads = null;
+      _cachedRanked = null;
     }
     if (!identical(_cachedRuns, runs)) {
       _cachedRuns = runs;
@@ -191,6 +246,35 @@ class _InsightsScreenState extends ConsumerState<InsightsScreen> {
   Map<String, LiftSeries> _allLiftSeriesFor(List<WorkoutSession> sessions, List<RunSession> runs) {
     _sync(sessions, runs);
     return _cachedAllLiftSeries ??= allLiftSeries(sessions);
+  }
+
+  /// Keyed on the calendar day (not just sessions/window/mesocycle) so a
+  /// kept-alive screen re-resolves an `all`-window's day count once the
+  /// real date rolls over, mirroring [_weekLoadsFor]'s week-rollover key.
+  List<LiftProgress> _rankedLiftsFor(
+    List<WorkoutSession> sessions,
+    List<RunSession> runs,
+    Mesocycle? mesocycle,
+  ) {
+    _sync(sessions, runs);
+    final now = DateTime.now();
+    final dayKey = DateTime(now.year, now.month, now.day);
+    if (_cachedRanked == null ||
+        _cachedRankedWindow != _window ||
+        _cachedRankedDay != dayKey ||
+        _cachedRankedMeso != mesocycle) {
+      _cachedRanked = rankedLiftsForWindow(
+        _allLiftSeriesFor(sessions, runs),
+        window: _window,
+        sessionDates: [for (final s in sessions) s.startedAt],
+        mesocycle: mesocycle,
+        now: now,
+      );
+      _cachedRankedWindow = _window;
+      _cachedRankedDay = dayKey;
+      _cachedRankedMeso = mesocycle;
+    }
+    return _cachedRanked!;
   }
 
   List<WeekLoad> _weekLoadsFor(List<WorkoutSession> sessions, List<RunSession> runs) {
@@ -249,33 +333,7 @@ class _InsightsScreenState extends ConsumerState<InsightsScreen> {
                   final records = _recordsFor(sessions, runs);
                   final mode = _mode ?? (sessions.isEmpty && runs.isNotEmpty ? 'Running' : 'Strength');
 
-                  final now = DateTime.now();
-                  final resolvedWeeks =
-                      resolveWeeks(_window, [for (final s in sessions) s.startedAt], now);
-                  final cutoff = now.subtract(Duration(days: resolvedWeeks * 7));
-                  final fullSeries = _allLiftSeriesFor(sessions, runs);
-                  final windowedSeries = {
-                    for (final entry in fullSeries.entries)
-                      entry.key: LiftSeries(
-                        points: [
-                          for (final p in entry.value.points)
-                            if (!p.date.isBefore(cutoff)) p,
-                        ],
-                        excludedHighRepSessions: entry.value.excludedHighRepSessions,
-                      ),
-                  };
-                  final excludedWeekStarts = meso == null
-                      ? const <DateTime>{}
-                      : {
-                          for (final w in weekBucketStarts(weeks: resolvedWeeks, now: now))
-                            if (isRestWeek(meso, w)) w,
-                        };
-                  final ranked = rankedLifts(
-                    windowedSeries,
-                    only: LiftMetric.weighted,
-                    now: now,
-                    excludedWeekStarts: excludedWeekStarts,
-                  );
+                  final ranked = _rankedLiftsFor(sessions, runs, meso);
 
                   final weekLoads = _weekLoadsFor(sessions, runs);
                   final comparisons = compareToTrailing(weekLoads)
@@ -291,6 +349,7 @@ class _InsightsScreenState extends ConsumerState<InsightsScreen> {
                     onSelectWindow: (w) => setState(() => _window = w),
                     rankedLifts: ranked,
                     weeklyLoad: comparisons,
+                    thisWeekSessionCount: weekLoads.last.sessionCount,
                     totalWorkingSets: weekLoads.last.totalWorkingSets,
                   );
                 },
@@ -313,6 +372,7 @@ class _Body extends StatelessWidget {
   final ValueChanged<InsightsWindow> onSelectWindow;
   final List<LiftProgress> rankedLifts;
   final List<CategoryLoadComparison> weeklyLoad;
+  final int thisWeekSessionCount;
   final int totalWorkingSets;
 
   const _Body({
@@ -325,6 +385,7 @@ class _Body extends StatelessWidget {
     required this.onSelectWindow,
     required this.rankedLifts,
     required this.weeklyLoad,
+    required this.thisWeekSessionCount,
     required this.totalWorkingSets,
   });
 
@@ -367,7 +428,8 @@ class _Body extends StatelessWidget {
           const SizedBox(height: 22),
           _SectionLabel(
             "This week's sets",
-            trailingText: '${fmtCount(totalWorkingSets)} working set${totalWorkingSets == 1 ? '' : 's'}',
+            trailingText: '$thisWeekSessionCount session${thisWeekSessionCount == 1 ? '' : 's'} · '
+                '${fmtCount(totalWorkingSets)} working set${totalWorkingSets == 1 ? '' : 's'}',
           ),
           const SizedBox(height: 10),
           _WeeklySetsCard(comparisons: weeklyLoad),
@@ -477,19 +539,27 @@ String _ledgerPercentLabel(LiftProgress lift) {
   return '$sign${delta.toStringAsFixed(1)}%';
 }
 
-/// Pixel x of the shared zero line: inset from the left edge just far enough
-/// to fit [maxLossAbs] on a single px-per-percent scale shared with the gain
-/// side (sized to [scaleMax]) — "inset to leave room for losses", per plan.
-double _ledgerZeroX(double plotWidth, double scaleMax, double maxLossAbs) {
-  final span = scaleMax + maxLossAbs;
-  return span <= 0 ? 0 : plotWidth * maxLossAbs / span;
+/// A unit suffix for the ledger's value column — weighted lifts stay bare
+/// (matching the plan's mockup), but a bodyweight/timed-hold lift now shares
+/// the same ledger, so its numbers need a unit to disambiguate from a kg
+/// figure.
+String _ledgerValueSuffix(LiftMetric metric) {
+  switch (metric) {
+    case LiftMetric.weighted:
+      return '';
+    case LiftMetric.repsPerSet:
+      return ' reps';
+    case LiftMetric.holdSeconds:
+      return 's';
+  }
 }
 
-double _ledgerXFor(double percent, double plotWidth, double scaleMax, double maxLossAbs) {
-  final span = scaleMax + maxLossAbs;
-  final pxPerPercent = span <= 0 ? 0.0 : plotWidth / span;
-  return _ledgerZeroX(plotWidth, scaleMax, maxLossAbs) + percent * pxPerPercent;
-}
+/// Pixel x of a percent value on the ledger's shared axis: inset from the
+/// left edge just far enough to fit [maxLossAbs] on a single px-per-percent
+/// scale shared with the gain side (sized to [scaleMax]) — "inset to leave
+/// room for losses", per plan. `percent: 0` gives the shared zero line.
+double _ledgerXFor(double percent, double plotWidth, double scaleMax, double maxLossAbs) =>
+    fractionOfRange(percent, -maxLossAbs, scaleMax) * plotWidth;
 
 class _LiftLedger extends StatelessWidget {
   final List<LiftProgress> lifts;
@@ -570,7 +640,8 @@ class _LiftLedger extends StatelessWidget {
                   SizedBox(
                     width: _kLedgerValueWidth,
                     child: Text(
-                      '${fmtTrimmedNumber(lift.startValue)}→${fmtTrimmedNumber(lift.currentValue)}',
+                      '${fmtTrimmedNumber(lift.startValue)}→${fmtTrimmedNumber(lift.currentValue)}'
+                      '${_ledgerValueSuffix(lift.metric)}',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: bodyStyle(fontSize: 11, color: c.inkDim),
@@ -627,8 +698,10 @@ class _DumbbellRowPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final zeroX = _ledgerZeroX(size.width, scaleMax, maxLossAbs);
-    final nowX = _ledgerXFor(percentDelta, size.width, scaleMax, maxLossAbs);
+    final span = scaleMax + maxLossAbs;
+    final pxPerPercent = span == 0 ? 0.0 : size.width / span;
+    final zeroX = maxLossAbs * pxPerPercent;
+    final nowX = zeroX + percentDelta * pxPerPercent;
     final midY = size.height / 2;
 
     canvas.drawLine(

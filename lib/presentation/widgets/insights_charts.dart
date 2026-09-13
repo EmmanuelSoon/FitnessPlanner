@@ -114,6 +114,14 @@ List<int> chartTickIndices(int n, {int maxTicks = _kMaxXAxisTicks}) {
     ..sort();
 }
 
+/// Fraction of [min]..[max] that [v] falls at — 0 at [min], 1 at [max].
+/// Shared by every chart or plot in this file that maps a value onto a
+/// linear pixel axis, so each doesn't hand-roll its own division.
+double fractionOfRange(double v, double min, double max) {
+  final span = max - min;
+  return span == 0 ? 0 : (v - min) / span;
+}
+
 /// Fraction of the plot height from the top at which [v] falls between
 /// [min] and [max] — 0 at the top, 1 at the bottom. On an inverted
 /// (lower-is-better) axis the min value plots nearest the top.

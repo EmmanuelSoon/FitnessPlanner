@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:fitness_planner/data/run_repository.dart';
 import 'package:fitness_planner/data/session_repository.dart';
+import 'package:fitness_planner/domain/insights/insights_window.dart';
 import 'package:fitness_planner/domain/insights/strength_progress.dart';
 import 'package:fitness_planner/domain/models/logged_set.dart';
 import 'package:fitness_planner/domain/models/workout_session.dart';
@@ -36,6 +37,48 @@ LiftProgress _progress({
   isExtrapolated: false,
   status: status,
 );
+
+LiftSessionPoint _point(DateTime date, {double value = 60}) => LiftSessionPoint(
+  date: date,
+  sessionId: date.toIso8601String(),
+  value: value,
+  best: value,
+  setsCounted: 1,
+  setsPerformed: 1,
+  metric: LiftMetric.weighted,
+);
+
+void _rankedLiftsForWindowTests() {
+  group('rankedLiftsForWindow', () {
+    test('the window cutoff is Monday-aligned, not a raw day-count subtraction from now', () {
+      // now = Wed Jan 7 2026. For an 8-week window the raw day-count cutoff
+      // (now - 56d) is Nov 12 2025, but the Monday-aligned week start used
+      // for rest-week exclusion is Nov 17 2025 — a point dated in that 5-day
+      // gap must not be included, or it can silently escape deload-week
+      // exclusion (whose lookup only ever checks aligned week starts).
+      final now = DateTime(2026, 1, 7);
+      final points = [
+        _point(DateTime(2025, 11, 14)), // in the misalignment gap
+        _point(DateTime(2025, 11, 20)),
+        _point(DateTime(2025, 11, 27)),
+        _point(DateTime(2025, 12, 4)),
+        _point(DateTime(2025, 12, 11)),
+        _point(DateTime(2025, 12, 18)),
+      ];
+      final series = {'Bench Press': LiftSeries(points: points, excludedHighRepSessions: 0)};
+
+      final ranked = rankedLiftsForWindow(
+        series,
+        window: InsightsWindow.eightWeeks,
+        sessionDates: [for (final p in points) p.date],
+        mesocycle: null,
+        now: now,
+      );
+
+      expect(ranked.single.sessionCount, 5);
+    });
+  });
+}
 
 void _verdictTests() {
   group('computeVerdict', () {
@@ -95,6 +138,15 @@ void _verdictTests() {
       ]);
 
       expect(verdict.detail, isNot(contains('Bench Press')));
+    });
+
+    test('every lift progressing does not contradict itself by calling anything steady', () {
+      final verdict = computeVerdict([
+        _progress(exerciseName: 'Bench Press', status: LiftStatus.progressing),
+        _progress(exerciseName: 'Squat', status: LiftStatus.progressing),
+      ]);
+
+      expect(verdict.detail, isNot(contains('holding steady')));
     });
   });
 }
@@ -162,6 +214,7 @@ WorkoutSession _categorySession({
 
 void main() {
   _verdictTests();
+  _rankedLiftsForWindowTests();
 
   late FakeSessionRepository fakeRepo;
   late FakeRunRepository fakeRunRepo;
@@ -225,25 +278,74 @@ void main() {
     );
   });
 
-  testWidgets('the lift ledger shows a lift once it has four sessions spanning three weeks', (tester) async {
+  // Four sessions, reps==1 (so estimatedOneRm is exactly the logged weight),
+  // spanning 24 days: start window mean(60,65)=62.5, current window
+  // mean(70,75)=72.5 — a +16.0% single progressing lift.
+  void seedFourSessionProgressingLift(FakeSessionRepository fakeRepo) {
     final start = DateTime.now().subtract(const Duration(days: 24));
     for (var i = 0; i < 4; i++) {
       fakeRepo.store['ws$i'] = _liftSession(
         id: 'ws$i',
         startedAt: start.add(Duration(days: i * 8)),
         weight: 60 + i * 5,
-        reps: 1, // reps==1 makes estimatedOneRm exactly the logged weight
+        reps: 1,
       );
     }
+  }
+
+  testWidgets('the lift ledger shows a lift once it has four sessions spanning three weeks', (tester) async {
+    seedFourSessionProgressingLift(fakeRepo);
 
     await pumpInsights(tester);
 
     final ledger = find.byKey(const ValueKey('liftLedger'));
     expect(find.descendant(of: ledger, matching: find.text('Bench Press')), findsOneWidget);
-    // start window mean(60,65)=62.5, current window mean(70,75)=72.5.
+  });
+
+  testWidgets('the ledger shows the averaged start and current values for a lift', (tester) async {
+    seedFourSessionProgressingLift(fakeRepo);
+
+    await pumpInsights(tester);
+
+    final ledger = find.byKey(const ValueKey('liftLedger'));
     expect(find.descendant(of: ledger, matching: find.text('62.5→72.5')), findsOneWidget);
+  });
+
+  testWidgets('the ledger shows the percent change for a progressing lift', (tester) async {
+    seedFourSessionProgressingLift(fakeRepo);
+
+    await pumpInsights(tester);
+
+    final ledger = find.byKey(const ValueKey('liftLedger'));
     expect(find.descendant(of: ledger, matching: find.text('+16.0%')), findsOneWidget);
+  });
+
+  testWidgets('the verdict headline counts a single progressing lift', (tester) async {
+    seedFourSessionProgressingLift(fakeRepo);
+
+    await pumpInsights(tester);
+
     expect(find.textContaining('One of one lift is moving.'), findsOneWidget);
+  });
+
+  testWidgets('a bodyweight (reps-only) lift also appears in the ledger, not just weighted lifts', (tester) async {
+    final start = DateTime.now().subtract(const Duration(days: 24));
+    for (var i = 0; i < 4; i++) {
+      fakeRepo.store['ws$i'] = _liftSession(
+        id: 'ws$i',
+        exerciseName: 'Pull-up',
+        startedAt: start.add(Duration(days: i * 8)),
+        weight: 0,
+        reps: 6 + i,
+      );
+    }
+
+    await pumpInsights(tester);
+
+    expect(
+      find.descendant(of: find.byKey(const ValueKey('liftLedger')), matching: find.text('Pull-up')),
+      findsOneWidget,
+    );
   });
 
   testWidgets('a lift with fewer than four sessions is excluded from the ledger', (tester) async {
@@ -312,6 +414,20 @@ void main() {
     expect(find.textContaining('8 working sets'), findsOneWidget);
     expect(find.text('Legs'), findsOneWidget);
     expect(find.text('heavy'), findsOneWidget);
+  });
+
+  testWidgets("this week's sets header also shows this week's session count", (tester) async {
+    final thisWeekStart = _mondayOf(DateTime.now());
+    fakeRepo.store['ws-0'] = _categorySession(
+      id: 'ws-0',
+      startedAt: thisWeekStart.add(const Duration(days: 1, hours: 9)),
+      category: 'Legs',
+      setCount: 8,
+    );
+
+    await pumpInsights(tester);
+
+    expect(find.textContaining('1 session ·'), findsOneWidget);
   });
 
   testWidgets('the All sessions row navigates to the full session list', (tester) async {
