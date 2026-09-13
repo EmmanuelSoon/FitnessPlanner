@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:fitness_planner/domain/insights/exercise_trend.dart';
+import 'package:fitness_planner/domain/insights/strength_progress.dart';
 import 'package:fitness_planner/domain/models/logged_set.dart';
 import 'package:fitness_planner/domain/models/workout_session.dart';
 
@@ -207,6 +208,30 @@ void main() {
       final names = exerciseNamesLogged([older, newer]);
 
       expect(names, ['Pull-up', 'Bench Press']);
+    });
+  });
+
+  group('metricFor (shared with strength_progress)', () {
+    test('a weighted exercise classifies as estimatedOneRm', () {
+      final session = _session(
+        id: 's1',
+        startedAt: DateTime(2026, 1, 5),
+        sets: [_weighted(weight: 60)],
+      );
+
+      expect(metricFor(session.sets), LiftMetric.estimatedOneRm);
+    });
+
+    test('computeExerciseTrend\'s "kg" unit is driven by the same classification', () {
+      final session = _session(
+        id: 's1',
+        startedAt: DateTime(2026, 1, 5),
+        sets: [_weighted(weight: 60)],
+      );
+
+      final points = computeExerciseTrend([session], 'Bench Press');
+
+      expect(points.single.unit, 'kg');
     });
   });
 }

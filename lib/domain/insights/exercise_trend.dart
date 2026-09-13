@@ -1,3 +1,5 @@
+import 'package:fitness_planner/domain/insights/insights_shared.dart';
+import 'package:fitness_planner/domain/insights/strength_progress.dart';
 import 'package:fitness_planner/domain/models/logged_set.dart';
 import 'package:fitness_planner/domain/models/workout_session.dart';
 
@@ -19,8 +21,6 @@ class ExerciseTrendPoint {
   });
 }
 
-enum _ExerciseKind { timed, weighted, bodyweight }
-
 /// One point per session (chronological) that logged a performed
 /// (non-skipped) set of [exerciseName]. Sessions where every set for the
 /// exercise was skipped, or the exercise wasn't logged at all, produce no
@@ -34,8 +34,7 @@ List<ExerciseTrendPoint> computeExerciseTrend(
   List<WorkoutSession> sessions,
   String exerciseName,
 ) {
-  final sorted = [...sessions]
-    ..sort((a, b) => a.startedAt.compareTo(b.startedAt));
+  final sorted = chronological(sessions);
 
   final performedBySession = <List<LoggedSet>>[];
   final allPerformed = <LoggedSet>[];
@@ -48,7 +47,7 @@ List<ExerciseTrendPoint> computeExerciseTrend(
   }
   if (allPerformed.isEmpty) return [];
 
-  final kind = _classify(allPerformed);
+  final kind = metricFor(allPerformed);
   final unit = _unitFor(kind);
   final metricLabel = _metricLabelFor(kind);
 
@@ -83,35 +82,29 @@ List<String> exerciseNamesLogged(List<WorkoutSession> sessions) {
   return names;
 }
 
-_ExerciseKind _classify(List<LoggedSet> performed) {
-  if (performed.any((s) => s.heldSeconds != null)) return _ExerciseKind.timed;
-  if (performed.any((s) => s.actualWeight > 0)) return _ExerciseKind.weighted;
-  return _ExerciseKind.bodyweight;
-}
-
-double _bestValue(_ExerciseKind kind, List<LoggedSet> performed) {
+double _bestValue(LiftMetric kind, List<LoggedSet> performed) {
   switch (kind) {
-    case _ExerciseKind.timed:
+    case LiftMetric.holdSeconds:
       return performed
           .map((s) => (s.heldSeconds ?? 0).toDouble())
           .reduce((a, b) => a > b ? a : b);
-    case _ExerciseKind.weighted:
+    case LiftMetric.estimatedOneRm:
       return performed.map((s) => s.actualWeight).reduce((a, b) => a > b ? a : b);
-    case _ExerciseKind.bodyweight:
+    case LiftMetric.repsPerSet:
       return performed
           .map((s) => s.actualReps.toDouble())
           .reduce((a, b) => a > b ? a : b);
   }
 }
 
-String _unitFor(_ExerciseKind kind) => switch (kind) {
-  _ExerciseKind.timed => 's',
-  _ExerciseKind.weighted => 'kg',
-  _ExerciseKind.bodyweight => 'reps',
+String _unitFor(LiftMetric kind) => switch (kind) {
+  LiftMetric.holdSeconds => 's',
+  LiftMetric.estimatedOneRm => 'kg',
+  LiftMetric.repsPerSet => 'reps',
 };
 
-String _metricLabelFor(_ExerciseKind kind) => switch (kind) {
-  _ExerciseKind.timed => 'Longest hold',
-  _ExerciseKind.weighted => 'Top set',
-  _ExerciseKind.bodyweight => 'Best set',
+String _metricLabelFor(LiftMetric kind) => switch (kind) {
+  LiftMetric.holdSeconds => 'Longest hold',
+  LiftMetric.estimatedOneRm => 'Top set',
+  LiftMetric.repsPerSet => 'Best set',
 };
