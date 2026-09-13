@@ -117,8 +117,6 @@ double? _valueFor(LiftMetric metric, LoggedSet set) {
   }
 }
 
-double _mean(List<double> values) => values.reduce((a, b) => a + b) / values.length;
-
 /// One point per session (chronological) for every exercise logged across
 /// [sessions], in a single walk over the sessions and their sets — a
 /// per-exercise builder called once per name would rescan the full history
@@ -159,7 +157,7 @@ Map<String, LiftSeries> allLiftSeries(List<WorkoutSession> sessions) {
         LiftSessionPoint(
           date: entry.date,
           sessionId: entry.sessionId,
-          value: _mean(counted),
+          value: mean(counted),
           best: values.first,
           setsCounted: counted.length,
           setsPerformed: entry.sets.length,
@@ -233,8 +231,8 @@ LiftProgress? computeLiftProgress(
   final startWindow = endpointSource.take(windowSize).toList();
   final endWindow = endpointSource.sublist(n - windowSize);
 
-  final startValue = _mean(startWindow.map((p) => p.value).toList());
-  final currentValue = _mean(endWindow.map((p) => p.value).toList());
+  final startValue = mean(startWindow.map((p) => p.value));
+  final currentValue = mean(endWindow.map((p) => p.value));
   final absoluteDelta = currentValue - startValue;
   final percentDelta = percentChange(currentValue, startValue);
 

@@ -1,3 +1,5 @@
+import 'package:fitness_planner/domain/insights/insights_shared.dart' show mean;
+import 'package:fitness_planner/domain/insights/volume_stats.dart' show weekBucketStarts, weekStartOf;
 import 'package:fitness_planner/domain/models/exercise_library.dart';
 import 'package:fitness_planner/domain/models/logged_set.dart';
 import 'package:fitness_planner/domain/models/workout_session.dart';
@@ -36,4 +38,183 @@ Set<String> unmatchedExerciseNames(List<WorkoutSession> sessions) {
     }
   }
   return names;
+}
+
+/// One category's load for one week: [workingSets] is the plan's definition
+/// of a working set (performed, non-skipped, non-timed); timed holds are
+/// counted separately in [timedSets] and never folded into [workingSets] — a
+/// plank is not a set of squats. [exerciseCount] is the number of distinct
+/// exercise names logged in this category that week, not a set count.
+class CategoryLoad {
+  final String category;
+  final int workingSets;
+  final int timedSets;
+  final int exerciseCount;
+
+  const CategoryLoad({
+    required this.category,
+    required this.workingSets,
+    required this.timedSets,
+    required this.exerciseCount,
+  });
+}
+
+/// One calendar week's training load, broken down by muscle group.
+/// [isPartial] is true only for the week containing "now" — it hasn't fully
+/// elapsed yet, so it must never be folded into a trailing mean (see
+/// [compareToTrailing]).
+class WeekLoad {
+  final DateTime weekStart;
+  final Map<String, CategoryLoad> byCategory;
+  final int sessionCount;
+  final bool isPartial;
+
+  const WeekLoad({
+    required this.weekStart,
+    required this.byCategory,
+    required this.sessionCount,
+    required this.isPartial,
+  });
+
+  /// Always the sum of [byCategory]'s working sets — derived rather than
+  /// stored, so it can never drift out of sync with the breakdown it's a
+  /// total of.
+  int get totalWorkingSets => byCategory.values.fold(0, (sum, c) => sum + c.workingSets);
+}
+
+class _CategoryAccumulator {
+  int workingSets = 0;
+  int timedSets = 0;
+  final Set<String> exerciseNames = {};
+}
+
+WeekLoad _buildWeekLoad(DateTime weekStart, List<WorkoutSession> sessions, {required bool isPartial}) {
+  final acc = <String, _CategoryAccumulator>{};
+  for (final session in sessions) {
+    for (final set in session.sets) {
+      if (set.skipped) continue;
+      final entry = acc.putIfAbsent(resolveCategory(set), () => _CategoryAccumulator());
+      entry.exerciseNames.add(set.exerciseName);
+      if (set.heldSeconds != null) {
+        entry.timedSets++;
+      } else {
+        entry.workingSets++;
+      }
+    }
+  }
+
+  final byCategory = {
+    for (final e in acc.entries)
+      e.key: CategoryLoad(
+        category: e.key,
+        workingSets: e.value.workingSets,
+        timedSets: e.value.timedSets,
+        exerciseCount: e.value.exerciseNames.length,
+      ),
+  };
+
+  return WeekLoad(
+    weekStart: weekStart,
+    byCategory: byCategory,
+    sessionCount: sessions.length,
+    isPartial: isPartial,
+  );
+}
+
+/// One [WeekLoad] bucket per week for the last [weeks] weeks, chronological,
+/// ending with the week containing [now] (defaults to the current time).
+/// Weeks with no logged sessions are included with zeroed figures, mirroring
+/// [weeklyVolume]'s convention of never skipping a bucket.
+List<WeekLoad> weeklyTrainingLoad(
+  List<WorkoutSession> sessions, {
+  int weeks = 8,
+  DateTime? now,
+}) {
+  final bucketStarts = weekBucketStarts(weeks: weeks, now: now);
+  final currentWeekStart = bucketStarts.last;
+
+  final sessionsByWeek = <DateTime, List<WorkoutSession>>{
+    for (final start in bucketStarts) start: [],
+  };
+  for (final session in sessions) {
+    sessionsByWeek[weekStartOf(session.startedAt)]?.add(session);
+  }
+
+  return [
+    for (final start in bucketStarts)
+      _buildWeekLoad(start, sessionsByWeek[start]!, isPartial: start == currentWeekStart),
+  ];
+}
+
+enum LoadBand { light, typical, heavy, unknown }
+
+/// One category's current-week load against its trailing baseline.
+/// [trailingMean] and a real [band] require at least two completed prior
+/// weeks of data; below that the band is [LoadBand.unknown] and the mean is
+/// null rather than a guess from a single noisy week.
+class CategoryLoadComparison {
+  final String category;
+  final int workingSets;
+  final double? trailingMean;
+  final LoadBand band;
+
+  const CategoryLoadComparison({
+    required this.category,
+    required this.workingSets,
+    required this.trailingMean,
+    required this.band,
+  });
+}
+
+const double _kLoadBandTolerance = 0.25;
+const int _kMinTrailingWeeks = 2;
+
+CategoryLoadComparison _compareCategory(String category, WeekLoad current, List<WeekLoad> trailing) {
+  final workingSets = current.byCategory[category]?.workingSets ?? 0;
+  if (trailing.length < _kMinTrailingWeeks) {
+    return CategoryLoadComparison(
+      category: category,
+      workingSets: workingSets,
+      trailingMean: null,
+      band: LoadBand.unknown,
+    );
+  }
+
+  final trailingMean = mean(trailing.map((w) => w.byCategory[category]?.workingSets ?? 0));
+
+  final LoadBand band;
+  if (workingSets < trailingMean * (1 - _kLoadBandTolerance)) {
+    band = LoadBand.light;
+  } else if (workingSets > trailingMean * (1 + _kLoadBandTolerance)) {
+    band = LoadBand.heavy;
+  } else {
+    band = LoadBand.typical;
+  }
+
+  return CategoryLoadComparison(category: category, workingSets: workingSets, trailingMean: trailingMean, band: band);
+}
+
+/// Compares [weeks]' last entry (the current week, in progress) against the
+/// trailing mean of up to [trailingWeeks] prior *completed* weeks — the
+/// in-progress week is never part of its own baseline, or every Wednesday
+/// would read "light". Covers every category seen in either the current week
+/// or the trailing window, so a muscle group trained regularly but skipped
+/// this week still shows up (at zero) rather than silently disappearing.
+List<CategoryLoadComparison> compareToTrailing(
+  List<WeekLoad> weeks, {
+  int trailingWeeks = 4,
+}) {
+  if (weeks.isEmpty) return [];
+  final current = weeks.last;
+  final completed = weeks.sublist(0, weeks.length - 1);
+  final trailing = completed.length > trailingWeeks
+      ? completed.sublist(completed.length - trailingWeeks)
+      : completed;
+
+  final categories = <String>{
+    ...current.byCategory.keys,
+    for (final w in trailing) ...w.byCategory.keys,
+  };
+
+  return [for (final category in categories) _compareCategory(category, current, trailing)];
 }

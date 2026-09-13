@@ -1,4 +1,4 @@
-import 'package:fitness_planner/domain/insights/volume_stats.dart' show weekStartOf;
+import 'package:fitness_planner/domain/insights/volume_stats.dart' show weekBucketStarts, weekStartOf;
 import 'package:fitness_planner/domain/models/run_session.dart';
 
 /// One calendar week's running activity. [avgPaceSecPerKm] is the week's
@@ -30,15 +30,7 @@ List<WeekRunStats> weeklyRunStats(
   int weeks = 8,
   DateTime? now,
 }) {
-  final currentWeekStart = weekStartOf(now ?? DateTime.now());
-  final bucketStarts = [
-    for (var i = weeks - 1; i >= 0; i--)
-      DateTime(
-        currentWeekStart.year,
-        currentWeekStart.month,
-        currentWeekStart.day - 7 * i,
-      ),
-  ];
+  final bucketStarts = weekBucketStarts(weeks: weeks, now: now);
 
   final distanceByWeek = <DateTime, double>{for (final start in bucketStarts) start: 0};
   final durationSecondsByWeek = <DateTime, int>{for (final start in bucketStarts) start: 0};

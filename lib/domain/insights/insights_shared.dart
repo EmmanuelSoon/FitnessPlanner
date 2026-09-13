@@ -21,3 +21,7 @@ double? estimatedOneRm(double weight, int reps) {
 /// order, so a rebuild doesn't re-sort the same list once per computation.
 List<WorkoutSession> chronological(List<WorkoutSession> sessions) =>
     [...sessions]..sort((a, b) => a.startedAt.compareTo(b.startedAt));
+
+/// The arithmetic mean of [values] — shared so every insights computation
+/// that averages a small window of points agrees on one implementation.
+double mean(Iterable<num> values) => values.fold<num>(0, (a, b) => a + b) / values.length;

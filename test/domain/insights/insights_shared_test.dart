@@ -56,4 +56,19 @@ void main() {
       expect(input.map((s) => s.id), ['s2', 's1']);
     });
   });
+
+  group('mean', () {
+    test('averages a list of doubles', () {
+      // Regression: a plain `.reduce((a, b) => a + b)` over an
+      // Iterable<num> parameter throws at runtime when called with a
+      // concrete List<double> argument, since the closure's inferred type
+      // (num, num) doesn't match the list's actual (double, double) element
+      // type that .reduce checks against.
+      expect(mean(<double>[10.0, 20.0, 30.0]), 20.0);
+    });
+
+    test('averages a list of ints', () {
+      expect(mean(<int>[1, 2, 3]), 2.0);
+    });
+  });
 }
