@@ -22,6 +22,9 @@ const int _kMaxXAxisTicks = 4;
 const double _kYAxisGutter = 34.0;
 const double _kPadTop = 12.0;
 const double _kPadBottom = 8.0;
+const double _kLabelHalfHeight = 6.0;
+const double _kXAxisLabelGap = 4.0;
+const double _kXAxisLabelHeight = 14.0;
 
 double _niceNum(double range, {required bool round}) {
   if (range <= 0) return 1;
@@ -68,13 +71,20 @@ class NiceScale {
     final count = ((max - min) / step).round();
     return [for (var i = 0; i <= count; i++) min + i * step];
   }
+
+  /// Decimal places needed to render [step] (and therefore every tick)
+  /// distinctly — e.g. a step of 0.005 needs 3 decimals, or "0.010" and
+  /// "0.015" would both display as the rounded-to-one-decimal "0.0".
+  int get decimalPlaces => step >= 1 ? 0 : (-math.log(step) / math.ln10).ceil();
 }
 
 /// Computes a [NiceScale] spanning at least [dataMin]..[dataMax] with
-/// roughly [targetTicks] gridlines. A flat series ([dataMin] == [dataMax])
+/// roughly [targetTicks] gridlines (clamped to at least 2 — fewer makes the
+/// step computation divide by zero). A flat series ([dataMin] == [dataMax])
 /// is padded to a small range around the value instead of collapsing to a
 /// zero-width, divide-by-zero axis.
 NiceScale computeNiceScale(double dataMin, double dataMax, {int targetTicks = _kTargetYAxisTicks}) {
+  final ticks = targetTicks < 2 ? 2 : targetTicks;
   var min = dataMin;
   var max = dataMax;
   if (min == max) {
@@ -84,7 +94,7 @@ NiceScale computeNiceScale(double dataMin, double dataMax, {int targetTicks = _k
   }
 
   final range = _niceNum(max - min, round: false);
-  final step = _niceNum(range / (targetTicks - 1), round: true);
+  final step = _niceNum(range / (ticks - 1), round: true);
   final niceMin = (min / step).floor() * step;
   final niceMax = (max / step).ceil() * step;
   return NiceScale(min: niceMin, max: niceMax, step: step);
@@ -92,9 +102,11 @@ NiceScale computeNiceScale(double dataMin, double dataMax, {int targetTicks = _k
 
 /// Evenly spaced indices into a series of length [n] for x-axis date ticks,
 /// always including the first and last index, up to [maxTicks] total. A
-/// series no longer than [maxTicks] returns every index.
+/// series no longer than [maxTicks] returns every index. [maxTicks] below 2
+/// (which would divide by zero below) is treated as a budget of exactly 1.
 List<int> chartTickIndices(int n, {int maxTicks = _kMaxXAxisTicks}) {
   if (n <= 0) return const [];
+  if (maxTicks <= 1) return [0];
   if (n <= maxTicks) return [for (var i = 0; i < n; i++) i];
   return {
     for (var k = 0; k < maxTicks; k++) (k * (n - 1) / (maxTicks - 1)).round(),
@@ -109,6 +121,36 @@ double _fracFromTop(double v, double min, double max, bool invert) {
   final span = (max - min) == 0 ? 1 : (max - min);
   final t = (v - min) / span;
   return invert ? t : 1 - t;
+}
+
+// ─── Shared chart coordinate mapping ────────────────────────────────────
+//
+// The single source of truth for where a point/tick/tooltip lands in pixel
+// space, inset by the y-axis label gutter on the left — used by the
+// painter, the y-axis and x-axis label layout, and the touch handler, so
+// they can never quietly drift out of sync with each other.
+
+/// Horizontal pixel position of point [i] of [n] within a chart [width]
+/// wide.
+double chartX(int i, int n, double width) {
+  final plotWidth = width - _kYAxisGutter;
+  return n <= 1 ? _kYAxisGutter + plotWidth / 2 : _kYAxisGutter + (i / (n - 1)) * plotWidth;
+}
+
+/// Vertical pixel position of value [v] within a chart [height] tall,
+/// mapped through [scale] (inverted for a lower-is-better axis).
+double chartY(double v, NiceScale scale, bool invert, double height) =>
+    _kPadTop + _fracFromTop(v, scale.min, scale.max, invert) * (height - _kPadTop - _kPadBottom);
+
+/// The index of the point nearest horizontal position [dx] among [n]
+/// evenly spaced points across a chart [width] wide, clamped to a valid
+/// index — the inverse of [chartX].
+int chartIndexForX(double dx, int n, double width) {
+  if (n <= 1) return 0;
+  final plotWidth = width - _kYAxisGutter;
+  if (plotWidth <= 0) return 0;
+  final relativeDx = dx - _kYAxisGutter;
+  return (relativeDx / plotWidth * (n - 1)).round().clamp(0, n - 1);
 }
 
 // ─── Soft-area trend chart ─────────────────────────────────────────────
@@ -146,20 +188,46 @@ class AreaTrendChart extends StatefulWidget {
 /// itself is drawn on the canvas, not as inspectable widgets.
 class AreaTrendChartState extends State<AreaTrendChart> {
   int? _touchedIndex;
+  // Cached rather than recomputed on every build — a drag frame calls
+  // setState purely to move _touchedIndex, and neither of these depends on
+  // it, only on widget.series/pointLabels.
+  NiceScale? _scale;
+  List<int> _tickIndices = const [];
 
   int? get touchedIndex => _touchedIndex;
 
   @override
+  void initState() {
+    super.initState();
+    _recomputeDerived();
+  }
+
+  @override
   void didUpdateWidget(covariant AreaTrendChart oldWidget) {
     super.didUpdateWidget(oldWidget);
-    // A pinned tooltip index is only meaningful for the dataset it was
-    // touched on — e.g. switching the exercise-trend card's chip selects a
-    // new series entirely, and a stale index could point at the wrong (or a
-    // now out-of-range) point.
+    // A pinned tooltip index (and the cached scale/ticks) are only
+    // meaningful for the dataset they came from — e.g. switching the
+    // exercise-trend card's chip selects a new series entirely, and a stale
+    // index could point at the wrong (or a now out-of-range) point.
     if (!listEquals(oldWidget.series, widget.series) ||
         !listEquals(oldWidget.pointLabels, widget.pointLabels)) {
       _touchedIndex = null;
+      _recomputeDerived();
     }
+  }
+
+  void _recomputeDerived() {
+    final series = widget.series;
+    _scale = series.isEmpty
+        ? null
+        : computeNiceScale(
+            series.reduce((a, b) => a < b ? a : b),
+            series.reduce((a, b) => a > b ? a : b),
+          );
+    final pointLabels = widget.pointLabels;
+    _tickIndices = pointLabels != null && pointLabels.isNotEmpty
+        ? chartTickIndices(pointLabels.length)
+        : const [];
   }
 
   void _handleTouch(Offset localPosition, double width) {
@@ -167,35 +235,25 @@ class AreaTrendChartState extends State<AreaTrendChart> {
     final labels = widget.pointLabels;
     if (n == 0 || labels == null || labels.length != n) return;
 
-    final plotWidth = width - _kYAxisGutter;
-    if (plotWidth <= 0) return;
-
-    final relativeDx = localPosition.dx - _kYAxisGutter;
-    final idx = n <= 1
-        ? 0
-        : (relativeDx / plotWidth * (n - 1)).round().clamp(0, n - 1);
+    final idx = chartIndexForX(localPosition.dx, n, width);
     if (idx != _touchedIndex) setState(() => _touchedIndex = idx);
   }
 
   @override
   Widget build(BuildContext context) {
     final c = AppThemeData.of(context).c;
-    final series = widget.series;
-    final valueFormatter = widget.valueFormatter ?? fmtTrimmedNumber;
+    final scale = _scale;
+    final tickIndices = _tickIndices;
     final labelStyle = bodyStyle(fontSize: 10, color: c.inkMute);
 
-    final scale = series.isEmpty
-        ? null
-        : computeNiceScale(
-            series.reduce((a, b) => a < b ? a : b),
-            series.reduce((a, b) => a > b ? a : b),
-          );
+    // A step finer than one decimal place (e.g. 0.005) needs more decimals
+    // than a fixed-precision default would show, or neighboring gridlines
+    // round to the same displayed text — see NiceScale.decimalPlaces.
+    final decimalPlaces = scale?.decimalPlaces ?? 0;
+    final valueFormatter = widget.valueFormatter ??
+        (decimalPlaces <= 0 ? fmtTrimmedNumber : (v) => v.toStringAsFixed(decimalPlaces));
 
-    final plotHeight = widget.height - _kPadTop - _kPadBottom;
     final pointLabels = widget.pointLabels;
-    final tickIndices = pointLabels != null && pointLabels.isNotEmpty
-        ? chartTickIndices(pointLabels.length)
-        : const <int>[];
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -233,41 +291,46 @@ class AreaTrendChartState extends State<AreaTrendChart> {
                   },
                 ),
               ),
-              // IgnorePointer so a plain Text (whose RenderParagraph always
-              // claims hitTestSelf) never steals a touch from the
-              // GestureDetector beneath it — otherwise a drag starting on
-              // top of a gridline label would silently fail to register.
-              if (scale != null)
-                for (final tick in scale.ticks)
-                  Positioned(
-                    top: (_kPadTop + _fracFromTop(tick, scale.min, scale.max, widget.invert) * plotHeight - 6)
-                        .clamp(0.0, widget.height - 12),
-                    left: 0,
-                    child: IgnorePointer(child: Text(valueFormatter(tick), style: labelStyle)),
-                  ),
-              if (widget.unitLabel != null)
-                Positioned(
-                  top: 0,
-                  right: 0,
-                  child: IgnorePointer(child: Text(widget.unitLabel!, style: labelStyle)),
+              // A single IgnorePointer around every overlaid label rather
+              // than one per label, so a future addition to this group
+              // can't forget it and silently steal a touch from the
+              // GestureDetector beneath — RenderParagraph.hitTestSelf
+              // always returns true, regardless of interactivity.
+              IgnorePointer(
+                child: Stack(
+                  children: [
+                    if (scale != null)
+                      for (final tick in scale.ticks)
+                        Positioned(
+                          top: (chartY(tick, scale, widget.invert, widget.height) - _kLabelHalfHeight)
+                              .clamp(0.0, math.max(0.0, widget.height - _kLabelHalfHeight * 2)),
+                          left: 0,
+                          child: Text(valueFormatter(tick), style: labelStyle),
+                        ),
+                    if (widget.unitLabel != null)
+                      Positioned(
+                        top: 0,
+                        right: 0,
+                        child: Text(widget.unitLabel!, style: labelStyle),
+                      ),
+                  ],
                 ),
+              ),
             ],
           ),
         ),
         if (pointLabels != null && tickIndices.isNotEmpty) ...[
-          const SizedBox(height: 4),
+          const SizedBox(height: _kXAxisLabelGap),
           SizedBox(
-            height: 14,
+            height: _kXAxisLabelHeight,
             child: LayoutBuilder(
               builder: (context, constraints) {
                 final n = pointLabels.length;
-                final plotLeft = _kYAxisGutter;
-                final plotWidth = constraints.maxWidth - plotLeft;
                 return Stack(
                   children: [
                     for (final i in tickIndices)
                       Positioned(
-                        left: n <= 1 ? plotLeft : plotLeft + (i / (n - 1)) * plotWidth,
+                        left: chartX(i, n, constraints.maxWidth),
                         child: FractionalTranslation(
                           translation: Offset(i == 0 ? 0 : (i == n - 1 ? -1 : -0.5), 0),
                           child: Text(pointLabels[i], style: labelStyle),
@@ -313,15 +376,24 @@ class _AreaTrendPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    if (series.isEmpty) return;
+    if (series.isEmpty) {
+      canvas.drawLine(
+        Offset(_kYAxisGutter, size.height - _kPadBottom),
+        Offset(size.width, size.height - _kPadBottom),
+        Paint()
+          ..color = hairline
+          ..strokeWidth = 1,
+      );
+      return;
+    }
     final scale = this.scale!;
 
     final plotLeft = _kYAxisGutter;
     final plotBottomY = size.height - _kPadBottom;
     final n = series.length;
 
-    double x(int i) => n <= 1 ? plotLeft + (size.width - plotLeft) / 2 : plotLeft + (i / (n - 1)) * (size.width - plotLeft);
-    double y(double v) => _kPadTop + _fracFromTop(v, scale.min, scale.max, invert) * (size.height - _kPadTop - _kPadBottom);
+    double x(int i) => chartX(i, n, size.width);
+    double y(double v) => chartY(v, scale, invert, size.height);
 
     final gridlinePaint = Paint()
       ..color = hairline

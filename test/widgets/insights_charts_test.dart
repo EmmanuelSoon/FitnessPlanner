@@ -61,6 +61,22 @@ void main() {
         expect(scale.ticks.length, inInclusiveRange(3, 6), reason: 'for range $range');
       }
     });
+
+    test('targetTicks of 1 does not crash on Infinity.floor()', () {
+      expect(() => computeNiceScale(0, 10, targetTicks: 1), returnsNormally);
+
+      final scale = computeNiceScale(0, 10, targetTicks: 1);
+      expect(scale.min.isFinite, isTrue);
+      expect(scale.max.isFinite, isTrue);
+      expect(scale.step.isFinite, isTrue);
+    });
+
+    test('a step finer than one decimal place is still distinctly representable', () {
+      final scale = computeNiceScale(0.01, 0.03);
+      final formatted = [for (final tick in scale.ticks) tick.toStringAsFixed(scale.decimalPlaces)];
+
+      expect(formatted.toSet().length, formatted.length, reason: 'formatted: $formatted');
+    });
   });
 
   group('chartTickIndices', () {
@@ -79,6 +95,36 @@ void main() {
       expect(indices.first, 0);
       expect(indices.last, 19);
     });
+
+    test('a maxTicks of 1 does not divide by zero', () {
+      expect(() => chartTickIndices(5, maxTicks: 1), returnsNormally);
+      expect(chartTickIndices(5, maxTicks: 1), isNotEmpty);
+    });
+  });
+
+  group('chartX / chartY / chartIndexForX', () {
+    test('chartX and chartIndexForX are inverses of each other', () {
+      const width = 300.0;
+      const n = 5;
+
+      for (var i = 0; i < n; i++) {
+        expect(chartIndexForX(chartX(i, n, width), n, width), i);
+      }
+    });
+
+    test('chartY places a value at scale.max nearest the top, and scale.min nearest the bottom', () {
+      const scale = NiceScale(min: 0, max: 10, step: 5);
+      const height = 108.0;
+
+      expect(chartY(10, scale, false, height), lessThan(chartY(0, scale, false, height)));
+    });
+
+    test('an inverted chartY places scale.min nearest the top', () {
+      const scale = NiceScale(min: 0, max: 10, step: 5);
+      const height = 108.0;
+
+      expect(chartY(0, scale, true, height), lessThan(chartY(10, scale, true, height)));
+    });
   });
 
   // Three points spaced evenly across a 300px-wide chart: x=0, 150, 300.
@@ -91,6 +137,7 @@ void main() {
     List<String>? pointLabels = pointLabels,
     String? unitLabel,
     String Function(double)? valueFormatter,
+    double? height,
   }) =>
       pumpApp(
         tester,
@@ -103,6 +150,7 @@ void main() {
               pointLabels: pointLabels,
               unitLabel: unitLabel,
               valueFormatter: valueFormatter,
+              height: height ?? 108,
             ),
           ),
         ),
@@ -295,6 +343,18 @@ void main() {
     await pumpChart(tester);
 
     expect(find.text('kg'), findsNothing);
+  });
+
+  testWidgets('a height shorter than the gridline label reserve does not crash', (tester) async {
+    await pumpChart(tester, height: 5);
+
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('an empty series still draws a baseline hairline', (tester) async {
+    await pumpChart(tester, series: const [], pointLabels: null);
+
+    expect(find.byType(AreaTrendChart), paints..line());
   });
 
   testWidgets('switching to a different dataset at the same chart clears a pinned tooltip',
