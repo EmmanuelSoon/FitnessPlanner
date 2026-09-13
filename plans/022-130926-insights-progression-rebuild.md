@@ -8,7 +8,7 @@
 - [x] PR 4 — Weekly sets by muscle group
 - [x] PR 5 — Chart axis rebuild
 - [x] PR 6 — Insights tab rebuild (verdict + ledger + weekly sets)
-- [ ] PR 7 — Lift detail screen
+- [x] PR 7 — Lift detail screen
 - [x] PR 8 — Running pass
 
 ## Context

@@ -9,6 +9,7 @@ import 'package:fitness_planner/domain/models/logged_set.dart';
 import 'package:fitness_planner/domain/models/run_session.dart';
 import 'package:fitness_planner/domain/models/workout_session.dart';
 import 'package:fitness_planner/presentation/insights_screen.dart';
+import 'package:fitness_planner/presentation/lift_detail_screen.dart';
 
 import '../support/fake_repositories.dart';
 import '../support/fixtures.dart';
@@ -77,6 +78,21 @@ void _rankedLiftsForWindowTests() {
       );
 
       expect(ranked.single.sessionCount, 5);
+    });
+  });
+}
+
+void _windowStartForTests() {
+  group('windowStartFor', () {
+    test('resolves to the same Monday-aligned cutoff rankedLiftsForWindow slices to', () {
+      // Same fixture as the rankedLiftsForWindow test above: an 8-week
+      // window's Monday-aligned cutoff for this `now` is Nov 17 2025, not
+      // the raw day-count Nov 12 2025.
+      final now = DateTime(2026, 1, 7);
+
+      final start = windowStartFor(InsightsWindow.eightWeeks, const [], now);
+
+      expect(start, DateTime(2025, 11, 17));
     });
   });
 }
@@ -216,6 +232,7 @@ WorkoutSession _categorySession({
 void main() {
   _verdictTests();
   _rankedLiftsForWindowTests();
+  _windowStartForTests();
 
   late FakeSessionRepository fakeRepo;
   late FakeRunRepository fakeRunRepo;
@@ -327,6 +344,18 @@ void main() {
     await pumpInsights(tester);
 
     expect(find.textContaining('One of one lift is moving.'), findsOneWidget);
+  });
+
+  testWidgets('tapping a ledger row opens that lift\'s detail screen', (tester) async {
+    seedFourSessionProgressingLift(fakeRepo);
+
+    await pumpInsights(tester);
+    final ledger = find.byKey(const ValueKey('liftLedger'));
+    await tester.tap(find.descendant(of: ledger, matching: find.text('Bench Press')));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(LiftDetailScreen), findsOneWidget);
+    expect(find.text('Bench Press'), findsWidgets);
   });
 
   testWidgets('a bodyweight (reps-only) lift also appears in the ledger, not just weighted lifts', (tester) async {
