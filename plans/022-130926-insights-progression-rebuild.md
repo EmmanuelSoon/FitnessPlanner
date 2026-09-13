@@ -5,7 +5,7 @@
 - [x] PR 1 — Shared e1RM, chronological helper, time windows
 - [x] PR 2 — Lift series + progression summary + ranking
 - [x] PR 3 — Muscle-group tag on exercises and logged sets
-- [ ] PR 4 — Weekly sets by muscle group
+- [x] PR 4 — Weekly sets by muscle group
 - [ ] PR 5 — Chart axis rebuild
 - [ ] PR 6 — Insights tab rebuild (verdict + ledger + weekly sets)
 - [ ] PR 7 — Lift detail screen
