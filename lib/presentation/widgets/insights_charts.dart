@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/foundation.dart' show listEquals, setEquals;
 import 'package:flutter/material.dart';
 import 'package:fitness_planner/theme/app_theme.dart';
@@ -8,6 +10,107 @@ import 'package:fitness_planner/theme/app_theme.dart';
 String fmtTrimmedNumber(double v) =>
     v == v.roundToDouble() ? v.round().toString() : v.toStringAsFixed(1);
 
+// ─── Nice-number axis scale ─────────────────────────────────────────────
+//
+// Classic Heckbert "nice numbers for graph labels" algorithm: gridlines land
+// on numbers a person would actually choose (10, 20, 30 — never 13, 26.4,
+// 39.8), and the range is padded outward to the nearest step rather than
+// clipped exactly to the data's own min/max.
+
+const int _kTargetYAxisTicks = 4;
+const int _kMaxXAxisTicks = 4;
+const double _kYAxisGutter = 34.0;
+const double _kPadTop = 12.0;
+const double _kPadBottom = 8.0;
+
+double _niceNum(double range, {required bool round}) {
+  if (range <= 0) return 1;
+  final exponent = (math.log(range) / math.ln10).floor();
+  final magnitude = math.pow(10, exponent).toDouble();
+  final fraction = range / magnitude;
+
+  final double niceFraction;
+  if (round) {
+    if (fraction < 1.5) {
+      niceFraction = 1;
+    } else if (fraction < 3) {
+      niceFraction = 2;
+    } else if (fraction < 7) {
+      niceFraction = 5;
+    } else {
+      niceFraction = 10;
+    }
+  } else {
+    if (fraction <= 1) {
+      niceFraction = 1;
+    } else if (fraction <= 2) {
+      niceFraction = 2;
+    } else if (fraction <= 5) {
+      niceFraction = 5;
+    } else {
+      niceFraction = 10;
+    }
+  }
+  return niceFraction * magnitude;
+}
+
+/// A padded, round-number axis: [min]/[max] bound at least [dataMin]/
+/// [dataMax], [step] apart at [ticks].
+class NiceScale {
+  final double min;
+  final double max;
+  final double step;
+
+  const NiceScale({required this.min, required this.max, required this.step});
+
+  /// Every gridline value from [min] to [max] inclusive, [step] apart.
+  List<double> get ticks {
+    final count = ((max - min) / step).round();
+    return [for (var i = 0; i <= count; i++) min + i * step];
+  }
+}
+
+/// Computes a [NiceScale] spanning at least [dataMin]..[dataMax] with
+/// roughly [targetTicks] gridlines. A flat series ([dataMin] == [dataMax])
+/// is padded to a small range around the value instead of collapsing to a
+/// zero-width, divide-by-zero axis.
+NiceScale computeNiceScale(double dataMin, double dataMax, {int targetTicks = _kTargetYAxisTicks}) {
+  var min = dataMin;
+  var max = dataMax;
+  if (min == max) {
+    final pad = min == 0 ? 1.0 : min.abs() * 0.1;
+    min -= pad;
+    max += pad;
+  }
+
+  final range = _niceNum(max - min, round: false);
+  final step = _niceNum(range / (targetTicks - 1), round: true);
+  final niceMin = (min / step).floor() * step;
+  final niceMax = (max / step).ceil() * step;
+  return NiceScale(min: niceMin, max: niceMax, step: step);
+}
+
+/// Evenly spaced indices into a series of length [n] for x-axis date ticks,
+/// always including the first and last index, up to [maxTicks] total. A
+/// series no longer than [maxTicks] returns every index.
+List<int> chartTickIndices(int n, {int maxTicks = _kMaxXAxisTicks}) {
+  if (n <= 0) return const [];
+  if (n <= maxTicks) return [for (var i = 0; i < n; i++) i];
+  return {
+    for (var k = 0; k < maxTicks; k++) (k * (n - 1) / (maxTicks - 1)).round(),
+  }.toList()
+    ..sort();
+}
+
+/// Fraction of the plot height from the top at which [v] falls between
+/// [min] and [max] — 0 at the top, 1 at the bottom. On an inverted
+/// (lower-is-better) axis the min value plots nearest the top.
+double _fracFromTop(double v, double min, double max, bool invert) {
+  final span = (max - min) == 0 ? 1 : (max - min);
+  final t = (v - min) / span;
+  return invert ? t : 1 - t;
+}
+
 // ─── Soft-area trend chart ─────────────────────────────────────────────
 //
 // A line with a soft gradient fill underneath, a baseline hairline, a live
@@ -17,22 +120,22 @@ String fmtTrimmedNumber(double v) =>
 
 class AreaTrendChart extends StatefulWidget {
   final List<double> series;
-  final List<String>? edgeLabels;
   final List<String>? pointLabels;
   final Set<int> prIndices;
   final bool invert;
   final double height;
   final String Function(double)? valueFormatter;
+  final String? unitLabel;
 
   const AreaTrendChart({
     super.key,
     required this.series,
-    this.edgeLabels,
     this.pointLabels,
     this.prIndices = const {},
     this.invert = false,
     this.height = 108,
     this.valueFormatter,
+    this.unitLabel,
   });
 
   @override
@@ -62,11 +165,15 @@ class AreaTrendChartState extends State<AreaTrendChart> {
   void _handleTouch(Offset localPosition, double width) {
     final n = widget.series.length;
     final labels = widget.pointLabels;
-    if (n == 0 || width <= 0 || labels == null || labels.length != n) return;
+    if (n == 0 || labels == null || labels.length != n) return;
 
+    final plotWidth = width - _kYAxisGutter;
+    if (plotWidth <= 0) return;
+
+    final relativeDx = localPosition.dx - _kYAxisGutter;
     final idx = n <= 1
         ? 0
-        : (localPosition.dx / width * (n - 1)).round().clamp(0, n - 1);
+        : (relativeDx / plotWidth * (n - 1)).round().clamp(0, n - 1);
     if (idx != _touchedIndex) setState(() => _touchedIndex = idx);
   }
 
@@ -74,22 +181,21 @@ class AreaTrendChartState extends State<AreaTrendChart> {
   Widget build(BuildContext context) {
     final c = AppThemeData.of(context).c;
     final series = widget.series;
-    final maxV = series.isEmpty ? null : series.reduce((a, b) => a > b ? a : b);
-    final minV = series.isEmpty ? null : series.reduce((a, b) => a < b ? a : b);
-    // On an inverted (lower-is-better) chart, the min value plots highest —
-    // the label at the top of the box should match whatever visually reads
-    // as "the top of the line".
-    final topValue = widget.invert ? minV : maxV;
-    final bottomValue = widget.invert ? maxV : minV;
     final valueFormatter = widget.valueFormatter ?? fmtTrimmedNumber;
     final labelStyle = bodyStyle(fontSize: 10, color: c.inkMute);
-    // Every call site's edgeLabels are just the first/last of its
-    // pointLabels — derive them here instead of repeating that at each of
-    // the four chart call sites.
-    final edgeLabels = widget.edgeLabels ??
-        (widget.pointLabels != null && widget.pointLabels!.length >= 2
-            ? [widget.pointLabels!.first, widget.pointLabels!.last]
-            : null);
+
+    final scale = series.isEmpty
+        ? null
+        : computeNiceScale(
+            series.reduce((a, b) => a < b ? a : b),
+            series.reduce((a, b) => a > b ? a : b),
+          );
+
+    final plotHeight = widget.height - _kPadTop - _kPadBottom;
+    final pointLabels = widget.pointLabels;
+    final tickIndices = pointLabels != null && pointLabels.isNotEmpty
+        ? chartTickIndices(pointLabels.length)
+        : const <int>[];
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -111,6 +217,7 @@ class AreaTrendChartState extends State<AreaTrendChart> {
                       child: CustomPaint(
                         painter: _AreaTrendPainter(
                           series: widget.series,
+                          scale: scale,
                           prIndices: widget.prIndices,
                           invert: widget.invert,
                           accent: c.accent,
@@ -126,29 +233,50 @@ class AreaTrendChartState extends State<AreaTrendChart> {
                   },
                 ),
               ),
-              if (topValue != null)
+              // IgnorePointer so a plain Text (whose RenderParagraph always
+              // claims hitTestSelf) never steals a touch from the
+              // GestureDetector beneath it — otherwise a drag starting on
+              // top of a gridline label would silently fail to register.
+              if (scale != null)
+                for (final tick in scale.ticks)
+                  Positioned(
+                    top: (_kPadTop + _fracFromTop(tick, scale.min, scale.max, widget.invert) * plotHeight - 6)
+                        .clamp(0.0, widget.height - 12),
+                    left: 0,
+                    child: IgnorePointer(child: Text(valueFormatter(tick), style: labelStyle)),
+                  ),
+              if (widget.unitLabel != null)
                 Positioned(
                   top: 0,
-                  left: 0,
-                  child: Text(valueFormatter(topValue), style: labelStyle),
-                ),
-              if (bottomValue != null && bottomValue != topValue)
-                Positioned(
-                  bottom: 0,
-                  left: 0,
-                  child: Text(valueFormatter(bottomValue), style: labelStyle),
+                  right: 0,
+                  child: IgnorePointer(child: Text(widget.unitLabel!, style: labelStyle)),
                 ),
             ],
           ),
         ),
-        if (edgeLabels != null && edgeLabels.length >= 2) ...[
-          const SizedBox(height: 2),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(edgeLabels.first, style: labelStyle),
-              Text(edgeLabels.last, style: labelStyle),
-            ],
+        if (pointLabels != null && tickIndices.isNotEmpty) ...[
+          const SizedBox(height: 4),
+          SizedBox(
+            height: 14,
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final n = pointLabels.length;
+                final plotLeft = _kYAxisGutter;
+                final plotWidth = constraints.maxWidth - plotLeft;
+                return Stack(
+                  children: [
+                    for (final i in tickIndices)
+                      Positioned(
+                        left: n <= 1 ? plotLeft : plotLeft + (i / (n - 1)) * plotWidth,
+                        child: FractionalTranslation(
+                          translation: Offset(i == 0 ? 0 : (i == n - 1 ? -1 : -0.5), 0),
+                          child: Text(pointLabels[i], style: labelStyle),
+                        ),
+                      ),
+                  ],
+                );
+              },
+            ),
           ),
         ],
       ],
@@ -158,6 +286,7 @@ class AreaTrendChartState extends State<AreaTrendChart> {
 
 class _AreaTrendPainter extends CustomPainter {
   final List<double> series;
+  final NiceScale? scale;
   final Set<int> prIndices;
   final bool invert;
   final Color accent;
@@ -170,6 +299,7 @@ class _AreaTrendPainter extends CustomPainter {
 
   const _AreaTrendPainter({
     required this.series,
+    required this.scale,
     required this.prIndices,
     required this.invert,
     required this.accent,
@@ -183,30 +313,22 @@ class _AreaTrendPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    const padTop = 6.0;
-    const padBottom = 8.0;
-    final baselineY = size.height - padBottom;
-
-    canvas.drawLine(
-      Offset(0, baselineY),
-      Offset(size.width, baselineY),
-      Paint()
-        ..color = hairline
-        ..strokeWidth = 1,
-    );
-
     if (series.isEmpty) return;
+    final scale = this.scale!;
 
-    final min = series.reduce((a, b) => a < b ? a : b);
-    final max = series.reduce((a, b) => a > b ? a : b);
-    final span = (max - min) == 0 ? 1 : (max - min);
+    final plotLeft = _kYAxisGutter;
+    final plotBottomY = size.height - _kPadBottom;
     final n = series.length;
 
-    double x(int i) => n <= 1 ? size.width / 2 : (i / (n - 1)) * size.width;
-    double y(double v) {
-      var t = (v - min) / span;
-      if (invert) t = 1 - t;
-      return padTop + (1 - t) * (size.height - padTop - padBottom);
+    double x(int i) => n <= 1 ? plotLeft + (size.width - plotLeft) / 2 : plotLeft + (i / (n - 1)) * (size.width - plotLeft);
+    double y(double v) => _kPadTop + _fracFromTop(v, scale.min, scale.max, invert) * (size.height - _kPadTop - _kPadBottom);
+
+    final gridlinePaint = Paint()
+      ..color = hairline
+      ..strokeWidth = 1;
+    for (final tick in scale.ticks) {
+      final ty = y(tick);
+      canvas.drawLine(Offset(plotLeft, ty), Offset(size.width, ty), gridlinePaint);
     }
 
     final points = [
@@ -219,8 +341,8 @@ class _AreaTrendPainter extends CustomPainter {
         fillPath.lineTo(p.dx, p.dy);
       }
       fillPath
-        ..lineTo(points.last.dx, baselineY)
-        ..lineTo(points.first.dx, baselineY)
+        ..lineTo(points.last.dx, plotBottomY)
+        ..lineTo(points.first.dx, plotBottomY)
         ..close();
 
       canvas.drawPath(

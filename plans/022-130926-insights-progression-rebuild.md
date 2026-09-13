@@ -6,7 +6,7 @@
 - [x] PR 2 — Lift series + progression summary + ranking
 - [x] PR 3 — Muscle-group tag on exercises and logged sets
 - [x] PR 4 — Weekly sets by muscle group
-- [ ] PR 5 — Chart axis rebuild
+- [x] PR 5 — Chart axis rebuild
 - [ ] PR 6 — Insights tab rebuild (verdict + ledger + weekly sets)
 - [ ] PR 7 — Lift detail screen
 - [ ] PR 8 — Running pass
