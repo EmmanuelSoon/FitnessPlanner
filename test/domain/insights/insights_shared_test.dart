@@ -37,14 +37,22 @@ void main() {
   });
 
   group('chronological', () {
-    test('sorts sessions oldest first without mutating the input list', () {
+    test('sorts sessions oldest first', () {
+      final later = _session(id: 's2', startedAt: DateTime(2026, 3, 8));
+      final earlier = _session(id: 's1', startedAt: DateTime(2026, 3, 1));
+
+      final sorted = chronological([later, earlier]);
+
+      expect(sorted.map((s) => s.id), ['s1', 's2']);
+    });
+
+    test('does not mutate the input list', () {
       final later = _session(id: 's2', startedAt: DateTime(2026, 3, 8));
       final earlier = _session(id: 's1', startedAt: DateTime(2026, 3, 1));
       final input = [later, earlier];
 
-      final sorted = chronological(input);
+      chronological(input);
 
-      expect(sorted.map((s) => s.id), ['s1', 's2']);
       expect(input.map((s) => s.id), ['s2', 's1']);
     });
   });

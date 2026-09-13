@@ -90,7 +90,7 @@ List<PersonalRecord> computePersonalRecords(
   List<WorkoutSession> sessions,
   List<RunSession> runs,
 ) {
-  final sorted = [...sessions]..sort((a, b) => a.startedAt.compareTo(b.startedAt));
+  final sorted = chronological(sessions);
   final sortedRuns = [...runs]..sort((a, b) => a.startedAt.compareTo(b.startedAt));
 
   final heaviestWeight = <String, _Progress>{};

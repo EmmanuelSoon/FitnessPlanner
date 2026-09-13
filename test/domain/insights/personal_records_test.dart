@@ -239,7 +239,17 @@ void main() {
       final records = computePersonalRecords([session], []);
 
       expect(records.any((r) => r.type == PersonalRecordType.bestEst1Rm), isFalse);
-      // The set still counts for heaviest-weight — only the 1RM estimate is excluded.
+    });
+
+    test('a set above the 12-rep validity cap still counts for heaviest-weight', () {
+      final session = _session(
+        id: 's1',
+        startedAt: DateTime(2026, 3, 1),
+        sets: [_weighted(exercise: 'Deadlift', weight: 60, reps: 20)],
+      );
+
+      final records = computePersonalRecords([session], []);
+
       expect(_find(records, PersonalRecordType.heaviestWeight, 'Deadlift').value, 60);
     });
 
