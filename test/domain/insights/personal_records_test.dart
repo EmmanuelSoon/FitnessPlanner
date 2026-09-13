@@ -213,6 +213,36 @@ void main() {
       expect(record.value, 100 * (1 + 6 / 30));
     });
 
+    test('a genuine one-rep single is reported as itself, not inflated by Epley', () {
+      final session = _session(
+        id: 's1',
+        startedAt: DateTime(2026, 3, 1),
+        sets: [_weighted(exercise: 'Deadlift', weight: 100, reps: 1)],
+      );
+
+      final record = _find(
+        computePersonalRecords([session], []),
+        PersonalRecordType.bestEst1Rm,
+        'Deadlift',
+      );
+
+      expect(record.value, 100);
+    });
+
+    test('a set above the 12-rep validity cap sets no bestEst1Rm record', () {
+      final session = _session(
+        id: 's1',
+        startedAt: DateTime(2026, 3, 1),
+        sets: [_weighted(exercise: 'Deadlift', weight: 60, reps: 20)],
+      );
+
+      final records = computePersonalRecords([session], []);
+
+      expect(records.any((r) => r.type == PersonalRecordType.bestEst1Rm), isFalse);
+      // The set still counts for heaviest-weight — only the 1RM estimate is excluded.
+      expect(_find(records, PersonalRecordType.heaviestWeight, 'Deadlift').value, 60);
+    });
+
     test('session tonnage tracks the single best session total, labeled by workout name', () {
       final small = _session(
         id: 's1',
