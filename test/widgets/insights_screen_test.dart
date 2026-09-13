@@ -1,58 +1,168 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:fitness_planner/data/run_repository.dart';
 import 'package:fitness_planner/data/session_repository.dart';
+import 'package:fitness_planner/domain/insights/strength_progress.dart';
 import 'package:fitness_planner/domain/models/logged_set.dart';
 import 'package:fitness_planner/domain/models/workout_session.dart';
 import 'package:fitness_planner/presentation/insights_screen.dart';
-import 'package:fitness_planner/presentation/widgets/app_widgets.dart';
-import 'package:fitness_planner/providers/session_providers.dart';
 
 import '../support/fake_repositories.dart';
 import '../support/fixtures.dart';
 import '../support/pump_app.dart';
+
+LiftProgress _progress({
+  String exerciseName = 'Bench Press',
+  LiftStatus status = LiftStatus.progressing,
+  double startValue = 60,
+  double currentValue = 65,
+  double? percentDelta = 8.3,
+}) => LiftProgress(
+  exerciseName: exerciseName,
+  metric: LiftMetric.weighted,
+  startValue: startValue,
+  currentValue: currentValue,
+  absoluteDelta: currentValue - startValue,
+  percentDelta: percentDelta,
+  percentPer30Days: percentDelta,
+  sessionCount: 4,
+  excludedHighRepSessions: 0,
+  firstDate: DateTime(2026, 1, 1),
+  lastDate: DateTime(2026, 2, 1),
+  spanDays: 31,
+  bestDate: DateTime(2026, 2, 1),
+  weeksSinceBest: status == LiftStatus.holding ? 6 : 0,
+  isExtrapolated: false,
+  status: status,
+);
+
+void _verdictTests() {
+  group('computeVerdict', () {
+    test('an empty ranked list reports insufficient data', () {
+      final verdict = computeVerdict(const []);
+
+      expect(verdict.kind, VerdictKind.insufficientData);
+    });
+
+    test('no lift progressing reports all-stalled', () {
+      final verdict = computeVerdict([
+        _progress(exerciseName: 'Squat', status: LiftStatus.holding),
+      ]);
+
+      expect(verdict.kind, VerdictKind.allStalled);
+    });
+
+    test('at least one progressing lift reports the progressing kind', () {
+      final verdict = computeVerdict([
+        _progress(exerciseName: 'Bench Press', status: LiftStatus.progressing),
+      ]);
+
+      expect(verdict.kind, VerdictKind.progressing);
+    });
+
+    test('the headline counts how many lifts are moving out of the total', () {
+      final verdict = computeVerdict([
+        _progress(exerciseName: 'Bench Press', status: LiftStatus.progressing),
+        _progress(exerciseName: 'Squat', status: LiftStatus.holding),
+      ]);
+
+      expect(verdict.headline, 'One of two lifts is moving.');
+    });
+
+    test('a regressing lift is named in the detail line ahead of a holding lift', () {
+      final verdict = computeVerdict([
+        _progress(exerciseName: 'Bench Press', status: LiftStatus.progressing),
+        _progress(exerciseName: 'Squat', status: LiftStatus.holding),
+        _progress(exerciseName: 'Deadlift', status: LiftStatus.regressing, percentDelta: -4.0),
+      ]);
+
+      expect(verdict.detail, contains('Deadlift'));
+    });
+
+    test('a holding lift not named when nothing is regressing', () {
+      final verdict = computeVerdict([
+        _progress(exerciseName: 'Bench Press', status: LiftStatus.progressing),
+        _progress(exerciseName: 'Squat', status: LiftStatus.holding),
+      ]);
+
+      expect(verdict.detail, contains('Squat'));
+    });
+
+    test('every lift progressing names nothing as stuck', () {
+      final verdict = computeVerdict([
+        _progress(exerciseName: 'Bench Press', status: LiftStatus.progressing),
+      ]);
+
+      expect(verdict.detail, isNot(contains('Bench Press')));
+    });
+  });
+}
 
 DateTime _mondayOf(DateTime dt) {
   final day = DateTime(dt.year, dt.month, dt.day);
   return day.subtract(Duration(days: day.weekday - DateTime.monday));
 }
 
-// Scoping to the exercise chip row disambiguates an exercise name from any
-// Recent records card that happens to show the same exercise.
-Finder _exerciseChip(String label) => find.descendant(
-      of: find.byKey(const ValueKey('exerciseChipRow')),
-      matching: find.text(label),
-    );
-
-// The exercise chip row is itself a horizontally-scrolling list, so
-// `scrollUntilVisible`'s default (find.byType(Scrollable)) now matches more
-// than one Scrollable once that row is built. The outer (vertical) list is
-// always the topmost Scrollable in the tree, so `.first` pins to it.
+// The page is a single vertical ListView, so `scrollUntilVisible`'s default
+// (find.byType(Scrollable)) pins to it without ambiguity.
 final Finder _outerScrollable = find.byType(Scrollable).first;
 
-WorkoutSession _manyExercisesSession() => WorkoutSession(
-      id: 'ws1',
-      workoutId: 'w1',
-      workoutName: 'Push Day',
-      startedAt: DateTime(2026, 1, 5),
-      endedAt: DateTime(2026, 1, 5, 1),
-      completed: true,
-      sets: [
-        for (var i = 1; i <= 12; i++)
-          LoggedSet(
-            exerciseName: 'Exercise $i',
-            targetReps: 8,
-            targetWeight: 60,
-            actualReps: 8,
-            actualWeight: 60,
-            skipped: false,
-          ),
-      ],
-    );
+WorkoutSession _liftSession({
+  required String id,
+  required DateTime startedAt,
+  String exerciseName = 'Bench Press',
+  required double weight,
+  int reps = 5,
+}) => WorkoutSession(
+  id: id,
+  workoutId: 'w1',
+  workoutName: 'Push Day',
+  startedAt: startedAt,
+  endedAt: startedAt.add(const Duration(minutes: 45)),
+  completed: true,
+  sets: [
+    LoggedSet(
+      exerciseName: exerciseName,
+      targetReps: reps,
+      targetWeight: weight,
+      actualReps: reps,
+      actualWeight: weight,
+      skipped: false,
+    ),
+  ],
+);
+
+WorkoutSession _categorySession({
+  required String id,
+  required DateTime startedAt,
+  required String category,
+  required int setCount,
+  String exerciseName = 'Squat',
+}) => WorkoutSession(
+  id: id,
+  workoutId: 'w1',
+  workoutName: 'Leg Day',
+  startedAt: startedAt,
+  endedAt: startedAt.add(const Duration(minutes: 45)),
+  completed: true,
+  sets: [
+    for (var i = 0; i < setCount; i++)
+      LoggedSet(
+        exerciseName: exerciseName,
+        targetReps: 8,
+        targetWeight: 60,
+        actualReps: 8,
+        actualWeight: 60,
+        skipped: false,
+        category: category,
+      ),
+  ],
+);
 
 void main() {
+  _verdictTests();
+
   late FakeSessionRepository fakeRepo;
   late FakeRunRepository fakeRunRepo;
 
@@ -99,216 +209,109 @@ void main() {
     expect(find.text('5.0'), findsWidgets); // distance: strip cell + distance card
   });
 
-  testWidgets('shows the trend for the most recently logged exercise by default', (tester) async {
+  testWidgets('shows insufficient-data copy and an empty ledger message when no lift has enough sessions',
+      (tester) async {
     fakeRepo.store['ws1'] = buildWorkoutSession(id: 'ws1', startedAt: DateTime(2026, 1, 5));
 
     await pumpInsights(tester);
 
-    expect(_exerciseChip('Bench Press'), findsOneWidget);
-    expect(
-      tester.widget<Text>(find.byKey(const ValueKey('exerciseTrendCurrentValue'))).data,
-      '60',
-    );
-    expect(find.textContaining('Top set'), findsOneWidget);
-  });
-
-  testWidgets('tapping another exercise chip switches the trend shown', (tester) async {
-    fakeRepo.store['ws1'] = WorkoutSession(
-      id: 'ws1',
-      workoutId: 'w1',
-      workoutName: 'Push Day',
-      startedAt: DateTime(2026, 1, 5),
-      endedAt: DateTime(2026, 1, 5, 1),
-      completed: true,
-      sets: [
-        LoggedSet(
-          exerciseName: 'Bench Press',
-          targetReps: 8,
-          targetWeight: 60,
-          actualReps: 8,
-          actualWeight: 60,
-          skipped: false,
-        ),
-        LoggedSet(
-          exerciseName: 'Pull-up',
-          targetReps: 10,
-          targetWeight: 0,
-          actualReps: 10,
-          actualWeight: 0,
-          skipped: false,
-        ),
-      ],
-    );
-
-    await pumpInsights(tester);
-
-    expect(find.textContaining('Top set'), findsOneWidget);
-
-    // The exercise-trend card sits below the fold once the mode toggle and
-    // Recent records are on screen, so its chips aren't built yet — scroll
-    // them into the sliver's cache extent first.
-    await tester.scrollUntilVisible(_exerciseChip('Pull-up'), 300, scrollable: _outerScrollable);
-    await tester.pumpAndSettle();
-    await tester.tap(_exerciseChip('Pull-up'));
-    await tester.pumpAndSettle();
-
-    expect(find.textContaining('Best set'), findsOneWidget);
-  });
-
-  testWidgets('falls back to another exercise when the selected one disappears from the list', (tester) async {
-    fakeRepo.store['ws1'] = WorkoutSession(
-      id: 'ws1',
-      workoutId: 'w1',
-      workoutName: 'Push Day',
-      startedAt: DateTime(2026, 1, 5),
-      endedAt: DateTime(2026, 1, 5, 1),
-      completed: true,
-      sets: [
-        LoggedSet(
-          exerciseName: 'Bench Press',
-          targetReps: 8,
-          targetWeight: 60,
-          actualReps: 8,
-          actualWeight: 60,
-          skipped: false,
-        ),
-      ],
-    );
-    fakeRepo.store['ws2'] = WorkoutSession(
-      id: 'ws2',
-      workoutId: 'w1',
-      workoutName: 'Pull Day',
-      startedAt: DateTime(2026, 1, 12),
-      endedAt: DateTime(2026, 1, 12, 1),
-      completed: true,
-      sets: [
-        LoggedSet(
-          exerciseName: 'Pull-up',
-          targetReps: 10,
-          targetWeight: 0,
-          actualReps: 10,
-          actualWeight: 0,
-          skipped: false,
-        ),
-      ],
-    );
-
-    await pumpInsights(tester);
-    // Pull-up is the most recently logged exercise, so it's selected by default.
-    expect(find.textContaining('Best set'), findsOneWidget);
-
-    await tester.scrollUntilVisible(_exerciseChip('Bench Press'), 300, scrollable: _outerScrollable);
-    await tester.pumpAndSettle();
-    await tester.tap(_exerciseChip('Bench Press'));
-    await tester.pumpAndSettle();
-    expect(find.textContaining('Top set'), findsOneWidget);
-
-    final container =
-        ProviderScope.containerOf(tester.element(find.byType(InsightsScreen)));
-    await container.read(sessionsProvider.notifier).deleteSession('ws1');
-    await tester.pumpAndSettle();
-
-    expect(find.text('Bench Press'), findsNothing);
-    expect(find.textContaining('Best set'), findsOneWidget);
-  });
-
-  testWidgets('shows this week\'s session count, tonnage, and rep volume', (tester) async {
-    final thisWeek = _mondayOf(DateTime.now()).add(const Duration(days: 1, hours: 9));
-    fakeRepo.store['ws1'] = WorkoutSession(
-      id: 'ws1',
-      workoutId: 'w1',
-      workoutName: 'Push Day',
-      startedAt: thisWeek,
-      endedAt: thisWeek.add(const Duration(hours: 1)),
-      completed: true,
-      sets: [
-        LoggedSet(
-          exerciseName: 'Bench Press',
-          targetReps: 10,
-          targetWeight: 60,
-          actualReps: 10,
-          actualWeight: 60,
-          skipped: false,
-        ),
-        LoggedSet(
-          exerciseName: 'Push-up',
-          targetReps: 5,
-          targetWeight: 0,
-          actualReps: 5,
-          actualWeight: 0,
-          skipped: false,
-        ),
-      ],
-    );
-
-    await pumpInsights(tester);
-
-    expect(find.text('This week'.toUpperCase()), findsOneWidget);
-    // Scoped to the sessions StatChip: a chart axis gridline can coincidentally
-    // also render "1" elsewhere on the page.
+    expect(find.textContaining('Not enough data yet.'), findsOneWidget);
     expect(
       find.descendant(
-        of: find.byWidgetPredicate((w) => w is StatChip && w.label == 'sessions'),
-        matching: find.text('1'),
+        of: find.byKey(const ValueKey('liftLedger')),
+        matching: find.textContaining('Log four sessions'),
       ),
       findsOneWidget,
     );
-    expect(find.text('0.6'), findsWidgets); // tonnage: strip cell + volume card
-    expect(find.text('15'), findsOneWidget); // rep volume: 10 + 5
-    expect(find.textContaining('Tonnage counts weighted sets only'), findsOneWidget);
   });
 
-  testWidgets('shows the volume-over-time card defaulting to tonnage, with the vs-8w-ago change', (tester) async {
-    final currentWeekStart = _mondayOf(DateTime.now());
-    final eightWeeksAgoStart = currentWeekStart.subtract(const Duration(days: 49));
-    fakeRepo.store['ws-now'] = WorkoutSession(
-      id: 'ws-now',
-      workoutId: 'w1',
-      workoutName: 'Push Day',
-      startedAt: currentWeekStart.add(const Duration(days: 1, hours: 9)),
-      endedAt: currentWeekStart.add(const Duration(days: 1, hours: 10)),
-      completed: true,
-      sets: [
-        LoggedSet(
-          exerciseName: 'Bench Press',
-          targetReps: 10,
-          targetWeight: 60,
-          actualReps: 10,
-          actualWeight: 60,
-          skipped: false,
-        ),
-      ],
+  testWidgets('the lift ledger shows a lift once it has four sessions spanning three weeks', (tester) async {
+    final start = DateTime.now().subtract(const Duration(days: 24));
+    for (var i = 0; i < 4; i++) {
+      fakeRepo.store['ws$i'] = _liftSession(
+        id: 'ws$i',
+        startedAt: start.add(Duration(days: i * 8)),
+        weight: 60 + i * 5,
+        reps: 1, // reps==1 makes estimatedOneRm exactly the logged weight
+      );
+    }
+
+    await pumpInsights(tester);
+
+    final ledger = find.byKey(const ValueKey('liftLedger'));
+    expect(find.descendant(of: ledger, matching: find.text('Bench Press')), findsOneWidget);
+    // start window mean(60,65)=62.5, current window mean(70,75)=72.5.
+    expect(find.descendant(of: ledger, matching: find.text('62.5→72.5')), findsOneWidget);
+    expect(find.descendant(of: ledger, matching: find.text('+16.0%')), findsOneWidget);
+    expect(find.textContaining('One of one lift is moving.'), findsOneWidget);
+  });
+
+  testWidgets('a lift with fewer than four sessions is excluded from the ledger', (tester) async {
+    final start = DateTime.now().subtract(const Duration(days: 16));
+    for (var i = 0; i < 3; i++) {
+      fakeRepo.store['ws$i'] = _liftSession(
+        id: 'ws$i',
+        startedAt: start.add(Duration(days: i * 8)),
+        weight: 60,
+      );
+    }
+
+    await pumpInsights(tester);
+
+    expect(
+      find.descendant(of: find.byKey(const ValueKey('liftLedger')), matching: find.text('Bench Press')),
+      findsNothing,
     );
-    fakeRepo.store['ws-old'] = WorkoutSession(
-      id: 'ws-old',
-      workoutId: 'w1',
-      workoutName: 'Push Day',
-      startedAt: eightWeeksAgoStart.add(const Duration(days: 1, hours: 9)),
-      endedAt: eightWeeksAgoStart.add(const Duration(days: 1, hours: 10)),
-      completed: true,
-      sets: [
-        LoggedSet(
-          exerciseName: 'Bench Press',
-          targetReps: 10,
-          targetWeight: 50,
-          actualReps: 10,
-          actualWeight: 50,
-          skipped: false,
-        ),
-      ],
+  });
+
+  testWidgets('switching the window to 6M reveals a lift whose sessions are older than 8 weeks', (tester) async {
+    final start = DateTime.now().subtract(const Duration(days: 100));
+    for (var i = 0; i < 4; i++) {
+      fakeRepo.store['ws$i'] =
+          _liftSession(id: 'ws$i', startedAt: start.add(Duration(days: i * 8)), weight: 60 + i * 5);
+    }
+
+    await pumpInsights(tester);
+    expect(
+      find.descendant(of: find.byKey(const ValueKey('liftLedger')), matching: find.text('Bench Press')),
+      findsNothing,
+    );
+
+    await tester.tap(find.text('6M'));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.descendant(of: find.byKey(const ValueKey('liftLedger')), matching: find.text('Bench Press')),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets("this week's sets card shows a category's working-set count and load band", (tester) async {
+    final thisWeekStart = _mondayOf(DateTime.now());
+    fakeRepo.store['ws-2'] = _categorySession(
+      id: 'ws-2',
+      startedAt: thisWeekStart.subtract(const Duration(days: 14, hours: -9)),
+      category: 'Legs',
+      setCount: 4,
+    );
+    fakeRepo.store['ws-1'] = _categorySession(
+      id: 'ws-1',
+      startedAt: thisWeekStart.subtract(const Duration(days: 7, hours: -9)),
+      category: 'Legs',
+      setCount: 4,
+    );
+    fakeRepo.store['ws-0'] = _categorySession(
+      id: 'ws-0',
+      startedAt: thisWeekStart.add(const Duration(days: 1, hours: 9)),
+      category: 'Legs',
+      setCount: 8,
     );
 
     await pumpInsights(tester);
 
-    expect(find.text('Volume over time'.toUpperCase()), findsOneWidget);
-    expect(find.text('0.6'), findsWidgets); // this week strip + volume card both show it
-    expect(find.textContaining('20%'), findsOneWidget); // (600-500)/500
-    expect(find.text('vs 8w ago'), findsOneWidget);
-
-    await tester.tap(find.text('Reps'));
-    await tester.pumpAndSettle();
-
-    expect(find.text('10'), findsWidgets);
+    expect(find.textContaining('8 working sets'), findsOneWidget);
+    expect(find.text('Legs'), findsOneWidget);
+    expect(find.text('heavy'), findsOneWidget);
   });
 
   testWidgets('the All sessions row navigates to the full session list', (tester) async {
@@ -414,38 +417,4 @@ void main() {
     expect(find.textContaining('No records yet — log a run'), findsOneWidget);
   });
 
-  testWidgets('the exercise chip row stays a single line as the number of exercises grows',
-      (tester) async {
-    fakeRepo.store['ws1'] = _manyExercisesSession();
-
-    await pumpInsights(tester);
-    await tester.scrollUntilVisible(
-      find.byKey(const ValueKey('exerciseChipRow')),
-      300,
-      scrollable: _outerScrollable,
-    );
-
-    // A Wrap would grow to several lines for 12 chips; staying this short
-    // proves they're laid out on one scrollable line instead.
-    expect(tester.getSize(find.byKey(const ValueKey('exerciseChipRow'))).height, lessThan(40));
-  });
-
-  testWidgets('the exercise chip row scrolls horizontally when more exercises are logged than fit on screen',
-      (tester) async {
-    fakeRepo.store['ws1'] = _manyExercisesSession();
-
-    await pumpInsights(tester);
-    await tester.scrollUntilVisible(
-      find.byKey(const ValueKey('exerciseChipRow')),
-      300,
-      scrollable: _outerScrollable,
-    );
-
-    final chipRowScrollable = find.descendant(
-      of: find.byKey(const ValueKey('exerciseChipRow')),
-      matching: find.byType(Scrollable),
-    );
-    final position = tester.state<ScrollableState>(chipRowScrollable).position;
-    expect(position.maxScrollExtent, greaterThan(0));
-  });
 }
