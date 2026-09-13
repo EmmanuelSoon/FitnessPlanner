@@ -88,7 +88,7 @@ double _bestValue(LiftMetric kind, List<LoggedSet> performed) {
       return performed
           .map((s) => (s.heldSeconds ?? 0).toDouble())
           .reduce((a, b) => a > b ? a : b);
-    case LiftMetric.estimatedOneRm:
+    case LiftMetric.weighted:
       return performed.map((s) => s.actualWeight).reduce((a, b) => a > b ? a : b);
     case LiftMetric.repsPerSet:
       return performed
@@ -99,12 +99,12 @@ double _bestValue(LiftMetric kind, List<LoggedSet> performed) {
 
 String _unitFor(LiftMetric kind) => switch (kind) {
   LiftMetric.holdSeconds => 's',
-  LiftMetric.estimatedOneRm => 'kg',
+  LiftMetric.weighted => 'kg',
   LiftMetric.repsPerSet => 'reps',
 };
 
 String _metricLabelFor(LiftMetric kind) => switch (kind) {
   LiftMetric.holdSeconds => 'Longest hold',
-  LiftMetric.estimatedOneRm => 'Top set',
+  LiftMetric.weighted => 'Top set',
   LiftMetric.repsPerSet => 'Best set',
 };

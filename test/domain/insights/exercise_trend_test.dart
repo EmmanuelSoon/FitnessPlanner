@@ -212,14 +212,14 @@ void main() {
   });
 
   group('metricFor (shared with strength_progress)', () {
-    test('a weighted exercise classifies as estimatedOneRm', () {
+    test('a weighted exercise classifies as weighted', () {
       final session = _session(
         id: 's1',
         startedAt: DateTime(2026, 1, 5),
         sets: [_weighted(weight: 60)],
       );
 
-      expect(metricFor(session.sets), LiftMetric.estimatedOneRm);
+      expect(metricFor(session.sets), LiftMetric.weighted);
     });
 
     test('computeExerciseTrend\'s "kg" unit is driven by the same classification', () {

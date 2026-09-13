@@ -67,7 +67,7 @@ LiftSessionPoint _point(
   double? best,
   int setsCounted = 3,
   int setsPerformed = 3,
-  LiftMetric metric = LiftMetric.estimatedOneRm,
+  LiftMetric metric = LiftMetric.weighted,
   String sessionId = 's',
 }) => LiftSessionPoint(
   date: date,
@@ -79,14 +79,17 @@ LiftSessionPoint _point(
   metric: metric,
 );
 
+LiftSeries _series(List<LiftSessionPoint> points, {int excludedHighRepSessions = 0}) =>
+    LiftSeries(points: points, excludedHighRepSessions: excludedHighRepSessions);
+
 void main() {
   group('metricFor', () {
     test('classifies as holdSeconds when any performed set was timed', () {
       expect(metricFor([_timed(heldSeconds: 60)]), LiftMetric.holdSeconds);
     });
 
-    test('classifies as estimatedOneRm when any performed set carried weight', () {
-      expect(metricFor([_weighted(weight: 60)]), LiftMetric.estimatedOneRm);
+    test('classifies as weighted when any performed set carried weight', () {
+      expect(metricFor([_weighted(weight: 60)]), LiftMetric.weighted);
     });
 
     test('classifies as repsPerSet when no set carried weight or a hold', () {
@@ -104,7 +107,7 @@ void main() {
 
       final series = allLiftSeries([session]);
 
-      expect(series['Bench Press']!.single.value, 100 * (1 + 5 / 30));
+      expect(series['Bench Press']!.points.single.value, 100 * (1 + 5 / 30));
     });
 
     test('two sets are both counted in the mean', () {
@@ -114,7 +117,7 @@ void main() {
         sets: [_weighted(weight: 100, reps: 1), _weighted(weight: 90, reps: 1)],
       );
 
-      final point = allLiftSeries([session])['Bench Press']!.single;
+      final point = allLiftSeries([session])['Bench Press']!.points.single;
 
       expect(point.value, 95); // mean of 100 and 90
     });
@@ -132,7 +135,7 @@ void main() {
         ],
       );
 
-      final point = allLiftSeries([session])['Bench Press']!.single;
+      final point = allLiftSeries([session])['Bench Press']!.points.single;
 
       expect(point.value, 90); // mean of 100, 90, 80
     });
@@ -144,7 +147,7 @@ void main() {
         sets: List.generate(5, (_) => _weighted(weight: 100, reps: 1)),
       );
 
-      expect(allLiftSeries([session])['Bench Press']!.single.setsCounted, 3);
+      expect(allLiftSeries([session])['Bench Press']!.points.single.setsCounted, 3);
     });
 
     test('setsPerformed reflects every performed set, not just the counted ones', () {
@@ -154,7 +157,7 @@ void main() {
         sets: List.generate(5, (_) => _weighted(weight: 100, reps: 1)),
       );
 
-      expect(allLiftSeries([session])['Bench Press']!.single.setsPerformed, 5);
+      expect(allLiftSeries([session])['Bench Press']!.points.single.setsPerformed, 5);
     });
 
     test('best is the heaviest single set, independent of the mean', () {
@@ -164,7 +167,7 @@ void main() {
         sets: [_weighted(weight: 100, reps: 1), _weighted(weight: 40, reps: 1)],
       );
 
-      expect(allLiftSeries([session])['Bench Press']!.single.best, 100);
+      expect(allLiftSeries([session])['Bench Press']!.points.single.best, 100);
     });
 
     test('skipped sets are ignored entirely', () {
@@ -174,7 +177,7 @@ void main() {
         sets: [_weighted(weight: 100, reps: 1, skipped: true), _weighted(weight: 60, reps: 1)],
       );
 
-      final point = allLiftSeries([session])['Bench Press']!.single;
+      final point = allLiftSeries([session])['Bench Press']!.points.single;
 
       expect(point.value, 60);
     });
@@ -186,7 +189,24 @@ void main() {
         sets: [_weighted(weight: 60, reps: 20)],
       );
 
-      expect(allLiftSeries([session])['Bench Press'], isEmpty);
+      expect(allLiftSeries([session])['Bench Press']!.points, isEmpty);
+    });
+
+    test('a session where every set is above the 12-rep validity cap counts toward excludedHighRepSessions', () {
+      final validSession = _session(
+        id: 's1',
+        startedAt: DateTime(2026, 1, 5),
+        sets: [_weighted(weight: 100, reps: 1)],
+      );
+      final invalidSession = _session(
+        id: 's2',
+        startedAt: DateTime(2026, 1, 12),
+        sets: [_weighted(weight: 60, reps: 20)],
+      );
+
+      final series = allLiftSeries([validSession, invalidSession])['Bench Press']!;
+
+      expect(series.excludedHighRepSessions, 1);
     });
 
     test('points are ordered chronologically regardless of input order', () {
@@ -201,9 +221,9 @@ void main() {
         sets: [_weighted(weight: 65, reps: 1)],
       );
 
-      final series = allLiftSeries([newer, older])['Bench Press']!;
+      final points = allLiftSeries([newer, older])['Bench Press']!.points;
 
-      expect(series.map((p) => p.value).toList(), [60, 65]);
+      expect(points.map((p) => p.value).toList(), [60, 65]);
     });
 
     test('bodyweight lifts are tracked by reps per set', () {
@@ -213,7 +233,7 @@ void main() {
         sets: [_bodyweight(reps: 8), _bodyweight(reps: 12)],
       );
 
-      final point = allLiftSeries([session])['Pull-up']!.single;
+      final point = allLiftSeries([session])['Pull-up']!.points.single;
 
       expect(point.value, 10); // mean of 8 and 12
     });
@@ -225,12 +245,12 @@ void main() {
         sets: [_timed(heldSeconds: 60), _timed(heldSeconds: 90)],
       );
 
-      final point = allLiftSeries([session])['Plank']!.single;
+      final point = allLiftSeries([session])['Plank']!.points.single;
 
       expect(point.value, 75); // mean of 60 and 90
     });
 
-    test('different exercises logged in the same session get independent series', () {
+    test('a second exercise logged in the same session gets its own series', () {
       final session = _session(
         id: 's1',
         startedAt: DateTime(2026, 1, 5),
@@ -239,8 +259,19 @@ void main() {
 
       final series = allLiftSeries([session]);
 
-      expect(series['Bench Press']!.single.value, 100);
-      expect(series['Squat']!.single.value, 140);
+      expect(series['Squat']!.points.single.value, 140);
+    });
+
+    test('two exercises in the same session don\'t leak values into each other\'s series', () {
+      final session = _session(
+        id: 's1',
+        startedAt: DateTime(2026, 1, 5),
+        sets: [_weighted(weight: 100, reps: 1), _weighted(exerciseName: 'Squat', weight: 140, reps: 1)],
+      );
+
+      final series = allLiftSeries([session]);
+
+      expect(series['Bench Press']!.points.single.value, 100);
     });
 
     test('an exercise never logged has no entry in the map', () {
@@ -296,6 +327,37 @@ void main() {
       );
 
       expect(progress!.currentValue, 110);
+    });
+
+    test('a two-session series reports the real change, not a window that collapses to 0%', () {
+      final series = [
+        _point(DateTime(2026, 1, 1), 100),
+        _point(DateTime(2026, 1, 8), 150),
+      ];
+
+      final progress = computeLiftProgress(
+        series,
+        exerciseName: 'Bench Press',
+        now: DateTime(2026, 1, 9),
+      );
+
+      expect(progress!.percentDelta, 50);
+    });
+
+    test('a three-session series compares the first and last points without an overlapping window', () {
+      final series = [
+        _point(DateTime(2026, 1, 1), 100),
+        _point(DateTime(2026, 1, 8), 120),
+        _point(DateTime(2026, 1, 15), 150),
+      ];
+
+      final progress = computeLiftProgress(
+        series,
+        exerciseName: 'Bench Press',
+        now: DateTime(2026, 1, 16),
+      );
+
+      expect(progress!.percentDelta, 50);
     });
 
     test('status is progressing when the gain clears the noise floor and the best is recent', () {
@@ -394,6 +456,23 @@ void main() {
       expect(progress!.weeksSinceBest, 5);
     });
 
+    test('bestDate is chosen by each session\'s heaviest single set, not its top-three mean', () {
+      final series = [
+        // Lower mean (light back-off sets included) but the heaviest single
+        // set of the two sessions.
+        _point(DateTime(2026, 1, 1), 90, best: 130),
+        _point(DateTime(2026, 1, 8), 100, best: 100),
+      ];
+
+      final progress = computeLiftProgress(
+        series,
+        exerciseName: 'Bench Press',
+        now: DateTime(2026, 1, 9),
+      );
+
+      expect(progress!.bestDate, DateTime(2026, 1, 1));
+    });
+
     test('deload weeks are excluded when picking the current-value endpoint', () {
       final restWeekStart = weekStartOf(DateTime(2026, 1, 29)); // last point's week
       final series = [
@@ -411,7 +490,49 @@ void main() {
         excludedWeekStarts: {restWeekStart},
       );
 
-      expect(progress!.currentValue, 110); // mean of the three points before the rest week
+      expect(progress!.currentValue, 110); // mean of the points before the rest week
+    });
+
+    test('percentPer30Days is normalized by the endpoint comparison span, not the full history span', () {
+      final restWeekStart = weekStartOf(DateTime(2026, 1, 29)); // last point's week
+      final series = [
+        _point(DateTime(2026, 1, 1), 100),
+        _point(DateTime(2026, 1, 8), 100),
+        _point(DateTime(2026, 1, 15), 110),
+        _point(DateTime(2026, 1, 22), 110),
+        _point(DateTime(2026, 1, 29), 40), // rest-week outlier, excluded
+      ];
+
+      final progress = computeLiftProgress(
+        series,
+        exerciseName: 'Bench Press',
+        now: DateTime(2026, 1, 30),
+        excludedWeekStarts: {restWeekStart},
+      );
+
+      // Comparison actually spans Jan 1 -> Jan 22 (21 days), not the full
+      // Jan 1 -> Jan 29 history (28 days) that includes the excluded week.
+      expect(progress!.percentPer30Days, closeTo(10 * 30 / 21, 0.001));
+    });
+
+    test('isExtrapolated reflects the endpoint comparison span, not the full history span', () {
+      final restWeekStart = weekStartOf(DateTime(2026, 2, 20));
+      final series = [
+        _point(DateTime(2026, 1, 1), 100),
+        _point(DateTime(2026, 1, 15), 105),
+        _point(DateTime(2026, 2, 20), 40), // rest-week outlier, 50 days after the first point
+      ];
+
+      final progress = computeLiftProgress(
+        series,
+        exerciseName: 'Bench Press',
+        now: DateTime(2026, 2, 21),
+        excludedWeekStarts: {restWeekStart},
+      );
+
+      // The full history spans 50 days (>=42), but the eligible comparison
+      // (Jan 1 -> Jan 15) is only 14.
+      expect(progress!.isExtrapolated, isTrue);
     });
 
     test('isExtrapolated is true when the series spans less than 42 days', () {
@@ -454,11 +575,11 @@ void main() {
 
     test('excludes a lift with fewer than four sessions', () {
       final series = {
-        'Bench Press': [
+        'Bench Press': _series([
           p(DateTime(2026, 1, 1), 100),
           p(DateTime(2026, 1, 8), 105),
           p(DateTime(2026, 1, 15), 110),
-        ],
+        ]),
       };
 
       expect(rankedLifts(series), isEmpty);
@@ -466,12 +587,12 @@ void main() {
 
     test('excludes a lift spanning fewer than 21 days even with four sessions', () {
       final series = {
-        'Bench Press': [
+        'Bench Press': _series([
           p(DateTime(2026, 1, 1), 100),
           p(DateTime(2026, 1, 3), 101),
           p(DateTime(2026, 1, 5), 102),
           p(DateTime(2026, 1, 7), 103), // 6-day span
-        ],
+        ]),
       };
 
       expect(rankedLifts(series), isEmpty);
@@ -479,30 +600,30 @@ void main() {
 
     test('includes a lift meeting both the session-count and span thresholds', () {
       final series = {
-        'Bench Press': [
+        'Bench Press': _series([
           p(DateTime(2026, 1, 1), 100),
           p(DateTime(2026, 1, 8), 103),
           p(DateTime(2026, 1, 15), 106),
           p(DateTime(2026, 1, 22), 110), // 21-day span
-        ],
+        ]),
       };
 
       expect(rankedLifts(series, now: DateTime(2026, 1, 23)), hasLength(1));
     });
 
     test('sorts lifts by percent-per-30-days descending', () {
-      final fastGainer = [
+      final fastGainer = _series([
         p(DateTime(2026, 1, 1), 100),
         p(DateTime(2026, 1, 8), 100),
         p(DateTime(2026, 1, 15), 100),
         p(DateTime(2026, 1, 22), 120),
-      ];
-      final slowGainer = [
+      ]);
+      final slowGainer = _series([
         p(DateTime(2026, 1, 1), 100),
         p(DateTime(2026, 1, 8), 100),
         p(DateTime(2026, 1, 15), 100),
         p(DateTime(2026, 1, 22), 105),
-      ];
+      ]);
       final series = {'Squat': slowGainer, 'Bench Press': fastGainer};
 
       final ranked = rankedLifts(series, now: DateTime(2026, 1, 23));
@@ -511,23 +632,41 @@ void main() {
     });
 
     test('the only filter restricts the ledger to a single metric', () {
-      final weighted = [
-        _point(DateTime(2026, 1, 1), 100, metric: LiftMetric.estimatedOneRm),
-        _point(DateTime(2026, 1, 8), 100, metric: LiftMetric.estimatedOneRm),
-        _point(DateTime(2026, 1, 15), 100, metric: LiftMetric.estimatedOneRm),
-        _point(DateTime(2026, 1, 22), 105, metric: LiftMetric.estimatedOneRm),
-      ];
-      final bodyweight = [
+      final weighted = _series([
+        _point(DateTime(2026, 1, 1), 100, metric: LiftMetric.weighted),
+        _point(DateTime(2026, 1, 8), 100, metric: LiftMetric.weighted),
+        _point(DateTime(2026, 1, 15), 100, metric: LiftMetric.weighted),
+        _point(DateTime(2026, 1, 22), 105, metric: LiftMetric.weighted),
+      ]);
+      final bodyweight = _series([
         _point(DateTime(2026, 1, 1), 8, metric: LiftMetric.repsPerSet),
         _point(DateTime(2026, 1, 8), 8, metric: LiftMetric.repsPerSet),
         _point(DateTime(2026, 1, 15), 8, metric: LiftMetric.repsPerSet),
         _point(DateTime(2026, 1, 22), 10, metric: LiftMetric.repsPerSet),
-      ];
+      ]);
       final series = {'Bench Press': weighted, 'Pull-up': bodyweight};
 
       final ranked = rankedLifts(series, only: LiftMetric.repsPerSet, now: DateTime(2026, 1, 23));
 
       expect(ranked.map((l) => l.exerciseName).toList(), ['Pull-up']);
+    });
+
+    test('threads a series\' excludedHighRepSessions count into its progress summary', () {
+      final series = {
+        'Bench Press': _series(
+          [
+            p(DateTime(2026, 1, 1), 100),
+            p(DateTime(2026, 1, 8), 103),
+            p(DateTime(2026, 1, 15), 106),
+            p(DateTime(2026, 1, 22), 110),
+          ],
+          excludedHighRepSessions: 3,
+        ),
+      };
+
+      final ranked = rankedLifts(series, now: DateTime(2026, 1, 23));
+
+      expect(ranked.single.excludedHighRepSessions, 3);
     });
   });
 }
