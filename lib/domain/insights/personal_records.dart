@@ -1,3 +1,4 @@
+import 'package:fitness_planner/domain/insights/insights_shared.dart';
 import 'package:fitness_planner/domain/models/run_session.dart';
 import 'package:fitness_planner/domain/models/workout_session.dart';
 
@@ -89,7 +90,7 @@ List<PersonalRecord> computePersonalRecords(
   List<WorkoutSession> sessions,
   List<RunSession> runs,
 ) {
-  final sorted = [...sessions]..sort((a, b) => a.startedAt.compareTo(b.startedAt));
+  final sorted = chronological(sessions);
   final sortedRuns = [...runs]..sort((a, b) => a.startedAt.compareTo(b.startedAt));
 
   final heaviestWeight = <String, _Progress>{};
@@ -125,10 +126,12 @@ List<PersonalRecord> computePersonalRecords(
           bestWeightSet[set.exerciseName] = (weight: set.actualWeight, reps: set.actualReps);
         }
 
-        final epley = set.actualWeight * (1 + set.actualReps / 30);
-        final currentEpley = bestEpley[set.exerciseName];
-        if (currentEpley == null || epley > currentEpley) {
-          bestEpley[set.exerciseName] = epley;
+        final epley = estimatedOneRm(set.actualWeight, set.actualReps);
+        if (epley != null) {
+          final currentEpley = bestEpley[set.exerciseName];
+          if (currentEpley == null || epley > currentEpley) {
+            bestEpley[set.exerciseName] = epley;
+          }
         }
       } else {
         final current = bestReps[set.exerciseName];
