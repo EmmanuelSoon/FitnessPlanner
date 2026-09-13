@@ -204,6 +204,7 @@ class _WorkoutSessionScreenState
         skipped: false,
         heldSeconds: _holdTotal,
         targetSeconds: _holdTotal,
+        category: e.category,
       ));
     } else {
       _logged.add(LoggedSet(
@@ -213,6 +214,7 @@ class _WorkoutSessionScreenState
         actualReps: _actualReps,
         actualWeight: _actualWeight,
         skipped: false,
+        category: e.category,
       ));
     }
     _vibrate(250); // Item 2.2 — set complete feedback
@@ -232,6 +234,7 @@ class _WorkoutSessionScreenState
       actualReps: 0,
       actualWeight: 0,
       skipped: true,
+      category: e.category,
     ));
     _advance();
   }

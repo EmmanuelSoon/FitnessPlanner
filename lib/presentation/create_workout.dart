@@ -49,6 +49,7 @@ class _CreateWorkoutScreenState extends State<CreateWorkoutScreen> {
                     restTime: e.restTime,
                     weight: e.weight,
                     timedDuration: e.timedDuration,
+                    category: e.category,
                   ),
                 )
                 .toList(),
@@ -66,6 +67,7 @@ class _CreateWorkoutScreenState extends State<CreateWorkoutScreen> {
             restTime: e.restTime,
             weight: e.weight,
             timedDuration: e.timedDuration,
+            category: e.category,
           ),
         ),
       );
@@ -83,7 +85,7 @@ class _CreateWorkoutScreenState extends State<CreateWorkoutScreen> {
 
   // ─── Exercise list mutations ─────────────────────────────────────────
 
-  void _addExercise({String name = '', bool isTimed = false}) {
+  void _addExercise({String name = '', bool isTimed = false, String? category}) {
     setState(() {
       _exercises.add(
         Superset(
@@ -95,6 +97,7 @@ class _CreateWorkoutScreenState extends State<CreateWorkoutScreen> {
               restTime: Duration.zero,
               weight: 0,
               timedDuration: isTimed ? const Duration(seconds: 30) : null,
+              category: category,
             ),
           ],
           sets: 3,
@@ -114,8 +117,11 @@ class _CreateWorkoutScreenState extends State<CreateWorkoutScreen> {
   void _openExercisePicker() {
     showExerciseLibraryPicker(
       context: context,
-      onSelected: (template) =>
-          _addExercise(name: template.name, isTimed: template.isTimed),
+      onSelected: (template) => _addExercise(
+        name: template.name,
+        isTimed: template.isTimed,
+        category: template.category,
+      ),
       onBlank: (typedName) => _addExercise(name: typedName),
     );
   }
@@ -829,6 +835,10 @@ class _ExerciseSlotCardState extends State<_ExerciseSlotCard> {
   late double _weightValue;
   late bool _isTimed;
   late Duration _timedValue;
+  // Whether the category was ever explicitly set by the user (via the
+  // picker) rather than only auto-filled from a template — protects a
+  // deliberate tag from being silently replaced by a later template pick.
+  late bool _categoryOverridden;
 
   @override
   void initState() {
@@ -838,22 +848,23 @@ class _ExerciseSlotCardState extends State<_ExerciseSlotCard> {
     _weightValue = e.weight;
     _isTimed = e.timedDuration != null;
     _timedValue = e.timedDuration ?? const Duration(seconds: 30);
+    _categoryOverridden = e.category != null;
   }
 
-  void _setTimed(bool timed) {
+  void _applyTimedMutation(bool timed) {
     final e = widget.exercise;
-    setState(() {
-      _isTimed = timed;
-      if (timed) {
-        e.timedDuration = _timedValue;
-        e.reps = 0;
-      } else {
-        e.timedDuration = null;
-        _repsValue = 10;
-        e.reps = 10;
-      }
-    });
+    _isTimed = timed;
+    if (timed) {
+      e.timedDuration = _timedValue;
+      e.reps = 0;
+    } else {
+      e.timedDuration = null;
+      _repsValue = 10;
+      e.reps = 10;
+    }
   }
+
+  void _setTimed(bool timed) => setState(() => _applyTimedMutation(timed));
 
   void _toggleMode() => _setTimed(!_isTimed);
 
@@ -862,8 +873,22 @@ class _ExerciseSlotCardState extends State<_ExerciseSlotCard> {
   }
 
   void _applyTemplate(LibraryExercise template) {
-    _rename(template.name);
-    if (template.isTimed != _isTimed) _setTimed(template.isTimed);
+    setState(() {
+      widget.exercise.name = template.name;
+      if (template.isTimed != _isTimed) _applyTimedMutation(template.isTimed);
+      if (!_categoryOverridden) widget.exercise.category = template.category;
+    });
+  }
+
+  void _pickCategory() {
+    showCategoryPicker(
+      context: context,
+      current: widget.exercise.category,
+      onSelected: (category) => setState(() {
+        widget.exercise.category = category;
+        _categoryOverridden = category != null;
+      }),
+    );
   }
 
   @override
@@ -915,6 +940,28 @@ class _ExerciseSlotCardState extends State<_ExerciseSlotCard> {
                   onTyped: _rename,
                 ),
               ),
+              GestureDetector(
+                onTap: _pickCategory,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: c.surfaceAlt,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    e.category ?? 'Category',
+                    style: bodyStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w500,
+                      color: e.category == null ? c.inkMute : c.inkDim,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 4),
               GestureDetector(
                 onTap: _toggleMode,
                 child: Container(

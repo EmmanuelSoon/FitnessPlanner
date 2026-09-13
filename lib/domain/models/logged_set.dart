@@ -7,6 +7,10 @@ class LoggedSet {
   final bool skipped;
   final int? heldSeconds;
   final int? targetSeconds;
+  /// Muscle group tag, denormalized from the source [Exercise] at log time —
+  /// null when the exercise was never manually tagged, in which case
+  /// downstream consumers fall back to a library lookup by name.
+  final String? category;
 
   LoggedSet({
     required this.exerciseName,
@@ -17,6 +21,7 @@ class LoggedSet {
     required this.skipped,
     this.heldSeconds,
     this.targetSeconds,
+    this.category,
   });
 
   Map<String, dynamic> toJson() => {
@@ -28,6 +33,7 @@ class LoggedSet {
     'skipped': skipped,
     if (heldSeconds != null) 'heldSeconds': heldSeconds,
     if (targetSeconds != null) 'targetSeconds': targetSeconds,
+    if (category != null) 'category': category,
   };
 
   factory LoggedSet.fromJson(Map<String, dynamic> json) => LoggedSet(
@@ -39,5 +45,6 @@ class LoggedSet {
     skipped: json['skipped'] as bool,
     heldSeconds: json['heldSeconds'] as int?,
     targetSeconds: json['targetSeconds'] as int?,
+    category: json['category'] as String?,
   );
 }

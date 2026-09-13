@@ -214,4 +214,61 @@ void main() {
       expect(find.byIcon(icon), findsOneWidget);
     }
   });
+
+  testWidgets('picking an exercise from the library defaults its category chip', (tester) async {
+    await pumpCreateWorkout(tester);
+    await tester.enterText(find.byType(TextField).first, 'Push Day');
+
+    await tester.tap(find.text('Add exercise'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField), 'Bench Press');
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Bench Press').last);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Chest'), findsOneWidget);
+  });
+
+  testWidgets('manually tagging a category via the picker overrides the auto-detected group on save', (tester) async {
+    await pumpCreateWorkout(tester);
+    await tester.enterText(find.byType(TextField).first, 'Push Day');
+    await _addExerciseByTyping(tester, 'Custom Move');
+
+    await tester.tap(find.text('Category'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Legs'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Legs'), findsOneWidget);
+
+    await tester.tap(find.byIcon(Icons.check_rounded));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Save workout'));
+    await tester.pumpAndSettle();
+
+    final saved = fakeRepo.store.values.single;
+    expect(saved.exercises.single.exercises.single.category, 'Legs');
+  });
+
+  testWidgets('a manually tagged category is preserved when a different exercise template is later applied', (tester) async {
+    await pumpCreateWorkout(tester);
+    await tester.enterText(find.byType(TextField).first, 'Push Day');
+    await _addExerciseByTyping(tester, 'Custom Move');
+
+    await tester.tap(find.text('Category'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Legs'));
+    await tester.pumpAndSettle();
+
+    // Re-open the exercise name field and pick a different library template,
+    // whose own category ("Chest") must not silently overwrite the manual tag.
+    await tester.tap(find.text('Custom Move'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField), 'Bench Press');
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Bench Press').last);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Legs'), findsOneWidget);
+  });
 }

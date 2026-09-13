@@ -156,4 +156,36 @@ void main() {
     expect(saved.sets.single.exerciseName, 'Squat');
     expect(saved.sets.single.skipped, isFalse);
   });
+
+  testWidgets('a logged set carries its exercise\'s category', (tester) async {
+    final workout = Workout(
+      id: 'w1',
+      name: 'Test Workout',
+      exercises: [
+        Superset(
+          id: 's1',
+          exercises: [
+            Exercise(
+              name: 'Squat',
+              reps: 10,
+              sets: 1,
+              restTime: Duration.zero,
+              weight: 50,
+              category: 'Legs',
+            ),
+          ],
+          sets: 1,
+          restAfterSet: Duration.zero,
+        ),
+      ],
+    );
+    await pumpSession(tester, workout);
+    await skipCountdown(tester);
+
+    await tester.tap(find.text('Set complete'));
+    await tester.pumpAndSettle();
+
+    final saved = fakeSessionRepo.store.values.single;
+    expect(saved.sets.single.category, 'Legs');
+  });
 }

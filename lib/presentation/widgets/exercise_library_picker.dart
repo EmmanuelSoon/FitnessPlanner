@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:fitness_planner/domain/insights/training_load.dart' show kUncategorized;
 import 'package:fitness_planner/domain/models/exercise_library.dart';
 import 'package:fitness_planner/theme/app_theme.dart';
 import 'package:fitness_planner/presentation/widgets/app_widgets.dart';
@@ -221,6 +222,175 @@ class _ExerciseLibraryPageState extends State<_ExerciseLibraryPage> {
           ),
         ],
       ),
+      ),
+    );
+  }
+}
+
+/// The distinct muscle-group categories in [kExerciseLibrary], in their
+/// first-appearance order, plus [kUncategorized] for anything that isn't one
+/// of them.
+final List<String> kExerciseCategories = () {
+  final seen = <String>{};
+  final result = <String>[];
+  for (final e in kExerciseLibrary) {
+    if (seen.add(e.category)) result.add(e.category);
+  }
+  result.add(kUncategorized);
+  return result;
+}();
+
+/// Bottom sheet letting the user manually set (or clear) an exercise's
+/// muscle-group tag, overriding whatever the library lookup would resolve.
+void showCategoryPicker({
+  required BuildContext context,
+  required String? current,
+  required void Function(String?) onSelected,
+}) {
+  showModalBottomSheet(
+    context: context,
+    isScrollControlled: true,
+    backgroundColor: Colors.transparent,
+    builder: (_) => _CategoryPicker(current: current, onSelected: onSelected),
+  );
+}
+
+class _CategoryPicker extends StatelessWidget {
+  final String? current;
+  final void Function(String?) onSelected;
+
+  const _CategoryPicker({required this.current, required this.onSelected});
+
+  @override
+  Widget build(BuildContext context) {
+    final c = AppThemeData.of(context).c;
+    final maxHeight = MediaQuery.of(context).size.height * 0.7;
+
+    return Container(
+      constraints: BoxConstraints(maxHeight: maxHeight),
+      decoration: BoxDecoration(
+        color: c.surface,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(kRadius + 8)),
+      ),
+      padding: EdgeInsets.only(top: 12, bottom: MediaQuery.of(context).padding.bottom),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Center(
+            child: Container(
+              width: 36,
+              height: 4,
+              decoration: BoxDecoration(
+                color: c.hairline,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 22),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Muscle group',
+                  style: displayStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.w600,
+                    color: c.ink,
+                    letterSpacing: -0.5,
+                  ),
+                ),
+                SizedBox(
+                  width: 36,
+                  height: 36,
+                  child: IconButton(
+                    padding: EdgeInsets.zero,
+                    icon: Icon(Icons.close, size: 20, color: c.ink),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+          Flexible(
+            child: ListView(
+              shrinkWrap: true,
+              padding: const EdgeInsets.symmetric(horizontal: 22),
+              children: [
+                if (current != null)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 6),
+                    child: GestureDetector(
+                      onTap: () {
+                        Navigator.pop(context);
+                        onSelected(null);
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                        decoration: BoxDecoration(
+                          color: c.surfaceAlt,
+                          borderRadius: BorderRadius.circular(kRadius - 4),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(Icons.close_rounded, size: 16, color: c.inkDim),
+                            const SizedBox(width: 10),
+                            Text(
+                              'Clear tag (use auto-detected group)',
+                              style: bodyStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w500,
+                                color: c.inkDim,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                for (final category in kExerciseCategories)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 6),
+                    child: GestureDetector(
+                      onTap: () {
+                        Navigator.pop(context);
+                        onSelected(category);
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                        decoration: BoxDecoration(
+                          color: c.surfaceAlt,
+                          borderRadius: BorderRadius.circular(kRadius - 4),
+                          border: Border.all(
+                            color: current == category ? c.accent : Colors.transparent,
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                category,
+                                style: bodyStyle(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w500,
+                                  color: c.ink,
+                                ),
+                              ),
+                            ),
+                            if (current == category)
+                              Icon(Icons.check_rounded, size: 18, color: c.accent),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }

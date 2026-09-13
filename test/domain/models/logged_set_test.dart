@@ -55,5 +55,32 @@ void main() {
       expect(restored.heldSeconds, 42);
       expect(restored.targetSeconds, 45);
     });
+
+    test('round-trips a manually tagged category', () {
+      final set = LoggedSet(
+        exerciseName: 'Bench Press',
+        targetReps: 8,
+        targetWeight: 60,
+        actualReps: 8,
+        actualWeight: 60,
+        skipped: false,
+        category: 'Chest',
+      );
+
+      expect(LoggedSet.fromJson(set.toJson()).category, 'Chest');
+    });
+
+    test('fromJson defaults category to null when absent from the map (old data)', () {
+      final json = {
+        'exerciseName': 'Bench Press',
+        'targetReps': 8,
+        'targetWeight': 60,
+        'actualReps': 8,
+        'actualWeight': 60,
+        'skipped': false,
+      };
+
+      expect(LoggedSet.fromJson(json).category, isNull);
+    });
   });
 }

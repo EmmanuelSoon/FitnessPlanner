@@ -6,6 +6,9 @@ class Exercise {
   double weight;
   /// Non-null ⇒ timed exercise (reps field ignored during warm-up).
   Duration? timedDuration;
+  /// Muscle group tag, e.g. "Chest" — null when never manually set, in which
+  /// case downstream consumers fall back to a library lookup by name.
+  String? category;
 
   Exercise({
     required this.name,
@@ -14,6 +17,7 @@ class Exercise {
     required this.restTime,
     this.weight = 0.0,
     this.timedDuration,
+    this.category,
   });
 
   List<Exercise> generateSequence() {
@@ -26,6 +30,7 @@ class Exercise {
         restTime: restTime,
         weight: weight,
         timedDuration: timedDuration,
+        category: category,
       ),
     );
   }
@@ -38,6 +43,7 @@ class Exercise {
     'weight': weight,
     if (timedDuration != null)
       'timedDurationMicroseconds': timedDuration!.inMicroseconds,
+    if (category != null) 'category': category,
   };
 
   factory Exercise.fromJson(Map<String, dynamic> json) => Exercise(
@@ -49,5 +55,6 @@ class Exercise {
     timedDuration: json['timedDurationMicroseconds'] != null
         ? Duration(microseconds: json['timedDurationMicroseconds'] as int)
         : null,
+    category: json['category'] as String?,
   );
 }
