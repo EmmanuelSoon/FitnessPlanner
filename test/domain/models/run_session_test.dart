@@ -97,4 +97,17 @@ void main() {
       expect(run.formattedPace, '--:--');
     });
   });
+
+  group('runTypeLabel', () {
+    test('gives every RunType a distinct, non-empty label', () {
+      final labels = [for (final t in RunType.values) runTypeLabel(t)];
+
+      expect(labels.toSet().length, RunType.values.length);
+      expect(labels.every((l) => l.isNotEmpty), isTrue);
+    });
+
+    test('labels easy runs as "Easy"', () {
+      expect(runTypeLabel(RunType.easy), 'Easy');
+    });
+  });
 }

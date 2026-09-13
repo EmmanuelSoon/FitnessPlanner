@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:fitness_planner/data/run_repository.dart';
@@ -10,6 +11,7 @@ import 'package:fitness_planner/domain/models/run_session.dart';
 import 'package:fitness_planner/domain/models/workout_session.dart';
 import 'package:fitness_planner/presentation/insights_screen.dart';
 import 'package:fitness_planner/presentation/lift_detail_screen.dart';
+import 'package:fitness_planner/providers/run_providers.dart';
 
 import '../support/fake_repositories.dart';
 import '../support/fixtures.dart';
@@ -621,5 +623,43 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.textContaining('No runs logged in the last 8 weeks.'), findsOneWidget);
+  });
+
+  testWidgets('the run-type filter resets once the selected type has no runs left', (tester) async {
+    final thisWeek = _mondayOf(DateTime.now());
+    fakeRepo.store['ws1'] = buildWorkoutSession(id: 'ws1', startedAt: DateTime(2026, 1, 5));
+    fakeRunRepo.store['r1'] =
+        buildRunSession(id: 'r1', startedAt: thisWeek.add(const Duration(days: 1, hours: 7))); // easy
+    fakeRunRepo.store['r2'] = RunSession(
+      id: 'r2',
+      startedAt: thisWeek.add(const Duration(days: 2, hours: 7)),
+      endedAt: thisWeek.add(const Duration(days: 2, hours: 7, minutes: 20)),
+      distanceMeters: 4000,
+      runType: RunType.tempo,
+    );
+
+    final container = ProviderContainer(
+      overrides: [
+        sessionRepositoryProvider.overrideWithValue(fakeRepo),
+        runRepositoryProvider.overrideWithValue(fakeRunRepo),
+      ],
+    );
+    addTearDown(container.dispose);
+    await container.read(runsProvider.future);
+    await pumpApp(tester, const InsightsScreen(), container: container);
+
+    await tester.tap(find.text('Running'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Tempo'));
+    await tester.pumpAndSettle();
+    expect(find.text('Tempo'), findsOneWidget);
+
+    // The only Tempo run is deleted out from under the current selection —
+    // simulating the run being edited/removed while its filter is active.
+    await container.read(runsProvider.notifier).deleteRun('r2');
+    await tester.pumpAndSettle();
+
+    expect(find.text('Tempo'), findsNothing);
+    expect(find.textContaining('No runs logged in the last 8 weeks.'), findsNothing);
   });
 }

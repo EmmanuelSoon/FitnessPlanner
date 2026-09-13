@@ -2,6 +2,30 @@ import 'package:fitness_planner/domain/format.dart';
 
 enum RunType { easy, tempo, interval, long, race, treadmill, other }
 
+/// A human-readable label for [type] — the one canonical source for this
+/// mapping. Several screens independently wrote their own copy of this
+/// switch before it existed here, and they'd already drifted from each
+/// other (e.g. `RunType.other` reading as "Other" in some, "Run" in
+/// others); new call sites should use this instead of writing another one.
+String runTypeLabel(RunType type) {
+  switch (type) {
+    case RunType.easy:
+      return 'Easy';
+    case RunType.tempo:
+      return 'Tempo';
+    case RunType.interval:
+      return 'Interval';
+    case RunType.long:
+      return 'Long';
+    case RunType.race:
+      return 'Race';
+    case RunType.treadmill:
+      return 'Treadmill';
+    case RunType.other:
+      return 'Other';
+  }
+}
+
 enum RunSource { manual, healthConnect }
 
 class RunSession {
