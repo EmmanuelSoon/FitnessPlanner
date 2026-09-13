@@ -6,6 +6,7 @@ import 'package:fitness_planner/data/session_repository.dart';
 import 'package:fitness_planner/domain/insights/insights_window.dart';
 import 'package:fitness_planner/domain/insights/strength_progress.dart';
 import 'package:fitness_planner/domain/models/logged_set.dart';
+import 'package:fitness_planner/domain/models/run_session.dart';
 import 'package:fitness_planner/domain/models/workout_session.dart';
 import 'package:fitness_planner/presentation/insights_screen.dart';
 
@@ -533,4 +534,63 @@ void main() {
     expect(find.textContaining('No records yet — log a run'), findsOneWidget);
   });
 
+  testWidgets('no run-type selector shows when every logged run shares one type', (tester) async {
+    fakeRepo.store['ws1'] = buildWorkoutSession(id: 'ws1', startedAt: DateTime(2026, 1, 5));
+    fakeRunRepo.store['r1'] = buildRunSession(id: 'r1', startedAt: DateTime(2026, 1, 5));
+
+    await pumpInsights(tester);
+    await tester.tap(find.text('Running'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Easy'), findsNothing);
+  });
+
+  testWidgets('a run-type selector appears once more than one type is logged', (tester) async {
+    fakeRepo.store['ws1'] = buildWorkoutSession(id: 'ws1', startedAt: DateTime(2026, 1, 5));
+    fakeRunRepo.store['r1'] =
+        buildRunSession(id: 'r1', startedAt: DateTime(2026, 1, 5)); // easy, per the fixture default
+    fakeRunRepo.store['r2'] = RunSession(
+      id: 'r2',
+      startedAt: DateTime(2026, 1, 12, 7),
+      endedAt: DateTime(2026, 1, 12, 7, 20),
+      distanceMeters: 4000,
+      runType: RunType.tempo,
+    );
+
+    await pumpInsights(tester);
+    await tester.tap(find.text('Running'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('All'), findsOneWidget);
+    expect(find.text('Easy'), findsOneWidget);
+    expect(find.text('Tempo'), findsOneWidget);
+  });
+
+  testWidgets('selecting a run type filters the pace trend to only that type\'s runs', (tester) async {
+    fakeRepo.store['ws1'] = buildWorkoutSession(id: 'ws1', startedAt: DateTime(2026, 1, 5));
+    final thisWeek = _mondayOf(DateTime.now());
+    fakeRunRepo.store['r1'] = buildRunSession(
+      id: 'r1',
+      startedAt: thisWeek.add(const Duration(days: 1, hours: 7)),
+    ); // easy, inside the 8-week window
+    fakeRunRepo.store['r2'] = RunSession(
+      id: 'r2',
+      // Outside the 8-week window, so filtering to Tempo alone leaves the
+      // pace trend with no data in range, unlike the unfiltered "All" view.
+      startedAt: thisWeek.subtract(const Duration(days: 100)),
+      endedAt: thisWeek.subtract(const Duration(days: 100)).add(const Duration(minutes: 20)),
+      distanceMeters: 4000,
+      runType: RunType.tempo,
+    );
+
+    await pumpInsights(tester);
+    await tester.tap(find.text('Running'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('No runs logged in the last 8 weeks.'), findsNothing);
+
+    await tester.tap(find.text('Tempo'));
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('No runs logged in the last 8 weeks.'), findsOneWidget);
+  });
 }

@@ -130,6 +130,25 @@ String _windowCaption(InsightsWindow window) {
   }
 }
 
+String _runTypeLabel(RunType type) {
+  switch (type) {
+    case RunType.easy:
+      return 'Easy';
+    case RunType.tempo:
+      return 'Tempo';
+    case RunType.interval:
+      return 'Interval';
+    case RunType.long:
+      return 'Long';
+    case RunType.race:
+      return 'Race';
+    case RunType.treadmill:
+      return 'Treadmill';
+    case RunType.other:
+      return 'Other';
+  }
+}
+
 /// One current-week bucket plus enough trailing weeks to compare against —
 /// "this week's sets" is always literally this week, independent of the
 /// ledger's own window selector above it.
@@ -191,6 +210,9 @@ class _InsightsScreenState extends ConsumerState<InsightsScreen> {
   // doesn't land on an all-zero Strength view by default.
   String? _mode;
   InsightsWindow _window = InsightsWindow.eightWeeks;
+  // Null means "All" — every logged type blended together, the unfiltered
+  // behavior from before this filter existed.
+  RunType? _runType;
 
   // Memoized on the sessions and runs lists' identity: `sessionsProvider`
   // and `runsProvider` hand back the same List instance across rebuilds
@@ -201,6 +223,9 @@ class _InsightsScreenState extends ConsumerState<InsightsScreen> {
   List<RunSession>? _cachedRuns;
   List<WeekRunStats>? _cachedWeeklyRunStats;
   DateTime? _cachedRunWeekStart;
+  List<WeekRunStats>? _cachedPaceWeeks;
+  RunType? _cachedPaceWeeksType;
+  DateTime? _cachedPaceWeeksWeekStart;
   List<PersonalRecord>? _cachedRecords;
   Map<String, LiftSeries>? _cachedAllLiftSeries;
   List<WeekLoad>? _cachedWeekLoads;
@@ -221,6 +246,7 @@ class _InsightsScreenState extends ConsumerState<InsightsScreen> {
     if (!identical(_cachedRuns, runs)) {
       _cachedRuns = runs;
       _cachedWeeklyRunStats = null;
+      _cachedPaceWeeks = null;
       _cachedRecords = null;
     }
   }
@@ -238,6 +264,24 @@ class _InsightsScreenState extends ConsumerState<InsightsScreen> {
       _cachedRunWeekStart = weekStart;
     }
     return _cachedWeeklyRunStats!;
+  }
+
+  /// The pace trend's own weekly series, filtered by [_runType] — kept
+  /// separate from [_weeklyRunStatsFor]'s all-types series (used by the
+  /// distance chart and "this week" strip, which aren't split by type)
+  /// since blending an easy run's pace with a tempo run's describes
+  /// neither.
+  List<WeekRunStats> _paceWeeksFor(List<WorkoutSession> sessions, List<RunSession> runs) {
+    _sync(sessions, runs);
+    final weekStart = weekStartOf(DateTime.now());
+    if (_cachedPaceWeeks == null ||
+        _cachedPaceWeeksType != _runType ||
+        _cachedPaceWeeksWeekStart != weekStart) {
+      _cachedPaceWeeks = weeklyRunStats(runs, type: _runType);
+      _cachedPaceWeeksType = _runType;
+      _cachedPaceWeeksWeekStart = weekStart;
+    }
+    return _cachedPaceWeeks!;
   }
 
   /// Every lift's full logged history, one pass — the window selector then
@@ -330,6 +374,8 @@ class _InsightsScreenState extends ConsumerState<InsightsScreen> {
                   if (sessions.isEmpty && runs.isEmpty) return const _EmptyState();
 
                   final runWeeks = _weeklyRunStatsFor(sessions, runs);
+                  final paceWeeks = _paceWeeksFor(sessions, runs);
+                  final runTypes = runTypesPresent(runs);
                   final records = _recordsFor(sessions, runs);
                   final mode = _mode ?? (sessions.isEmpty && runs.isNotEmpty ? 'Running' : 'Strength');
 
@@ -351,6 +397,10 @@ class _InsightsScreenState extends ConsumerState<InsightsScreen> {
                     weeklyLoad: comparisons,
                     thisWeekSessionCount: weekLoads.last.sessionCount,
                     totalWorkingSets: weekLoads.last.totalWorkingSets,
+                    paceWeeks: paceWeeks,
+                    runTypes: runTypes,
+                    selectedRunType: _runType,
+                    onSelectRunType: (t) => setState(() => _runType = t),
                   );
                 },
               ),
@@ -374,6 +424,10 @@ class _Body extends StatelessWidget {
   final List<CategoryLoadComparison> weeklyLoad;
   final int thisWeekSessionCount;
   final int totalWorkingSets;
+  final List<WeekRunStats> paceWeeks;
+  final List<RunType> runTypes;
+  final RunType? selectedRunType;
+  final ValueChanged<RunType?> onSelectRunType;
 
   const _Body({
     required this.sessionCount,
@@ -387,6 +441,10 @@ class _Body extends StatelessWidget {
     required this.weeklyLoad,
     required this.thisWeekSessionCount,
     required this.totalWorkingSets,
+    required this.paceWeeks,
+    required this.runTypes,
+    required this.selectedRunType,
+    required this.onSelectRunType,
   });
 
   @override
@@ -469,7 +527,18 @@ class _Body extends StatelessWidget {
           const SizedBox(height: 22),
           const _SectionLabel('Pace trend'),
           const SizedBox(height: 10),
-          _PaceTrendCard(weeks: runWeeks),
+          if (runTypes.length > 1) ...[
+            SegmentedControl(
+              options: ['All', for (final t in runTypes) _runTypeLabel(t)],
+              value: selectedRunType == null ? 'All' : _runTypeLabel(selectedRunType!),
+              onChanged: (label) => onSelectRunType(
+                label == 'All' ? null : runTypes.firstWhere((t) => _runTypeLabel(t) == label),
+              ),
+              small: true,
+            ),
+            const SizedBox(height: 10),
+          ],
+          _PaceTrendCard(weeks: paceWeeks),
         ],
         const SizedBox(height: 22),
         _RowLink(

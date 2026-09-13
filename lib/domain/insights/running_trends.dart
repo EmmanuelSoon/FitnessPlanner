@@ -25,10 +25,15 @@ class WeekRunStats {
 /// current time). Weeks run Monday-Sunday, same buckets as [weekStartOf]
 /// uses for training volume. Weeks with no logged runs are included with
 /// zeroed figures, so a trend chart shows gaps rather than skipping them.
+/// [type] restricts the buckets to one [RunType] — an easy run and a
+/// tempo run in the same week would otherwise blend into one pace that
+/// describes neither, since their paces mean structurally different
+/// things. Null (the default) keeps every type, unchanged from before.
 List<WeekRunStats> weeklyRunStats(
   List<RunSession> runs, {
   int weeks = 8,
   DateTime? now,
+  RunType? type,
 }) {
   final bucketStarts = weekBucketStarts(weeks: weeks, now: now);
 
@@ -37,6 +42,7 @@ List<WeekRunStats> weeklyRunStats(
   final runCountByWeek = <DateTime, int>{for (final start in bucketStarts) start: 0};
 
   for (final run in runs) {
+    if (type != null && run.runType != type) continue;
     final bucket = weekStartOf(run.startedAt);
     if (!distanceByWeek.containsKey(bucket)) continue;
 
@@ -56,4 +62,12 @@ List<WeekRunStats> weeklyRunStats(
             : null,
       ),
   ];
+}
+
+/// The distinct [RunType]s logged anywhere in [runs], in the enum's own
+/// declared order — used to build a type filter that never offers a type
+/// the user has never actually logged.
+List<RunType> runTypesPresent(List<RunSession> runs) {
+  final present = runs.map((r) => r.runType).toSet();
+  return [for (final t in RunType.values) if (present.contains(t)) t];
 }

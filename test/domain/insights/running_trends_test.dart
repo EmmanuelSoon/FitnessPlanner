@@ -8,12 +8,14 @@ RunSession _run({
   required DateTime startedAt,
   required Duration duration,
   required double distanceMeters,
+  RunType runType = RunType.other,
 }) =>
     RunSession(
       id: id,
       startedAt: startedAt,
       endedAt: startedAt.add(duration),
       distanceMeters: distanceMeters,
+      runType: runType,
     );
 
 void main() {
@@ -107,6 +109,70 @@ void main() {
 
       expect(weeks.single.distanceKm, 0);
       expect(weeks.single.runCount, 0);
+    });
+
+    test('a type filter excludes runs of every other type from the bucket entirely', () {
+      final easy = _run(
+        id: 'r1',
+        startedAt: DateTime(2026, 3, 10),
+        duration: const Duration(minutes: 30),
+        distanceMeters: 5000,
+        runType: RunType.easy,
+      );
+      final tempo = _run(
+        id: 'r2',
+        startedAt: DateTime(2026, 3, 11),
+        duration: const Duration(minutes: 20),
+        distanceMeters: 4000,
+        runType: RunType.tempo,
+      );
+
+      final weeks = weeklyRunStats(
+        [easy, tempo],
+        weeks: 1,
+        now: DateTime(2026, 3, 9),
+        type: RunType.tempo,
+      );
+
+      expect(weeks.single.distanceKm, 4);
+      expect(weeks.single.runCount, 1);
+    });
+
+    test('with no type filter, runs of every type are included', () {
+      final easy = _run(
+        id: 'r1',
+        startedAt: DateTime(2026, 3, 10),
+        duration: const Duration(minutes: 30),
+        distanceMeters: 5000,
+        runType: RunType.easy,
+      );
+      final tempo = _run(
+        id: 'r2',
+        startedAt: DateTime(2026, 3, 11),
+        duration: const Duration(minutes: 20),
+        distanceMeters: 4000,
+        runType: RunType.tempo,
+      );
+
+      final weeks = weeklyRunStats([easy, tempo], weeks: 1, now: DateTime(2026, 3, 9));
+
+      expect(weeks.single.runCount, 2);
+    });
+  });
+
+  group('runTypesPresent', () {
+    test('returns no types for an empty run list', () {
+      expect(runTypesPresent(const []), isEmpty);
+    });
+
+    test('returns each distinct type present exactly once', () {
+      final runs = [
+        _run(id: 'r1', startedAt: DateTime(2026, 3, 10), duration: const Duration(minutes: 30), distanceMeters: 5000, runType: RunType.tempo),
+        _run(id: 'r2', startedAt: DateTime(2026, 3, 11), duration: const Duration(minutes: 30), distanceMeters: 5000, runType: RunType.tempo),
+        _run(id: 'r3', startedAt: DateTime(2026, 3, 12), duration: const Duration(minutes: 30), distanceMeters: 5000, runType: RunType.easy),
+      ];
+
+      expect(runTypesPresent(runs), [RunType.easy, RunType.tempo]);
     });
   });
 }
