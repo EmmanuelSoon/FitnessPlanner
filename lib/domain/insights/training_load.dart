@@ -65,17 +65,20 @@ class CategoryLoad {
 class WeekLoad {
   final DateTime weekStart;
   final Map<String, CategoryLoad> byCategory;
-  final int totalWorkingSets;
   final int sessionCount;
   final bool isPartial;
 
   const WeekLoad({
     required this.weekStart,
     required this.byCategory,
-    required this.totalWorkingSets,
     required this.sessionCount,
     required this.isPartial,
   });
+
+  /// Always the sum of [byCategory]'s working sets — derived rather than
+  /// stored, so it can never drift out of sync with the breakdown it's a
+  /// total of.
+  int get totalWorkingSets => byCategory.values.fold(0, (sum, c) => sum + c.workingSets);
 }
 
 class _CategoryAccumulator {
@@ -112,7 +115,6 @@ WeekLoad _buildWeekLoad(DateTime weekStart, List<WorkoutSession> sessions, {requ
   return WeekLoad(
     weekStart: weekStart,
     byCategory: byCategory,
-    totalWorkingSets: byCategory.values.fold(0, (sum, c) => sum + c.workingSets),
     sessionCount: sessions.length,
     isPartial: isPartial,
   );
@@ -213,7 +215,7 @@ List<CategoryLoadComparison> compareToTrailing(
 }) {
   if (weeks.isEmpty) return [];
   final current = weeks.last;
-  final completed = weeks.sublist(0, weeks.length - 1).where((w) => !w.isPartial).toList();
+  final completed = weeks.sublist(0, weeks.length - 1);
   final trailing = completed.length > trailingWeeks
       ? completed.sublist(completed.length - trailingWeeks)
       : completed;

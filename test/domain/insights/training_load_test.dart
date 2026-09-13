@@ -351,7 +351,7 @@ void main() {
       final weeks = [
         _weekLoadFor('Back', 16, weekStart: _week(0)),
         _weekLoadFor('Back', 16, weekStart: _week(1)),
-        WeekLoad(weekStart: _week(2), byCategory: const {}, totalWorkingSets: 0, sessionCount: 1, isPartial: true),
+        WeekLoad(weekStart: _week(2), byCategory: const {}, sessionCount: 1, isPartial: true),
       ];
 
       final comparisons = compareToTrailing(weeks);
@@ -371,7 +371,6 @@ WeekLoad _weekLoadFor(
   byCategory: {
     category: CategoryLoad(category: category, workingSets: workingSets, timedSets: 0, exerciseCount: 1),
   },
-  totalWorkingSets: workingSets,
   sessionCount: 1,
   isPartial: isPartial,
 );
