@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:fitness_planner/domain/models/logged_set.dart';
 import 'package:fitness_planner/presentation/widgets/number_picker_sheet.dart';
 import 'package:fitness_planner/theme/app_theme.dart';

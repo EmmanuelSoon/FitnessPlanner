@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -276,6 +276,15 @@ void main() {
     await pumpPreview(tester, workout, surfaceSize: const Size(360, 800));
 
     expect(tester.takeException(), isNull);
+    // find.text matches by string content, which stays the same whether
+    // TextOverflow.ellipsis visually truncates it or not — so also assert
+    // the rendered height stays single-line. A value pushed into the
+    // squeezed SETS/REPS/WEIGHT/REST row (the pre-fix layout) wraps to a
+    // second line there instead of throwing, which the exception check
+    // above can't see but this height comparison catches.
+    final labelHeight = tester.getSize(find.text('LAST TIME')).height;
+    final valueHeight = tester.getSize(find.text('12 × 103kg')).height;
+    expect(valueHeight, lessThan(labelHeight * 2));
   });
 
   testWidgets('falls back to the workout template when there is no prior session', (tester) async {

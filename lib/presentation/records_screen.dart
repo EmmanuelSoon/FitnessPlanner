@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:fitness_planner/domain/insights/personal_records.dart';
 import 'package:fitness_planner/domain/models/run_session.dart';

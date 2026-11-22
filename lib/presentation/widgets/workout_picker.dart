@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import '../../domain/models/workout.dart';
 import '../../domain/models/workout_icons.dart';
 import '../../theme/app_theme.dart';

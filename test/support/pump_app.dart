@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -18,11 +18,7 @@ import 'package:fitness_planner/theme/app_theme.dart';
 /// the very first build).
 ///
 /// Sets a wide phone-sized surface (rather than flutter_test's default
-/// 800×600). Wider than a typical real device on purpose: the app's custom
-/// fonts (SpaceGrotesk/Manrope) aren't loaded under `flutter_test`, so text
-/// falls back to a substitute font with wider glyph metrics — several
-/// screens overflow a true device width (~412) purely because of this test
-/// artifact, not a real layout bug.
+/// 800×600).
 ///
 /// [overrides] is untyped (`Override` isn't part of riverpod 3.4.2's public
 /// API surface) — pass a list of `xProvider.overrideWith(...)` calls as

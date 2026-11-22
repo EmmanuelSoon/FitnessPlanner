@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:fitness_planner/domain/insights/personal_records.dart';
 import 'package:fitness_planner/domain/insights/strength_progress.dart';
 import 'package:fitness_planner/domain/models/logged_set.dart';

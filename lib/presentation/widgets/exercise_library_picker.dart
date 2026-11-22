@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:fitness_planner/domain/insights/training_load.dart' show kUncategorized;
 import 'package:fitness_planner/domain/models/exercise_library.dart';
 import 'package:fitness_planner/theme/app_theme.dart';
