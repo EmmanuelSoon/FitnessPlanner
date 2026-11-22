@@ -15,9 +15,19 @@ import 'package:fitness_planner/theme/app_theme.dart';
 
 // ─── Preview a workout before starting it ─────────────────────────────────
 //
-// Prefills each exercise's reps/weight from the most recent prior session
-// for this workout (falling back to the workout's own template values),
-// and lets the user tweak them before starting the live session.
+// Exercises always start from the workout's own template reps/weight (so
+// edits made in Edit Workout are never lost), and the most recent prior
+// session's actuals for that exercise — if any — are shown alongside as a
+// read-only reference.
+
+// A skipped set has no real reps/weight/hold to show, and a non-timed set
+// logged with zero reps isn't a meaningful "last time" either — both should
+// be passed over in favor of an earlier real set for the same exercise.
+bool _isUsableLoggedSet(LoggedSet s) {
+  if (s.skipped) return false;
+  if (s.heldSeconds != null) return true;
+  return s.actualReps > 0;
+}
 
 class WorkoutStartPreviewScreen extends ConsumerStatefulWidget {
   final Workout workout;
@@ -48,6 +58,7 @@ class _WorkoutStartPreviewScreenState
 
     if (lastSession != null) {
       for (final s in lastSession.sets.reversed) {
+        if (!_isUsableLoggedSet(s)) continue;
         _lastSetByExerciseName.putIfAbsent(s.exerciseName, () => s);
       }
     }
@@ -329,10 +340,6 @@ class _PreviewExerciseCard extends StatelessWidget {
                 onTap: () =>
                     openWeightPicker(context, exercise.weight, onWeightChanged),
               ),
-              if (lastTimeValue != null) ...[
-                const SizedBox(width: 6),
-                _ReadOnlyField(label: 'LAST TIME', value: lastTimeValue),
-              ],
               if (showRest) ...[
                 const SizedBox(width: 6),
                 _TappableField(
@@ -348,6 +355,38 @@ class _PreviewExerciseCard extends StatelessWidget {
               ],
             ],
           ),
+          // A fixed-width column alongside SETS/REPS/WEIGHT/REST would clip
+          // or overflow on narrow phones once the value gets long (e.g.
+          // "12 × 102.5kg") — shown as its own full-width row instead.
+          if (lastTimeValue != null) ...[
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Text(
+                  'LAST TIME',
+                  style: bodyStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w500,
+                    color: c.inkMute,
+                    letterSpacing: 0.6,
+                  ),
+                ),
+                const SizedBox(width: 6),
+                Flexible(
+                  child: Text(
+                    lastTimeValue,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: bodyStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: c.inkDim,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
         ],
       ),
     );
