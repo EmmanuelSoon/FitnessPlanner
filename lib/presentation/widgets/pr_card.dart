@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:fitness_planner/domain/format.dart';
 import 'package:fitness_planner/domain/insights/personal_records.dart';
 import 'package:fitness_planner/presentation/widgets/insights_charts.dart' show fmtTrimmedNumber;

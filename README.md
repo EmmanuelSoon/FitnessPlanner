@@ -15,7 +15,7 @@ A Flutter workout tracking app using local storage (ie. no cloud required).
 
 ## Building
 
-Requires Flutter SDK `^3.11.0`.
+Requires Flutter SDK `>=3.50.1`.
 
 ```bash
 flutter pub get

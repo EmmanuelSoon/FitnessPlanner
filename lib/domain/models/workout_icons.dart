@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Fixed catalog of icons a user can pick from when creating/editing a
 /// workout — shown wherever that workout is represented: the calendar grid,

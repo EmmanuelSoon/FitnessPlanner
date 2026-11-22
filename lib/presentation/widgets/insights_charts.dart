@@ -1,7 +1,7 @@
 import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart' show listEquals, setEquals;
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:fitness_planner/domain/insights/strength_progress.dart';
 import 'package:fitness_planner/theme/app_theme.dart';
 

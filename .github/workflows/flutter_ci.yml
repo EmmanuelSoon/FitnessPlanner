@@ -8,7 +8,7 @@ on:
 
 jobs:
   analyze:
-    name: Upgrade & Analyze
+    name: Analyze
     runs-on: ubuntu-latest
 
     steps:
@@ -19,9 +19,10 @@ jobs:
         uses: subosito/flutter-action@v2
         with:
           channel: stable
+          flutter-version: 3.50.1
 
-      - name: Upgrade dependencies
-        run: flutter pub upgrade
+      - name: Install dependencies
+        run: flutter pub get
 
       - name: Analyze code
         run: flutter analyze
