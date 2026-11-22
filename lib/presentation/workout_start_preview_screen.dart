@@ -31,6 +31,7 @@ class WorkoutStartPreviewScreen extends ConsumerStatefulWidget {
 class _WorkoutStartPreviewScreenState
     extends ConsumerState<WorkoutStartPreviewScreen> {
   late final List<Superset> _exercises;
+  final Map<String, LoggedSet> _lastSetByExerciseName = {};
 
   @override
   void initState() {
@@ -45,16 +46,15 @@ class _WorkoutStartPreviewScreenState
       }
     }
 
-    LoggedSet? lastSetFor(String exerciseName) {
-      if (lastSession == null) return null;
+    if (lastSession != null) {
       for (final s in lastSession.sets.reversed) {
-        if (s.exerciseName == exerciseName) return s;
+        _lastSetByExerciseName.putIfAbsent(s.exerciseName, () => s);
       }
-      return null;
     }
 
     // Deep-copy the workout's supersets so edits here don't mutate the
-    // cached Workout, prefilling reps/weight from the last session.
+    // cached Workout. Reps/weight always start from the template — the
+    // last session's actuals are shown alongside, not used to override.
     _exercises = widget.workout.exercises
         .map(
           (s) => Superset(
@@ -62,13 +62,12 @@ class _WorkoutStartPreviewScreenState
             sets: s.sets,
             restAfterSet: s.restAfterSet,
             exercises: s.exercises.map((e) {
-              final last = lastSetFor(e.name);
               return Exercise(
                 name: e.name,
-                reps: last?.actualReps ?? e.reps,
+                reps: e.reps,
                 sets: e.sets,
                 restTime: e.restTime,
-                weight: last?.actualWeight ?? e.weight,
+                weight: e.weight,
                 timedDuration: e.timedDuration,
                 category: e.category,
               );
@@ -103,6 +102,7 @@ class _WorkoutStartPreviewScreenState
           showSets: isSingle || isFirstInGroup,
           showRest: isSingle || isLastInGroup,
           isInGroup: !isSingle,
+          lastSet: _lastSetByExerciseName[item.exercise.name],
           onRepsChanged: (v) => setState(() => item.exercise.reps = v),
           onWeightChanged: (v) => setState(() => item.exercise.weight = v),
           onSetsChanged: (v) => setState(() => item.superset.sets = v),
@@ -202,6 +202,7 @@ class _PreviewExerciseCard extends StatelessWidget {
   final bool showSets;
   final bool showRest;
   final bool isInGroup;
+  final LoggedSet? lastSet;
   final ValueChanged<int> onRepsChanged;
   final ValueChanged<double> onWeightChanged;
   final ValueChanged<int> onSetsChanged;
@@ -214,16 +215,28 @@ class _PreviewExerciseCard extends StatelessWidget {
     required this.showSets,
     required this.showRest,
     required this.isInGroup,
+    this.lastSet,
     required this.onRepsChanged,
     required this.onWeightChanged,
     required this.onSetsChanged,
     required this.onRestChanged,
   });
 
+  String? get _lastTimeValue {
+    final last = lastSet;
+    if (last == null) return null;
+    if (exercise.timedDuration != null) {
+      final held = last.heldSeconds;
+      return held != null ? '${held}s' : null;
+    }
+    return '${last.actualReps} × ${fmtWeight(last.actualWeight)}kg';
+  }
+
   @override
   Widget build(BuildContext context) {
     final c = AppThemeData.of(context).c;
     final isTimed = exercise.timedDuration != null;
+    final lastTimeValue = _lastTimeValue;
 
     return Container(
       decoration: BoxDecoration(
@@ -316,6 +329,10 @@ class _PreviewExerciseCard extends StatelessWidget {
                 onTap: () =>
                     openWeightPicker(context, exercise.weight, onWeightChanged),
               ),
+              if (lastTimeValue != null) ...[
+                const SizedBox(width: 6),
+                _ReadOnlyField(label: 'LAST TIME', value: lastTimeValue),
+              ],
               if (showRest) ...[
                 const SizedBox(width: 6),
                 _TappableField(

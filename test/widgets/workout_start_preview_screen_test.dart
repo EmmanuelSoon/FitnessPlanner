@@ -4,8 +4,10 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:fitness_planner/data/session_repository.dart';
 import 'package:fitness_planner/domain/models/exercise.dart';
+import 'package:fitness_planner/domain/models/logged_set.dart';
 import 'package:fitness_planner/domain/models/superset.dart';
 import 'package:fitness_planner/domain/models/workout.dart';
+import 'package:fitness_planner/domain/models/workout_session.dart';
 import 'package:fitness_planner/presentation/workout_start_preview_screen.dart';
 import 'package:fitness_planner/providers/session_providers.dart';
 
@@ -32,22 +34,59 @@ void main() {
     await pumpApp(tester, WorkoutStartPreviewScreen(workout: workout), container: container);
   }
 
-  testWidgets('prefills reps/weight from the most recent prior session for this workout', (tester) async {
-    final workout = buildWorkout(id: 'w1');
-    // Prior session logged different reps/weight than the workout template.
-    fakeSessionRepo.store['ws-old'] = buildWorkoutSession(
+  testWidgets('shows the workout template values even when a prior session logged different actuals', (tester) async {
+    final workout = buildWorkout(id: 'w1'); // Bench Press: 8 reps @ 60kg in the template.
+    fakeSessionRepo.store['ws-old'] = WorkoutSession(
       id: 'ws-old',
       workoutId: 'w1',
+      workoutName: 'Push Day',
       startedAt: DateTime(2026, 1, 1),
+      endedAt: DateTime(2026, 1, 1, 1),
+      completed: true,
+      sets: [
+        LoggedSet(
+          exerciseName: 'Bench Press',
+          targetReps: 8,
+          targetWeight: 60,
+          actualReps: 6,
+          actualWeight: 65,
+          skipped: false,
+        ),
+      ],
     );
 
     await pumpPreview(tester, workout);
 
-    // buildWorkoutSession logs one set for 'Bench Press': 8 reps @ 60kg,
-    // matching the template here, so assert against the session's values
-    // explicitly (not just "unchanged from template") for a real prefill check.
+    // Editable fields default to the template, never the prior actuals.
     expect(find.text('8'), findsWidgets);
     expect(find.text('60 kg'), findsWidgets);
+  });
+
+  testWidgets('shows a LAST TIME column with the prior session\'s actual reps/weight', (tester) async {
+    final workout = buildWorkout(id: 'w1');
+    fakeSessionRepo.store['ws-old'] = WorkoutSession(
+      id: 'ws-old',
+      workoutId: 'w1',
+      workoutName: 'Push Day',
+      startedAt: DateTime(2026, 1, 1),
+      endedAt: DateTime(2026, 1, 1, 1),
+      completed: true,
+      sets: [
+        LoggedSet(
+          exerciseName: 'Bench Press',
+          targetReps: 8,
+          targetWeight: 60,
+          actualReps: 6,
+          actualWeight: 65,
+          skipped: false,
+        ),
+      ],
+    );
+
+    await pumpPreview(tester, workout);
+
+    expect(find.text('LAST TIME'), findsWidgets);
+    expect(find.text('6 × 65kg'), findsOneWidget);
   });
 
   testWidgets('falls back to the workout template when there is no prior session', (tester) async {
@@ -70,6 +109,7 @@ void main() {
 
     expect(find.text('5'), findsWidgets);
     expect(find.text('100 kg'), findsOneWidget);
+    expect(find.text('LAST TIME'), findsNothing);
   });
 
   testWidgets('starting the workout navigates into the session countdown', (tester) async {
