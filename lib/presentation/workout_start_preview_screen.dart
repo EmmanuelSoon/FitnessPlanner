@@ -15,9 +15,19 @@ import 'package:fitness_planner/theme/app_theme.dart';
 
 // ─── Preview a workout before starting it ─────────────────────────────────
 //
-// Prefills each exercise's reps/weight from the most recent prior session
-// for this workout (falling back to the workout's own template values),
-// and lets the user tweak them before starting the live session.
+// Exercises always start from the workout's own template reps/weight (so
+// edits made in Edit Workout are never lost), and the most recent prior
+// session's actuals for that exercise — if any — are shown alongside as a
+// read-only reference.
+
+// A skipped set has no real reps/weight/hold to show, and a non-timed set
+// logged with zero reps isn't a meaningful "last time" either — both should
+// be passed over in favor of an earlier real set for the same exercise.
+bool _isUsableLoggedSet(LoggedSet s) {
+  if (s.skipped) return false;
+  if (s.heldSeconds != null) return true;
+  return s.actualReps > 0;
+}
 
 class WorkoutStartPreviewScreen extends ConsumerStatefulWidget {
   final Workout workout;
@@ -31,6 +41,7 @@ class WorkoutStartPreviewScreen extends ConsumerStatefulWidget {
 class _WorkoutStartPreviewScreenState
     extends ConsumerState<WorkoutStartPreviewScreen> {
   late final List<Superset> _exercises;
+  final Map<String, LoggedSet> _lastSetByExerciseName = {};
 
   @override
   void initState() {
@@ -45,16 +56,16 @@ class _WorkoutStartPreviewScreenState
       }
     }
 
-    LoggedSet? lastSetFor(String exerciseName) {
-      if (lastSession == null) return null;
+    if (lastSession != null) {
       for (final s in lastSession.sets.reversed) {
-        if (s.exerciseName == exerciseName) return s;
+        if (!_isUsableLoggedSet(s)) continue;
+        _lastSetByExerciseName.putIfAbsent(s.exerciseName, () => s);
       }
-      return null;
     }
 
     // Deep-copy the workout's supersets so edits here don't mutate the
-    // cached Workout, prefilling reps/weight from the last session.
+    // cached Workout. Reps/weight always start from the template — the
+    // last session's actuals are shown alongside, not used to override.
     _exercises = widget.workout.exercises
         .map(
           (s) => Superset(
@@ -62,13 +73,12 @@ class _WorkoutStartPreviewScreenState
             sets: s.sets,
             restAfterSet: s.restAfterSet,
             exercises: s.exercises.map((e) {
-              final last = lastSetFor(e.name);
               return Exercise(
                 name: e.name,
-                reps: last?.actualReps ?? e.reps,
+                reps: e.reps,
                 sets: e.sets,
                 restTime: e.restTime,
-                weight: last?.actualWeight ?? e.weight,
+                weight: e.weight,
                 timedDuration: e.timedDuration,
                 category: e.category,
               );
@@ -103,6 +113,7 @@ class _WorkoutStartPreviewScreenState
           showSets: isSingle || isFirstInGroup,
           showRest: isSingle || isLastInGroup,
           isInGroup: !isSingle,
+          lastSet: _lastSetByExerciseName[item.exercise.name],
           onRepsChanged: (v) => setState(() => item.exercise.reps = v),
           onWeightChanged: (v) => setState(() => item.exercise.weight = v),
           onSetsChanged: (v) => setState(() => item.superset.sets = v),
@@ -202,6 +213,7 @@ class _PreviewExerciseCard extends StatelessWidget {
   final bool showSets;
   final bool showRest;
   final bool isInGroup;
+  final LoggedSet? lastSet;
   final ValueChanged<int> onRepsChanged;
   final ValueChanged<double> onWeightChanged;
   final ValueChanged<int> onSetsChanged;
@@ -214,16 +226,28 @@ class _PreviewExerciseCard extends StatelessWidget {
     required this.showSets,
     required this.showRest,
     required this.isInGroup,
+    this.lastSet,
     required this.onRepsChanged,
     required this.onWeightChanged,
     required this.onSetsChanged,
     required this.onRestChanged,
   });
 
+  String? get _lastTimeValue {
+    final last = lastSet;
+    if (last == null) return null;
+    if (exercise.timedDuration != null) {
+      final held = last.heldSeconds;
+      return held != null ? '${held}s' : null;
+    }
+    return '${last.actualReps} × ${fmtWeight(last.actualWeight)}kg';
+  }
+
   @override
   Widget build(BuildContext context) {
     final c = AppThemeData.of(context).c;
     final isTimed = exercise.timedDuration != null;
+    final lastTimeValue = _lastTimeValue;
 
     return Container(
       decoration: BoxDecoration(
@@ -331,6 +355,38 @@ class _PreviewExerciseCard extends StatelessWidget {
               ],
             ],
           ),
+          // A fixed-width column alongside SETS/REPS/WEIGHT/REST would clip
+          // or overflow on narrow phones once the value gets long (e.g.
+          // "12 × 102.5kg") — shown as its own full-width row instead.
+          if (lastTimeValue != null) ...[
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Text(
+                  'LAST TIME',
+                  style: bodyStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w500,
+                    color: c.inkMute,
+                    letterSpacing: 0.6,
+                  ),
+                ),
+                const SizedBox(width: 6),
+                Flexible(
+                  child: Text(
+                    lastTimeValue,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: bodyStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: c.inkDim,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
         ],
       ),
     );
